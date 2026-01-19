@@ -31,8 +31,9 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
   };
 
   const handlePredictClick = () => {
+    // Добавляем builder_id к URL
     const url = new URL(post.polymarket_url);
-    url.searchParams.set("builder_id", post.ref_code);
+    url.searchParams.set('builder_id', post.ref_code);
     window.open(url.toString(), "_blank");
   };
 

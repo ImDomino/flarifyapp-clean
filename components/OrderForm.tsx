@@ -17,16 +17,39 @@ export function OrderForm({ post }: OrderFormProps) {
   const handlePlaceOrder = async () => {
     setIsPlacing(true);
     
-    // Simulate order placement
-    setTimeout(() => {
+    try {
+      // Вызов API для размещения ордера
+      const response = await fetch('/api/polymarket/order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tokenId: post.polymarket_url, // В production это будет реальный token ID
+          side: selectedOutcome, // 'YES' или 'NO'
+          amount: parseFloat(amount),
+          price: selectedOutcome === 'YES' ? post.yes_price : post.no_price,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSuccess(true);
+        setTimeout(() => {
+          setSuccess(false);
+          setAmount("10");
+        }, 2000);
+      } else {
+        throw new Error(data.error || 'Failed to place order');
+      }
+    } catch (error) {
+      console.error('Order error:', error);
+      alert('Failed to place order. This is demo mode.');
       setIsPlacing(false);
-      setSuccess(true);
-      
-      setTimeout(() => {
-        setSuccess(false);
-        setAmount("10");
-      }, 2000);
-    }, 1500);
+    }
+    
+    setIsPlacing(false);
   };
 
   const formatPrice = (price: number | null) => {

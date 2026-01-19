@@ -95,40 +95,40 @@ export default function Home() {
       {/* Demo Notice */}
       <div className="text-center py-6 bg-gradient-to-r from-primary/10 to-green-500/10 rounded-lg border border-primary/30">
         <div className="flex items-center justify-center space-x-2 mb-2">
-          <span className="text-3xl">🚀</span>
+          <span className="text-3xl">💰</span>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-green-400 bg-clip-text text-transparent">
-            Flarifyapp Demo
+            Flarifyapp + Polymarket
           </h1>
         </div>
         <p className="text-muted-foreground mb-2">
-          <strong>Next.js 16.1.3</strong> + <strong>React 19</strong> + <strong>Turbopack</strong>
+          <strong>Builder Attribution</strong> интегрирован
         </p>
         <p className="text-sm text-muted-foreground">
-          Mock данные • Локальное тестирование • Все функции работают
+          Все ссылки содержат builder_id • Комиссии с торгов работают
         </p>
       </div>
 
       {/* Features List */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-card rounded-lg border border-border p-4">
-          <div className="text-2xl mb-2">⚡</div>
-          <h3 className="font-semibold mb-1">Next.js 16</h3>
-          <p className="text-sm text-muted-foreground">
-            Turbopack, async params, React 19
-          </p>
-        </div>
-        <div className="bg-card rounded-lg border border-border p-4">
           <div className="text-2xl mb-2">💰</div>
-          <h3 className="font-semibold mb-1">Polymarket UI</h3>
+          <h3 className="font-semibold mb-1">Builder Attribution</h3>
           <p className="text-sm text-muted-foreground">
-            YES/NO prices, trade interface
+            Earn commissions from user trades
           </p>
         </div>
         <div className="bg-card rounded-lg border border-border p-4">
-          <div className="text-2xl mb-2">🎨</div>
-          <h3 className="font-semibold mb-1">Dark Theme</h3>
+          <div className="text-2xl mb-2">🔗</div>
+          <h3 className="font-semibold mb-1">URL Tracking</h3>
           <p className="text-sm text-muted-foreground">
-            Crypto-style design, responsive
+            All links include builder_id
+          </p>
+        </div>
+        <div className="bg-card rounded-lg border border-border p-4">
+          <div className="text-2xl mb-2">📊</div>
+          <h3 className="font-semibold mb-1">Order API</h3>
+          <p className="text-sm text-muted-foreground">
+            Ready for real trading
           </p>
         </div>
       </div>
