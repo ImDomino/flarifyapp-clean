@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { TrendingUp, TrendingDown, Loader2, CheckCircle } from "lucide-react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { PostWithUser } from "@/lib/types";
 
 interface OrderFormProps {
@@ -13,11 +14,21 @@ export function OrderForm({ post }: OrderFormProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<"YES" | "NO">("YES");
   const [isPlacing, setIsPlacing] = useState(false);
   const [success, setSuccess] = useState(false);
+  
+  const { login, authenticated } = usePrivy();
+  const { wallets } = useWallets();
 
   const handlePlaceOrder = async () => {
+    if (!authenticated) {
+      login();
+      return;
+    }
+
     setIsPlacing(true);
     
     try {
+      const wallet = wallets[0];
+      
       // Вызов API для размещения ордера
       const response = await fetch('/api/polymarket/order', {
         method: 'POST',
@@ -25,10 +36,11 @@ export function OrderForm({ post }: OrderFormProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          tokenId: post.polymarket_url, // В production это будет реальный token ID
-          side: selectedOutcome, // 'YES' или 'NO'
+          tokenId: post.polymarket_url,
+          side: selectedOutcome,
           amount: parseFloat(amount),
           price: selectedOutcome === 'YES' ? post.yes_price : post.no_price,
+          userAddress: wallet?.address,
         }),
       });
 
@@ -46,10 +58,9 @@ export function OrderForm({ post }: OrderFormProps) {
     } catch (error) {
       console.error('Order error:', error);
       alert('Failed to place order. This is demo mode.');
+    } finally {
       setIsPlacing(false);
     }
-    
-    setIsPlacing(false);
   };
 
   const formatPrice = (price: number | null) => {
@@ -61,7 +72,7 @@ export function OrderForm({ post }: OrderFormProps) {
     <div className="bg-secondary/30 rounded-lg p-4 border border-border space-y-4">
       <h3 className="font-semibold text-foreground flex items-center space-x-2">
         <TrendingUp className="h-5 w-5 text-primary" />
-        <span>Place Your Bet (Demo)</span>
+        <span>Place Your Bet {!authenticated && '(Login Required)'}</span>
       </h3>
 
       {/* Outcome Selection */}
@@ -142,7 +153,7 @@ export function OrderForm({ post }: OrderFormProps) {
           <div className="text-sm text-primary">
             <p className="font-semibold">Demo order placed! 🎉</p>
             <p className="text-xs mt-1 opacity-75">
-              In production, this would execute on Polymarket
+              Wallet: {wallets[0]?.address?.slice(0, 6)}...{wallets[0]?.address?.slice(-4)}
             </p>
           </div>
         </div>
@@ -163,14 +174,20 @@ export function OrderForm({ post }: OrderFormProps) {
             <Loader2 className="h-5 w-5 animate-spin" />
             <span>Placing Order...</span>
           </>
-        ) : (
+        ) : authenticated ? (
           <span>Place ${amount} {selectedOutcome} Bet</span>
+        ) : (
+          <span>Sign in to Place Bet</span>
         )}
       </button>
 
       {/* Demo Notice */}
       <div className="text-xs text-center text-muted-foreground border-t border-border pt-3">
-        Demo Mode • Connect wallet + add API keys for production
+        {authenticated ? (
+          <>Embedded Wallet Active • Demo Mode</>
+        ) : (
+          <>Sign in with Google to get embedded wallet</>
+        )}
       </div>
     </div>
   );

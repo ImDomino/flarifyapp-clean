@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@polymarket/clob-client": "^5.2.1",
+    "@polymarket/clob-client": "^4.22.8",
     "@privy-io/react-auth": "^3.11.0",
     "@privy-io/wagmi": "^3.0.0",
     "@supabase/ssr": "^0.8.0",
