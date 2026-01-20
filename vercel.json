@@ -5,9 +5,8 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "NEXT_PUBLIC_SITE_URL": "@site_url",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://ugeeaujzpkuinxpqgvbg.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnZWVhdWp6cGt1aW54cHFndmJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2NDY0OTEsImV4cCI6MjA4NDIyMjQ5MX0.Uj4SHWYCDx_FRhpqKIuZlTzH1EgGp5Lng35rJOucA3Q",
     "NEXT_PUBLIC_POLYMARKET_BUILDER_ID": "FLARIFYAPP"
   }
 }
