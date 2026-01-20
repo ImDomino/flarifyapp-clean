@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@polymarket/clob-client": "^5.2.1",
+    "@privy-io/react-auth": "^3.11.0",
+    "@privy-io/wagmi": "^3.0.0",
     "@supabase/ssr": "^0.8.0",
     "clsx": "^2.1.0",
     "date-fns": "^3.0.0",
