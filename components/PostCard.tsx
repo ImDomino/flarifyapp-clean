@@ -9,33 +9,57 @@ import { OrderForm } from "./OrderForm";
 
 interface PostCardProps {
   post: PostWithUser;
-  currentUserId?: string;
 }
 
-export function PostCard({ post, currentUserId }: PostCardProps) {
-  const [likes, setLikes] = useState(post.likes);
-  const [hasLiked, setHasLiked] = useState(post.hasLiked || false);
+export function PostCard({ post }: PostCardProps) {
+  const [likes, setLikes] = useState(post.likes_count || 0);
+  const [hasLiked, setHasLiked] = useState(post.user_has_liked || false);
   const [showOrderForm, setShowOrderForm] = useState(false);
   const router = useRouter();
 
-  const handleLike = () => {
-    if (!currentUserId) return;
-    
-    if (hasLiked) {
-      setLikes(likes - 1);
-      setHasLiked(false);
-    } else {
-      setLikes(likes + 1);
-      setHasLiked(true);
+  const handleLike = async () => {
+    try {
+      const response = await fetch('/api/likes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: post.id }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        if (data.action === 'liked') {
+          setLikes(likes + 1);
+          setHasLiked(true);
+        } else {
+          setLikes(likes - 1);
+          setHasLiked(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
     }
   };
 
-  const handlePredictClick = () => {
+  const handlePredictClick = async () => {
+    // Трекаем клик
+    try {
+      await fetch('/api/clicks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: post.id }),
+      });
+    } catch (error) {
+      console.error('Error tracking click:', error);
+    }
+
     // Добавляем builder_id к URL
     const url = new URL(post.polymarket_url);
     url.searchParams.set('builder_id', post.ref_code);
     window.open(url.toString(), "_blank");
   };
+
+  const username = post.profiles.username || post.profiles.email.split('@')[0];
 
   return (
     <div className="bg-card rounded-lg border border-border p-6 card-hover">
@@ -43,11 +67,11 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
       <div className="flex items-center space-x-3 mb-4">
         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
           <span className="text-primary font-semibold">
-            {post.users.username[0].toUpperCase()}
+            {username[0].toUpperCase()}
           </span>
         </div>
         <div>
-          <p className="font-semibold text-foreground">{post.users.username}</p>
+          <p className="font-semibold text-foreground">{username}</p>
           <p className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
           </p>
@@ -59,14 +83,13 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
       <p className="text-muted-foreground mb-4">{post.content}</p>
 
       {/* Polymarket Embed */}
-      {post.market_title && (
-        <div className="bg-secondary/50 rounded-lg p-4 mb-4 border border-border">
-          <div className="flex items-start justify-between mb-3">
-            <h4 className="font-semibold text-sm text-foreground flex-1">
-              {post.market_title}
-            </h4>
-            <ExternalLink className="h-4 w-4 text-muted-foreground ml-2" />
-          </div>
+      <div className="bg-secondary/50 rounded-lg p-4 mb-4 border border-border">
+        <div className="flex items-start justify-between mb-3 cursor-pointer" onClick={handlePredictClick}>
+          <h4 className="font-semibold text-sm text-foreground flex-1">
+            Market Prediction
+          </h4>
+          <ExternalLink className="h-4 w-4 text-muted-foreground ml-2" />
+        </div>
           
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="bg-green-500/10 rounded p-3 border border-green-500/20">
@@ -118,18 +141,16 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
             View on Polymarket →
           </button>
         </div>
-      )}
 
       {/* Actions */}
       <div className="flex items-center space-x-4 pt-4 border-t border-border">
         <button
           onClick={handleLike}
-          disabled={!currentUserId}
           className={`flex items-center space-x-2 transition-colors ${
             hasLiked
               ? "text-red-500"
               : "text-muted-foreground hover:text-red-500"
-          } ${!currentUserId && "opacity-50 cursor-not-allowed"}`}
+          }`}
         >
           <Heart className={`h-5 w-5 ${hasLiked && "fill-current"}`} />
           <span className="text-sm font-medium">{likes}</span>
@@ -140,7 +161,7 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
           className="flex items-center space-x-2 text-muted-foreground hover:text-foreground transition-colors"
         >
           <MessageCircle className="h-5 w-5" />
-          <span className="text-sm font-medium">{post.comments_count}</span>
+          <span className="text-sm font-medium">{post.comments_count || 0}</span>
         </button>
       </div>
     </div>
