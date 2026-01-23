@@ -31,7 +31,6 @@ export default function ProfilePage() {
       const response = await fetch(`/api/posts?page=1&limit=100`);
       const data = await response.json();
 
-      // Фильтруем только посты текущего юзера
       const userPosts = data.posts.filter((post: PostWithUser) => post.user_id === user.id);
       setPosts(userPosts);
     } catch (error) {
@@ -65,7 +64,6 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Profile Header */}
       <div className="bg-card rounded-lg border border-border p-6">
         <div className="flex items-start space-x-4">
           <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
@@ -93,7 +91,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* User Posts */}
       <div>
         <h2 className="text-xl font-bold mb-4">My Posts</h2>
         

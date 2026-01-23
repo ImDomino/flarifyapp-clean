@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/client';
 
-// Получить комментарии поста
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const post_id = searchParams.get('post_id');
 
@@ -14,6 +12,8 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const supabase = createClient();
 
     const { data: comments, error } = await supabase
       .from('comments')
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    return NextResponse.json(comments);
+    return NextResponse.json({ comments: comments || [] });
   } catch (error) {
     console.error('Error fetching comments:', error);
     return NextResponse.json(
@@ -41,46 +41,27 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Создать комментарий
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    
-    // Проверяем авторизацию
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const { post_id, user_id, content } = await request.json();
 
-    const { post_id, content } = await request.json();
-
-    if (!post_id || !content) {
+    if (!post_id || !user_id || !content) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
+    const supabase = createClient();
+
     const { data: comment, error } = await supabase
       .from('comments')
       .insert({
         post_id,
-        user_id: user.id,
+        user_id,
         content,
       })
-      .select(`
-        *,
-        profiles (
-          id,
-          email,
-          username,
-          avatar_url
-        )
-      `)
+      .select()
       .single();
 
     if (error) throw error;
