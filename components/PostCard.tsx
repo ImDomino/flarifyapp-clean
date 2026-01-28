@@ -6,6 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { PostWithUser } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
+import Image from "next/image";
 
 interface PostCardProps {
   post: PostWithUser;
@@ -50,44 +51,93 @@ export function PostCard({ post }: PostCardProps) {
   };
 
   const username = post.profiles?.username || post.profiles?.email?.split('@')[0] || 'Unknown';
+  const handle = '@' + username.toLowerCase().replace(/\s+/g, '');
+  const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true }).replace('about ', '');
 
   return (
-    <div className="bg-card rounded-lg border border-border p-6 card-hover">
-      <div className="flex items-center space-x-3 mb-4">
-        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-          <span className="text-primary font-semibold">
+    <div className="p-6 bg-card hover:bg-accent/30 transition-colors cursor-pointer" onClick={() => router.push(`/post/${post.id}`)}>
+      {/* Header */}
+      <div className="flex items-start gap-3 mb-3">
+        {/* Avatar */}
+        <div 
+          className="w-[60px] h-[60px] rounded-full bg-[#C2C2C2] flex items-center justify-center flex-shrink-0"
+          style={{ background: '#C2C2C2' }}
+        >
+          <span className="text-xl font-bold text-white">
             {username[0].toUpperCase()}
           </span>
         </div>
-        <div>
-          <p className="font-semibold text-foreground">{username}</p>
-          <p className="text-xs text-muted-foreground">
-            {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-          </p>
+
+        {/* User Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span 
+              className="font-bold truncate"
+              style={{ fontSize: '20px', letterSpacing: '-1px', color: '#140106' }}
+            >
+              {username}
+            </span>
+            <span className="text-xs truncate" style={{ letterSpacing: '0px', color: '#989898' }}>
+              {handle}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-1 h-1 rounded-full bg-[#989898]"></span>
+            <span className="text-sm whitespace-nowrap" style={{ letterSpacing: '0px', color: '#989898' }}>
+              {timeAgo.replace(' ago', '')}
+            </span>
+          </div>
         </div>
       </div>
 
-      <p className="text-foreground mb-4 whitespace-pre-wrap">{post.content}</p>
+      {/* Content */}
+      <div className="mb-3 pl-[72px]">
+        <p 
+          className="whitespace-pre-wrap break-words mb-3"
+          style={{ fontSize: '20px', lineHeight: '24px', letterSpacing: '-1px', color: '#140106' }}
+        >
+          {post.content}
+        </p>
 
-      <div className="flex items-center space-x-4 pt-4 border-t border-border">
+        {/* Image (if exists) */}
+        {post.image_url && (
+          <div className="relative w-full rounded-[30px] overflow-hidden border border-border mt-3" style={{ maxHeight: '500px' }}>
+            <Image
+              src={post.image_url}
+              alt="Post image"
+              width={690}
+              height={500}
+              className="w-full h-auto object-cover"
+              unoptimized
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-8 pl-[72px]" onClick={(e) => e.stopPropagation()}>
+        {/* Like */}
         <button
           onClick={handleLike}
-          className={`flex items-center space-x-2 transition-colors ${
-            hasLiked
-              ? "text-red-500"
-              : "text-muted-foreground hover:text-red-500"
+          className={`flex items-center gap-2 group transition-colors ${
+            hasLiked ? "text-red-500" : "text-[#989898] hover:text-red-500"
           }`}
         >
-          <Heart className={`h-5 w-5 ${hasLiked && "fill-current"}`} />
-          <span className="text-sm font-medium">{likes}</span>
+          <Heart className={`w-5 h-5 ${hasLiked && "fill-current"} transition-all group-hover:scale-110`} />
+          <span className="font-semibold text-xs" style={{ letterSpacing: '-1px' }}>
+            {likes > 0 ? (likes >= 1000 ? `${(likes / 1000).toFixed(1)}k` : likes) : ''}
+          </span>
         </button>
 
+        {/* Comments */}
         <button
           onClick={() => router.push(`/post/${post.id}`)}
-          className="flex items-center space-x-2 text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-2 text-[#989898] hover:text-primary group transition-colors"
         >
-          <MessageCircle className="h-5 w-5" />
-          <span className="text-sm font-medium">{post.comments_count || 0}</span>
+          <MessageCircle className="w-5 h-5 group-hover:scale-110 transition-all" />
+          <span className="font-semibold text-xs" style={{ letterSpacing: '-1px' }}>
+            {post.comments_count > 0 ? (post.comments_count >= 1000 ? `${(post.comments_count / 1000).toFixed(1)}k` : post.comments_count) : ''}
+          </span>
         </button>
       </div>
     </div>

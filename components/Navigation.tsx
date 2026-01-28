@@ -1,80 +1,73 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Home, PlusCircle, User, BarChart3, Wallet, LogOut } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Home, Briefcase, Settings, MessageCircle } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 
 export function Navigation() {
   const pathname = usePathname();
-  const { login, logout, authenticated, user } = usePrivy();
+  const router = useRouter();
+  const { authenticated, user } = usePrivy();
 
   const navItems = [
-    { href: "/", icon: Home, label: "Feed" },
-    { href: "/create", icon: PlusCircle, label: "Create" },
-    { href: "/profile", icon: User, label: "Profile" },
-    { href: "/admin", icon: BarChart3, label: "Admin" },
+    { href: "/", icon: Home, label: "Home" },
+    { href: "/create", icon: MessageCircle, label: "Post" },
+    { href: "/profile", icon: Briefcase, label: "Profile" },
+    { href: "/admin", icon: Settings, label: "Settings" },
   ];
 
+  const username = user?.google?.name || user?.email?.address?.split('@')[0] || 'Unknown';
+  const handle = '@' + username.toLowerCase().replace(/\s+/g, '');
+
   return (
-    <nav className="border-b border-border bg-card">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">F</span>
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-primary to-green-400 bg-clip-text text-transparent">
-              Flarifyapp
-            </span>
-          </Link>
-
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                    pathname === item.href
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                  }`}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span className="hidden sm:inline">{item.label}</span>
-                </Link>
-              ))}
-            </div>
-
-            {/* Auth Button */}
-            {authenticated ? (
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center space-x-2 px-4 py-2 bg-primary/10 rounded-lg border border-primary/20">
-                  <Wallet className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium text-foreground hidden sm:inline">
-                    {user?.google?.email?.split('@')[0] || 'User'}
-                  </span>
-                </div>
-                <button
-                  onClick={logout}
-                  className="flex items-center space-x-2 px-4 py-2 bg-red-500/10 rounded-lg border border-red-500/20 hover:bg-red-500/20 transition-colors"
-                  title="Logout"
-                >
-                  <LogOut className="h-4 w-4 text-red-400" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={login}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
+    <>
+      {/* Sidebar Navigation */}
+      <div className="fixed left-[17.5px] top-1/2 -translate-y-1/2 z-50">
+        <div className="w-20 h-[350px] bg-card border border-border rounded-[29px] card-shadow flex flex-col items-center justify-center gap-8 py-8">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center justify-center transition-all hover:scale-105 ${
+                  isActive
+                    ? "text-[#140106]"
+                    : "text-[#C2C2C2] hover:text-[#140106]"
+                }`}
+                title={item.label}
               >
-                Sign in with Google
-              </button>
-            )}
-          </div>
+                <item.icon className="w-10 h-10" strokeWidth={isActive ? 2 : 2} />
+              </Link>
+            );
+          })}
         </div>
       </div>
-    </nav>
+
+      {/* User Profile Card (bottom left) */}
+      {authenticated && (
+        <div className="fixed left-[17.5px] bottom-8 z-50">
+          <button
+            onClick={() => router.push('/profile')}
+            className="bg-card border border-border rounded-[20px] card-shadow p-4 flex items-center gap-3 hover:bg-accent/30 transition-all w-[200px]"
+          >
+            <div className="w-[50px] h-[50px] rounded-full bg-[#C2C2C2] flex items-center justify-center flex-shrink-0">
+              <span className="text-lg font-bold text-white">
+                {username[0].toUpperCase()}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="font-bold text-sm truncate" style={{ color: '#140106', letterSpacing: '-1px' }}>
+                {username}
+              </p>
+              <p className="text-xs truncate" style={{ color: '#989898', letterSpacing: '0px' }}>
+                {handle}
+              </p>
+            </div>
+          </button>
+        </div>
+      )}
+    </>
   );
 }

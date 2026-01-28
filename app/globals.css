@@ -1,29 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 142 76% 36%;
+    /* New Light Theme */
+    --background: 0 0% 94%;          /* #EFEEF1 */
+    --foreground: 270 94% 4%;        /* #140106 */
+    --card: 330 33% 98%;             /* #FBF7F8 */
+    --card-foreground: 270 94% 4%;   /* #140106 */
+    --popover: 330 33% 98%;
+    --popover-foreground: 270 94% 4%;
+    --primary: 142 76% 36%;          /* Keep green */
     --primary-foreground: 210 40% 98%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --secondary: 0 0% 76%;           /* #C2C2C2 */
+    --secondary-foreground: 270 94% 4%;
+    --muted: 0 0% 60%;               /* #989898 */
+    --muted-foreground: 0 0% 60%;    /* #989898 */
+    --accent: 0 0% 94%;
+    --accent-foreground: 270 94% 4%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 0 0% 76%;              /* #C2C2C2 */
+    --input: 0 0% 76%;
     --ring: 142 76% 36%;
-    --radius: 0.5rem;
+    --radius: 1.875rem;              /* 30px */
   }
 }
 
@@ -31,26 +34,46 @@
   * {
     @apply border-border;
   }
+  
   body {
     @apply bg-background text-foreground;
+    font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    letter-spacing: -0.05em;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Nunito Sans', sans-serif;
+    letter-spacing: -0.05em;
   }
 }
 
 @layer utilities {
-  .crypto-gradient {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  }
-  
-  .glow-effect {
-    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  .card-shadow {
+    box-shadow: 0px 0px 20px 1px rgba(0, 0, 0, 0.05);
   }
   
   .card-hover {
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
   }
   
   .card-hover:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0px 2px 24px 2px rgba(0, 0, 0, 0.08);
+  }
+  
+  .text-primary-dark {
+    color: #140106;
+  }
+  
+  .text-secondary-gray {
+    color: #989898;
+  }
+  
+  .bg-card-light {
+    background: #FBF7F8;
+  }
+  
+  .border-gray {
+    border-color: #C2C2C2;
   }
 }

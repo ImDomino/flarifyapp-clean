@@ -43,14 +43,17 @@ export default function ProfilePage() {
   if (!authenticated) {
     return (
       <div className="max-w-2xl mx-auto text-center py-12">
-        <div className="bg-card rounded-lg border border-border p-8">
-          <h1 className="text-2xl font-bold mb-4">Sign in to View Profile</h1>
-          <p className="text-muted-foreground mb-6">
+        <div className="bg-card rounded-lg border border-border p-8 card-shadow">
+          <h1 className="text-2xl font-bold mb-4" style={{ color: '#140106', letterSpacing: '-1px' }}>
+            Sign in to View Profile
+          </h1>
+          <p className="text-muted-foreground mb-6" style={{ letterSpacing: '-1px' }}>
             You need to be signed in to view your profile
           </p>
           <button
             onClick={login}
-            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
+            className="px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors font-bold"
+            style={{ fontSize: '20px', letterSpacing: '-1px' }}
           >
             Sign in with Google
           </button>
@@ -63,20 +66,20 @@ export default function ProfilePage() {
   const email = user?.google?.email || user?.email?.address || '';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-card rounded-lg border border-border p-6">
+    <div className="w-full space-y-6">
+      <div className="bg-card rounded-[30px] border border-border p-6 card-shadow">
         <div className="flex items-start space-x-4">
-          <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-3xl font-bold text-primary">
+          <div className="h-20 w-20 rounded-full bg-[#C2C2C2] flex items-center justify-center">
+            <span className="text-3xl font-bold text-white">
               {username[0].toUpperCase()}
             </span>
           </div>
           
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-foreground mb-1">
+            <h1 className="text-2xl font-bold mb-1" style={{ color: '#140106', letterSpacing: '-1px' }}>
               {username}
             </h1>
-            <p className="text-muted-foreground mb-4">{email}</p>
+            <p className="text-muted-foreground mb-4" style={{ letterSpacing: '-1px' }}>{email}</p>
             
             <div className="bg-secondary/50 rounded-lg p-4 border border-border inline-block">
               <div className="flex items-center space-x-2 mb-1">
@@ -92,26 +95,29 @@ export default function ProfilePage() {
       </div>
 
       <div>
-        <h2 className="text-xl font-bold mb-4">My Posts</h2>
+        <h2 className="text-xl font-bold mb-4" style={{ color: '#140106', letterSpacing: '-1px' }}>
+          My Posts
+        </h2>
         
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : posts.length === 0 ? (
-          <div className="text-center py-12 bg-card rounded-lg border border-border">
-            <p className="text-muted-foreground mb-4">
+          <div className="text-center py-12 bg-card rounded-[30px] border border-border card-shadow">
+            <p className="text-muted-foreground mb-4" style={{ fontSize: '20px', letterSpacing: '-1px' }}>
               You haven't created any posts yet
             </p>
             <button
               onClick={() => router.push('/create')}
-              className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
+              className="px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors font-bold"
+              style={{ fontSize: '20px', letterSpacing: '-1px' }}
             >
               Create Your First Post
             </button>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="rounded-[30px] border border-border card-shadow divide-y divide-border overflow-hidden">
             {posts.map((post) => (
               <PostCard key={post.id} post={post} />
             ))}

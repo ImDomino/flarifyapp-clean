@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PostCard } from "@/components/PostCard";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import type { PostWithUser } from "@/lib/types";
 
 export default function Home() {
@@ -12,7 +12,6 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  // Загрузить посты
   const loadPosts = async (pageNum: number, append = false) => {
     try {
       if (pageNum === 1) {
@@ -39,12 +38,10 @@ export default function Home() {
     }
   };
 
-  // Загрузить первую страницу
   useEffect(() => {
     loadPosts(1);
   }, []);
 
-  // Load More
   const handleLoadMore = () => {
     const nextPage = page + 1;
     setPage(nextPage);
@@ -60,95 +57,93 @@ export default function Home() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="text-center py-6 bg-gradient-to-r from-primary/10 to-green-500/10 rounded-lg border border-primary/30">
-        <div className="flex items-center justify-center space-x-2 mb-2">
-          <span className="text-3xl">💰</span>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-green-400 bg-clip-text text-transparent">
-            Flarifyapp
-          </h1>
-        </div>
-        <p className="text-muted-foreground mb-2">
-          <strong>Prediction Markets</strong> • <strong>Social Network</strong>
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Builder Attribution • Embedded Wallets • Real Database
-        </p>
-      </div>
-
-      {/* Features */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="text-2xl mb-2">💰</div>
-          <h3 className="font-semibold mb-1">Earn Commissions</h3>
-          <p className="text-sm text-muted-foreground">
-            Builder Attribution on all trades
-          </p>
-        </div>
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="text-2xl mb-2">🔐</div>
-          <h3 className="font-semibold mb-1">Embedded Wallets</h3>
-          <p className="text-sm text-muted-foreground">
-            Google login, instant wallet
-          </p>
-        </div>
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="text-2xl mb-2">📊</div>
-          <h3 className="font-semibold mb-1">Real Database</h3>
-          <p className="text-sm text-muted-foreground">
-            Posts, likes, comments saved
-          </p>
+    <div className="w-full">
+      {/* Search Bar */}
+      <div className="mb-4">
+        <div className="relative bg-card border border-border rounded-[30px] card-shadow">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search..."
+            className="w-full pl-14 pr-4 py-4 bg-transparent border-none rounded-[30px] focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground placeholder:text-muted-foreground"
+            style={{ fontSize: '20px', letterSpacing: '-1px' }}
+          />
         </div>
       </div>
 
-      {/* Posts */}
-      <div className="space-y-6">
-        {posts.length === 0 ? (
-          <div className="text-center py-12 bg-card rounded-lg border border-border">
-            <p className="text-muted-foreground mb-4">
-              No posts yet. Be the first to create one!
-            </p>
-            <a
-              href="/create"
-              className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
-            >
-              Create First Post
-            </a>
-          </div>
-        ) : (
-          <>
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))}
+      {/* Posts Container */}
+      <div className="bg-card border border-border rounded-[30px] card-shadow overflow-hidden">
+        {/* Create Post Header */}
+        <div className="border-b border-border p-6 flex items-center justify-between bg-card">
+          <input
+            type="text"
+            placeholder="What's the latest?"
+            readOnly
+            onClick={() => window.location.href = '/create'}
+            className="flex-1 bg-transparent border-none focus:outline-none text-muted-foreground cursor-pointer"
+            style={{ fontSize: '20px', letterSpacing: '-1px' }}
+          />
+          <button
+            onClick={() => window.location.href = '/create'}
+            className="px-8 py-3 bg-card border border-border rounded-xl font-bold text-foreground hover:bg-accent transition-colors"
+            style={{ fontSize: '20px', letterSpacing: '-1px' }}
+          >
+            Post
+          </button>
+        </div>
 
-            {/* Load More Button */}
-            {hasMore && (
-              <div className="text-center py-4">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={isLoadingMore}
-                  className="px-6 py-3 bg-card border border-border rounded-lg hover:bg-accent transition-colors font-medium disabled:opacity-50"
-                >
-                  {isLoadingMore ? (
-                    <span className="flex items-center">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Loading...
-                    </span>
-                  ) : (
-                    "Load More Posts"
-                  )}
-                </button>
-              </div>
-            )}
+        {/* Posts List */}
+        <div className="divide-y divide-border">
+          {posts.length === 0 ? (
+            <div className="text-center py-16 px-6">
+              <p className="text-muted-foreground mb-4" style={{ fontSize: '20px', letterSpacing: '-1px' }}>
+                No posts yet. Be the first to create one!
+              </p>
+              <button
+                onClick={() => window.location.href = '/create'}
+                className="px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors font-bold"
+                style={{ fontSize: '20px', letterSpacing: '-1px' }}
+              >
+                Create First Post
+              </button>
+            </div>
+          ) : (
+            <>
+              {posts.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
 
-            {!hasMore && posts.length > 0 && (
-              <div className="text-center py-4 text-sm text-muted-foreground">
-                That's all for now! 🎉
-              </div>
-            )}
-          </>
-        )}
+              {/* Load More */}
+              {hasMore && (
+                <div className="text-center py-6">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={isLoadingMore}
+                    className="px-6 py-3 bg-card border border-border rounded-xl hover:bg-accent transition-colors font-semibold disabled:opacity-50"
+                    style={{ fontSize: '20px', letterSpacing: '-1px', color: '#140106' }}
+                  >
+                    {isLoadingMore ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading...
+                      </span>
+                    ) : (
+                      "Load More Posts"
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {!hasMore && posts.length > 0 && (
+                <div className="text-center py-6">
+                  <p className="text-muted-foreground text-sm" style={{ letterSpacing: '-1px' }}>
+                    That's all for now! 🎉
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

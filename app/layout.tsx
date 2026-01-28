@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { Navigation } from "@/components/Navigation";
 import { Providers } from "./providers";
 
-const inter = Inter({ subsets: ["latin"] });
-
 export const metadata: Metadata = {
-  title: "Flarifyapp - Clean Framework",
-  description: "Next.js 16 + React 19 - Clean starter",
+  title: "Flarifyapp - Social Prediction Market",
+  description: "The social network for Polymarket predictors",
 };
 
 export default function RootLayout({
@@ -17,12 +14,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={inter.className}>
+    <html lang="en">
+      <body>
         <Providers>
           <div className="min-h-screen bg-background">
             <Navigation />
-            <main className="container mx-auto px-4 py-8">
+            <main className="max-w-[810px] mx-auto py-8 px-4">
               {children}
             </main>
           </div>
