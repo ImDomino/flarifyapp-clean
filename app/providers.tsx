@@ -1,6 +1,6 @@
 'use client';
 
-import { PrivyProvider } from '@privy-io/react-auth';
+import { PrivyProvider, type WalletWithMetadata } from '@privy-io/react-auth';
 import { useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { createClient } from '@/lib/supabase/client';
@@ -14,43 +14,53 @@ function ProfileSync({ children }: { children: React.ReactNode }) {
     const syncProfile = async () => {
       try {
         const supabase = createClient();
-        
-        const email = user.google?.email || user.email?.address || '';
-        const username = user.google?.name || email.split('@')[0] || `User${user.id.slice(-6)}`;
-        
-        // Ждём пока wallet создастся (может занять время)
-        let walletAddress = null;
-        
-        // Пробуем получить wallet address
+
+        const email =
+          user.google?.email || user.email?.address || '';
+        const username =
+          user.google?.name ||
+          email.split('@')[0] ||
+          `User${user.id.slice(-6)}`;
+
+        let walletAddress: string | null = null;
+
+        // 1) Пробуем основной wallet, если SDK его даёт
         if (user.wallet?.address) {
           walletAddress = user.wallet.address;
-        } else if (user.linkedAccounts) {
-          // Ищем embedded wallet в linked accounts
+        }
+
+        // 2) Ищем embedded wallet среди linkedAccounts с type‑guard’ом
+        if (!walletAddress && user.linkedAccounts) {
           const embeddedWallet = user.linkedAccounts.find(
-            (account: any) => account.type === 'wallet' && account.walletClient === 'privy'
+            (account): account is WalletWithMetadata =>
+              account.type === 'wallet' &&
+              account.walletClientType === 'privy'
           );
-          if (embeddedWallet?.address) {
+
+          if (embeddedWallet) {
             walletAddress = embeddedWallet.address;
           }
         }
 
-        console.log('🔄 Syncing profile:', { 
-          id: user.id, 
-          email, 
+        console.log('🔄 Syncing profile:', {
+          id: user.id,
+          email,
           username,
           wallet_address: walletAddress,
-          linkedAccounts: user.linkedAccounts?.length || 0
+          linkedAccounts: user.linkedAccounts?.length || 0,
         });
 
-        // Upsert профиль
-        const { error } = await supabase.from('profiles').upsert({
-          id: user.id,
-          email: email,
-          username: username,
-          wallet_address: walletAddress,
-        }, {
-          onConflict: 'id'
-        });
+        const { error } = await supabase.from('profiles').upsert(
+          {
+            id: user.id,
+            email,
+            username,
+            wallet_address: walletAddress,
+          },
+          {
+            onConflict: 'id',
+          }
+        );
 
         if (error) {
           console.error('❌ Error syncing profile:', error);
@@ -71,16 +81,18 @@ function ProfileSync({ children }: { children: React.ReactNode }) {
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
-      config={{
+        appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
+        config={{
         loginMethods: ['google'],
         appearance: {
-          theme: 'dark',
-          accentColor: '#22c55e',
+        theme: 'dark',
+        accentColor: '#22c55e',
         },
         embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
-          noPromptOnSignature: true,
+            ethereum: {
+              createOnLogin: 'users-without-wallets',
+            },
+      // showWalletUIs: false, // если нужно отключить встроенные UI
         },
       }}
     >

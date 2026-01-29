@@ -25,23 +25,23 @@ export function CommentSection({ postId, comments, currentUserId }: CommentSecti
     // Simulate comment submission
     setTimeout(() => {
       const mockNewComment: CommentWithUser = {
-        id: `c-${Date.now()}`,
-        post_id: postId,
-        user_id: currentUserId,
-        content: newComment.trim(),
+      id: `c-${Date.now()}`,
+      post_id: postId,
+      user_id: currentUserId,
+      content: newComment.trim(),
+      created_at: new Date().toISOString(),
+      profiles: {
+        id: currentUserId,
+        email: "demo@flarifyapp.com",
+        username: "DemoUser",
+        avatar_url: null,
+        wallet_address: null,
         created_at: new Date().toISOString(),
-        users: {
-          id: currentUserId,
-          email: "demo@flarifyapp.com",
-          username: "DemoUser",
-          avatar_url: null,
-          posts_count: 5,
-          clicks_count: 127,
-          wallet: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      };
+        updated_at: new Date().toISOString(),
+      },
+    };
+
+
 
       setLocalComments([...localComments, mockNewComment]);
       setNewComment("");
@@ -102,12 +102,12 @@ export function CommentSection({ postId, comments, currentUserId }: CommentSecti
               <div className="flex items-center space-x-3 mb-2">
                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="text-primary font-semibold text-sm">
-                    {comment.users.username[0].toUpperCase()}
+                    {comment.profiles.username[0].toUpperCase()}
                   </span>
                 </div>
                 <div>
                   <p className="font-semibold text-sm text-foreground">
-                    {comment.users.username}
+                    {comment.profiles.username}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(comment.created_at), {
