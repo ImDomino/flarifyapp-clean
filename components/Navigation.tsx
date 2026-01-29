@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Briefcase, Settings, MessageCircle } from "lucide-react";
+import { Home, Briefcase, Settings, MessageCircle, LogOut } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 
 export function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
-  const { authenticated, user } = usePrivy();
+  const { authenticated, user, logout } = usePrivy();
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
@@ -16,6 +16,13 @@ export function Navigation() {
     { href: "/profile", icon: Briefcase, label: "Profile" },
     { href: "/admin", icon: Settings, label: "Settings" },
   ];
+
+  const handleLogout = async () => {
+    if (confirm('Are you sure you want to logout?')) {
+      await logout();
+      router.push('/');
+    }
+  };
 
   const username = user?.google?.name || user?.email?.address?.split('@')[0] || 'Unknown';
   const handle = '@' + username.toLowerCase().replace(/\s+/g, '');
@@ -48,24 +55,39 @@ export function Navigation() {
       {/* User Profile Card (bottom left) */}
       {authenticated && (
         <div className="fixed left-[17.5px] bottom-8 z-50">
-          <button
-            onClick={() => router.push('/profile')}
-            className="bg-card border border-border rounded-[20px] card-shadow p-4 flex items-center gap-3 hover:bg-accent/30 transition-all w-[200px]"
-          >
-            <div className="w-[50px] h-[50px] rounded-full bg-[#C2C2C2] flex items-center justify-center flex-shrink-0">
-              <span className="text-lg font-bold text-white">
-                {username[0].toUpperCase()}
-              </span>
+          <div className="bg-card border border-border rounded-[20px] card-shadow w-[200px]">
+            <button
+              onClick={() => router.push('/profile')}
+              className="p-4 flex items-center gap-3 hover:bg-accent/30 transition-all w-full"
+            >
+              <div className="w-[50px] h-[50px] rounded-full bg-[#C2C2C2] flex items-center justify-center flex-shrink-0">
+                <span className="text-lg font-bold text-white">
+                  {username[0].toUpperCase()}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="font-bold text-sm truncate" style={{ color: '#140106', letterSpacing: '-1px' }}>
+                  {username}
+                </p>
+                <p className="text-xs truncate" style={{ color: '#989898', letterSpacing: '0px' }}>
+                  {handle}
+                </p>
+              </div>
+            </button>
+            
+            {/* Logout Button */}
+            <div className="border-t border-border">
+              <button
+                onClick={handleLogout}
+                className="p-3 flex items-center gap-2 hover:bg-red-500/10 transition-all w-full text-left"
+              >
+                <LogOut className="w-4 h-4 text-red-500" />
+                <span className="text-sm font-semibold text-red-500" style={{ letterSpacing: '-1px' }}>
+                  Logout
+                </span>
+              </button>
             </div>
-            <div className="flex-1 min-w-0 text-left">
-              <p className="font-bold text-sm truncate" style={{ color: '#140106', letterSpacing: '-1px' }}>
-                {username}
-              </p>
-              <p className="text-xs truncate" style={{ color: '#989898', letterSpacing: '0px' }}>
-                {handle}
-              </p>
-            </div>
-          </button>
+          </div>
         </div>
       )}
     </>

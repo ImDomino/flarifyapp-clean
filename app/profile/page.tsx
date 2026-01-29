@@ -88,9 +88,30 @@ export default function ProfilePage() {
               <h1 className="text-3xl font-bold mb-2" style={{ color: '#140106', letterSpacing: '-1px' }}>
                 {username}
               </h1>
-              <p className="text-muted-foreground mb-4" style={{ letterSpacing: '-1px' }}>
+              <p className="text-muted-foreground mb-2" style={{ letterSpacing: '-1px' }}>
                 {email}
               </p>
+              
+              {/* Wallet Address */}
+              {user?.wallet?.address && (
+                <div className="mb-4 flex items-center gap-2">
+                  <div className="bg-accent/50 rounded-lg px-3 py-1 border border-border">
+                    <p className="text-xs font-mono" style={{ color: '#989898' }}>
+                      {user.wallet.address.slice(0, 6)}...{user.wallet.address.slice(-4)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(user.wallet?.address || '');
+                      alert('Wallet address copied!');
+                    }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Copy
+                  </button>
+                </div>
+              )}
+              
               <div className="bg-accent/30 rounded-lg p-4 border border-border">
                 <p className="text-sm" style={{ color: '#989898', letterSpacing: '-1px' }}>
                   Here is bio

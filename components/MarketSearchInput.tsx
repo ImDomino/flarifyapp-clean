@@ -96,9 +96,7 @@ export function MarketSearchInput({ onSelectMarket, selectedMarket }: MarketSear
               >
                 <p className="text-xs mb-1" style={{ color: '#989898' }}>{outcome}</p>
                 <p className={`font-bold text-lg ${i === 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {selectedMarket.outcomePrices && selectedMarket.outcomePrices[i] != null
-                    ? `${Math.round(selectedMarket.outcomePrices[i] * 100)}%`
-                  : '—'}
+                  {Math.round(selectedMarket.outcomePrices[i] * 100)}%
                 </p>
               </div>
             ))}
