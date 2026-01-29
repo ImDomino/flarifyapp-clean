@@ -7,6 +7,7 @@ import type { PostWithUser } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
+import { MarketCard } from "./MarketCard";
 
 interface PostCardProps {
   post: PostWithUser;
@@ -58,7 +59,6 @@ export function PostCard({ post }: PostCardProps) {
     <div className="p-6 bg-card transition-colors cursor-pointer" onClick={() => router.push(`/post/${post.id}`)}>
       {/* Header */}
       <div className="flex items-start gap-3 mb-3">
-        {/* Avatar */}
         <div 
           className="w-[60px] h-[60px] rounded-full bg-[#C2C2C2] flex items-center justify-center flex-shrink-0"
           style={{ background: '#C2C2C2' }}
@@ -68,7 +68,6 @@ export function PostCard({ post }: PostCardProps) {
           </span>
         </div>
 
-        {/* User Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span 
@@ -99,7 +98,7 @@ export function PostCard({ post }: PostCardProps) {
           {post.content}
         </p>
 
-        {/* Image (if exists) */}
+        {/* Image */}
         {post.image_url && (
           <div className="relative w-full rounded-[30px] overflow-hidden border border-border mt-3" style={{ maxHeight: '500px' }}>
             <Image
@@ -112,11 +111,20 @@ export function PostCard({ post }: PostCardProps) {
             />
           </div>
         )}
+
+        {/* Market Card */}
+        {post.polymarket_market_id && post.market_data && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <MarketCard 
+              marketData={post.market_data}
+              marketId={post.polymarket_market_id}
+            />
+          </div>
+        )}
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-8 pl-[72px]" onClick={(e) => e.stopPropagation()}>
-        {/* Like */}
         <button
           onClick={handleLike}
           className={`flex items-center gap-2 group transition-colors ${
@@ -129,7 +137,6 @@ export function PostCard({ post }: PostCardProps) {
           </span>
         </button>
 
-        {/* Comments */}
         <button
           onClick={() => router.push(`/post/${post.id}`)}
           className="flex items-center gap-2 text-[#989898] hover:text-primary group transition-colors"

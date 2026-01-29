@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { content, user_id, image_url } = body;
+    const { content, user_id, image_url, polymarket_market_id, market_data } = body;
 
     if (!content || !user_id) {
       return NextResponse.json(
@@ -49,6 +49,14 @@ export async function POST(request: NextRequest) {
 
     if (image_url) {
       postData.image_url = image_url;
+    }
+
+    if (polymarket_market_id) {
+      postData.polymarket_market_id = polymarket_market_id;
+    }
+
+    if (market_data) {
+      postData.market_data = market_data;
     }
 
     const { data: post, error } = await supabase

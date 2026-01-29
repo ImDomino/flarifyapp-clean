@@ -12,14 +12,20 @@ export interface Profile {
 export interface Post {
   id: string;
   user_id: string;
-  title: string;
   content: string;
-  polymarket_url: string;
-  yes_price: number | null;
-  no_price: number | null;
-  ref_code: string;
+  image_url?: string | null;
+  polymarket_market_id?: string | null;
+  market_data?: MarketData | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface MarketData {
+  question: string;
+  outcomes: string[];
+  prices: number[];
+  volume: string;
+  url: string;
 }
 
 export interface Comment {

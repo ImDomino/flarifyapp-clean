@@ -5,11 +5,25 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { Loader2, CheckCircle, Image as ImageIcon, X } from "lucide-react";
 import Image from "next/image";
+import { MarketSearchInput } from "@/components/MarketSearchInput";
+
+interface Market {
+  id: string;
+  question: string;
+  description?: string;
+  url: string;
+  outcomes: string[];
+  outcomePrices: number[] | null;
+  volume: string;
+  liquidity?: string;
+  endDate?: string;
+}
 
 export default function CreatePage() {
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -24,7 +38,6 @@ export default function CreatePage() {
 
     setImageFile(file);
     
-    // Создаём preview
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
@@ -53,7 +66,6 @@ export default function CreatePage() {
     try {
       let imageUrl = null;
 
-      // Upload image if exists
       if (imageFile) {
         setIsUploading(true);
         const formData = new FormData();
@@ -75,7 +87,17 @@ export default function CreatePage() {
         setIsUploading(false);
       }
 
-      // Create post
+      let marketData = null;
+      if (selectedMarket) {
+        marketData = {
+          question: selectedMarket.question,
+          outcomes: selectedMarket.outcomes,
+          prices: selectedMarket.outcomePrices,
+          volume: selectedMarket.volume,
+          url: selectedMarket.url,
+        };
+      }
+
       const response = await fetch('/api/posts/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,6 +105,8 @@ export default function CreatePage() {
           content,
           user_id: user.id,
           image_url: imageUrl,
+          polymarket_market_id: selectedMarket?.id || null,
+          market_data: marketData,
         }),
       });
 
@@ -134,7 +158,6 @@ export default function CreatePage() {
       </h1>
 
       <form onSubmit={handleSubmit} className="space-y-4 bg-card p-6 rounded-[30px] border border-border card-shadow">
-        {/* Content */}
         <div>
           <label className="block text-sm font-medium mb-2" style={{ color: '#140106', letterSpacing: '-1px' }}>
             What's on your mind?
@@ -150,7 +173,6 @@ export default function CreatePage() {
           />
         </div>
 
-        {/* Image Upload */}
         <div>
           <label className="block text-sm font-medium mb-2" style={{ color: '#140106', letterSpacing: '-1px' }}>
             Add Image (optional)
@@ -197,7 +219,16 @@ export default function CreatePage() {
           />
         </div>
 
-        {/* Success Message */}
+        <div>
+          <label className="block text-sm font-medium mb-2" style={{ color: '#140106', letterSpacing: '-1px' }}>
+            Add Polymarket Market (optional)
+          </label>
+          <MarketSearchInput
+            onSelectMarket={setSelectedMarket}
+            selectedMarket={selectedMarket}
+          />
+        </div>
+
         {success && (
           <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg flex items-center space-x-2 text-primary">
             <CheckCircle className="h-5 w-5" />
@@ -205,7 +236,6 @@ export default function CreatePage() {
           </div>
         )}
 
-        {/* Submit Button */}
         <button
           type="submit"
           disabled={isLoading || isUploading}
