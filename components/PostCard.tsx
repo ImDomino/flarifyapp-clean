@@ -55,7 +55,7 @@ export function PostCard({ post }: PostCardProps) {
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true }).replace('about ', '');
 
   return (
-    <div className="p-6 bg-card hover:bg-accent/30 transition-colors cursor-pointer" onClick={() => router.push(`/post/${post.id}`)}>
+    <div className="p-6 bg-card transition-colors cursor-pointer" onClick={() => router.push(`/post/${post.id}`)}>
       {/* Header */}
       <div className="flex items-start gap-3 mb-3">
         {/* Avatar */}
