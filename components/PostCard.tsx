@@ -115,10 +115,30 @@ export function PostCard({ post }: PostCardProps) {
         {/* Market Card */}
         {post.polymarket_market_id && post.market_data && (
           <div onClick={(e) => e.stopPropagation()}>
-            <MarketCard 
-              marketData={post.market_data}
-              marketId={post.polymarket_market_id}
-            />
+            {(() => {
+              const finalMarketData = {
+                ...post.market_data,
+                // Прокидываем tokenIds из БД если они есть
+                yesTokenId: post.yes_token_id || post.market_data.yesTokenId,
+                noTokenId: post.no_token_id || post.market_data.noTokenId,
+              };
+              
+              console.log('🔍 PostCard marketData:', {
+                post_yes_token_id: post.yes_token_id,
+                post_no_token_id: post.no_token_id,
+                market_data_yesTokenId: post.market_data.yesTokenId,
+                market_data_noTokenId: post.market_data.noTokenId,
+                final_yesTokenId: finalMarketData.yesTokenId,
+                final_noTokenId: finalMarketData.noTokenId,
+              });
+              
+              return (
+                <MarketCard 
+                  marketData={finalMarketData}
+                  marketId={post.polymarket_market_id}
+                />
+              );
+            })()}
           </div>
         )}
       </div>

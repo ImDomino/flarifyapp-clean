@@ -89,13 +89,28 @@ export default function CreatePage() {
 
       let marketData = null;
       if (selectedMarket) {
+        const yesTokenId = selectedMarket.yesTokenId;
+        const noTokenId = selectedMarket.noTokenId;
+
+        console.log('🎯 selectedMarket from search:', selectedMarket);
+        console.log('🎯 TokenIds from search:', { 
+          yesTokenId, 
+          noTokenId,
+          hasYes: !!yesTokenId,
+          hasNo: !!noTokenId,
+        });
+
         marketData = {
           question: selectedMarket.question,
           outcomes: selectedMarket.outcomes,
           prices: selectedMarket.outcomePrices,
           volume: selectedMarket.volume,
           url: selectedMarket.url,
+          yesTokenId,
+          noTokenId,
         };
+        
+        console.log('📝 marketData being sent to API:', marketData);
       }
 
       const response = await fetch('/api/posts/create', {

@@ -13,6 +13,8 @@ interface Market {
   volume: string;
   liquidity?: string;
   endDate?: string;
+  yesTokenId?: string;
+  noTokenId?: string;
 }
 
 interface MarketSearchInputProps {

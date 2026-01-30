@@ -16,6 +16,8 @@ export interface Post {
   image_url?: string | null;
   polymarket_market_id?: string | null;
   market_data?: MarketData | null;
+  yes_token_id?: string | null;
+  no_token_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +28,9 @@ export interface MarketData {
   prices: number[];
   volume: string;
   url: string;
+  yesTokenId?: string;
+  noTokenId?: string;
+  tokens?: Array<{ token_id: string; outcome: string; price: string }>;
 }
 
 export interface Comment {

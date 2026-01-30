@@ -12,35 +12,38 @@ export function WalletConnect() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    async function initializeCLOB() {
-      if (primaryWallet) {
-        try {
-          setIsLoading(true);
-          
-          // Get ethers signer from Dynamic wallet
-          const provider = await primaryWallet.connector.getWalletClient();
-          const ethersProvider = new ethers.BrowserProvider(provider);
-          const signer = await ethersProvider.getSigner();
+  async function initializeCLOB() {
+    if (primaryWallet) {
+      try {
+        setIsLoading(true);
 
-          // Initialize Polymarket CLOB client
-          await polymarketCLOB.initialize(signer);
+        // 1. Получаем EIP-1193 провайдер от Dynamic
+        const provider = await primaryWallet.connector.getWalletClient(); // у тебя это уже было
 
-          // Fetch USDC balance
-          const balance = await polymarketCLOB.getUSDCBalance();
-          setUsdcBalance(balance);
-        } catch (error) {
-          console.error('Error initializing wallet:', error);
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        setUsdcBalance(null);
-        polymarketCLOB.disconnect();
+        // 2. Оборачиваем его в ethers v5 Web3Provider
+        const ethersProvider = new ethers.providers.Web3Provider(provider as any);
+        const signer = ethersProvider.getSigner();
+
+        // 3. Инициализируем Polymarket CLOB client
+        await polymarketCLOB.initialize(signer);
+
+        // 4. Получаем баланс USDC
+        const balance = await polymarketCLOB.getUSDCBalance();
+        setUsdcBalance(balance);
+      } catch (error) {
+        console.error('Error initializing wallet:', error);
+      } finally {
+        setIsLoading(false);
       }
+    } else {
+      setUsdcBalance(null);
+      polymarketCLOB.disconnect();
     }
+  }
 
-    initializeCLOB();
-  }, [primaryWallet]);
+  initializeCLOB();
+}, [primaryWallet]);
+
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;

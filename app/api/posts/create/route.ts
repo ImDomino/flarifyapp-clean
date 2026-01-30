@@ -57,6 +57,23 @@ export async function POST(request: NextRequest) {
 
     if (market_data) {
       postData.market_data = market_data;
+      
+      console.log('🔍 API Create - received market_data:', market_data);
+      
+      // Извлекаем tokenIds из market_data и сохраняем отдельно
+      if (market_data.yesTokenId) {
+        postData.yes_token_id = market_data.yesTokenId;
+        console.log('✅ Saving yes_token_id:', market_data.yesTokenId);
+      } else {
+        console.warn('⚠️ No yesTokenId in market_data');
+      }
+      
+      if (market_data.noTokenId) {
+        postData.no_token_id = market_data.noTokenId;
+        console.log('✅ Saving no_token_id:', market_data.noTokenId);
+      } else {
+        console.warn('⚠️ No noTokenId in market_data');
+      }
     }
 
     const { data: post, error } = await supabase

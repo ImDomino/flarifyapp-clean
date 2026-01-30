@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Loader2, TrendingUp } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { ethers } from "ethers";
+import { polymarketCLOB } from "@/lib/polymarket/clob-singleton";
 
 interface MarketData {
   question: string;
@@ -10,6 +12,9 @@ interface MarketData {
   prices: number[];
   volume: string;
   url: string;
+  yesTokenId?: string;
+  noTokenId?: string;
+  tokens?: Array<{ token_id: string; outcome: string; price: string }>;
 }
 
 interface TradingModalProps {
@@ -21,13 +26,62 @@ interface TradingModalProps {
 }
 
 export function TradingModal({ marketId, marketData, outcome, outcomeIndex, onClose }: TradingModalProps) {
-  const { user, authenticated, login } = usePrivy();
+  const { authenticated, ready, login } = usePrivy();
+  const { wallets } = useWallets();
   const [amount, setAmount] = useState(10);
   const [isTrading, setIsTrading] = useState(false);
+  const [isClobReady, setIsClobReady] = useState(false);
+
+  // Инициализируем CLOB client при монтировании
+  useEffect(() => {
+    const initCLOB = async () => {
+      if (!ready || !authenticated) {
+        console.log('⏳ Waiting for auth...');
+        return;
+      }
+
+      if (polymarketCLOB.isInitialized()) {
+        setIsClobReady(true);
+        return;
+      }
+
+      try {
+        // Ищем embedded wallet Privy
+        const embeddedWallet = wallets.find(
+          (w: any) => w.walletClientType === 'privy'
+        );
+
+        if (!embeddedWallet) {
+          console.warn('⚠️ No embedded Privy wallet found');
+          return;
+        }
+
+        console.log('🔄 Initializing CLOB with Privy wallet...');
+
+        // Получаем EIP-1193 provider
+        const provider = await (embeddedWallet as any).getEthereumProvider();
+        
+        // ВАЖНО: ethers v5 - используем Web3Provider, НЕ BrowserProvider
+        const ethersProvider = new ethers.providers.Web3Provider(provider as any);
+        const signer = ethersProvider.getSigner();
+
+        const success = await polymarketCLOB.initialize(signer);
+        setIsClobReady(success);
+
+        if (success) {
+          console.log('✅ CLOB initialized with Privy embedded wallet');
+        }
+      } catch (error) {
+        console.error('❌ Failed to initialize CLOB:', error);
+      }
+    };
+
+    initCLOB();
+  }, [ready, authenticated, wallets]);
 
   const price = marketData.prices[outcomeIndex];
   const shares = amount / price;
-  const potentialWin = shares * 1; // 1 dollar per share if win
+  const potentialWin = shares * 1;
   const profit = potentialWin - amount;
 
   const handleTrade = async () => {
@@ -36,17 +90,54 @@ export function TradingModal({ marketId, marketData, outcome, outcomeIndex, onCl
       return;
     }
 
+    // Проверяем CLOB client
+    if (!polymarketCLOB.isInitialized()) {
+      alert('CLOB client not ready. Please wait a moment and try again.');
+      return;
+    }
+
+    // Получаем tokenId для outcome
+    let tokenId: string | undefined;
+    
+    if (outcomeIndex === 0) {
+      tokenId = marketData.yesTokenId;
+    } else if (outcomeIndex === 1) {
+      tokenId = marketData.noTokenId;
+    }
+
+    // Fallback: ищем в tokens массиве
+    if (!tokenId && marketData.tokens) {
+      const token = marketData.tokens[outcomeIndex];
+      tokenId = token?.token_id;
+    }
+
+    if (!tokenId) {
+      console.error('Missing tokenId:', { outcomeIndex, marketData });
+      alert(`Token ID not found for ${outcome}. This market may not support trading yet.`);
+      return;
+    }
+
     setIsTrading(true);
 
     try {
-      // TODO: Подключить реальный CLOB client
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      alert('Trading functionality coming soon! This will place real orders via Polymarket CLOB with Builder Attribution.');
+      console.log('🚀 Placing order:', {
+        tokenId,
+        outcome,
+        amount,
+        price,
+        shares,
+      });
+
+      const order = outcomeIndex === 0
+        ? await polymarketCLOB.buyYes(tokenId, amount, price)
+        : await polymarketCLOB.buyNo(tokenId, amount, price);
+
+      console.log('✅ Order placed:', order);
+      alert(`Order placed successfully! ${amount} USDC on ${outcome}`);
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Trading error:', error);
-      alert('Failed to place order');
+      alert(`Failed to place order: ${error.message || 'Unknown error'}`);
     } finally {
       setIsTrading(false);
     }
@@ -113,10 +204,19 @@ export function TradingModal({ marketId, marketData, outcome, outcomeIndex, onCl
             />
           </div>
 
+          {/* CLOB Status */}
+          {!isClobReady && authenticated && (
+            <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+              <p className="text-sm text-yellow-700" style={{ letterSpacing: '-1px' }}>
+                ⏳ Initializing trading client...
+              </p>
+            </div>
+          )}
+
           {/* Buy Button */}
           <button
             onClick={handleTrade}
-            disabled={isTrading}
+            disabled={isTrading || !isClobReady}
             className={`w-full py-4 rounded-xl font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
               outcomeIndex === 0 
                 ? 'bg-green-500 hover:bg-green-600' 
