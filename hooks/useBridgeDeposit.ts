@@ -12,13 +12,13 @@ export function useBridgeDeposit(polymarketAddress: string | null) {
       body: JSON.stringify({ address: polymarketAddress }),
     });
     if (!res.ok) throw new Error("Failed to create deposit");
-    return res.json(); // { address: { evm, svm, btc }, note: ... }
+    return res.json(); // { address: { evm, svm, btc }, note: ... } [web:226]
   };
 
   const getStatus = async (depositAddress: string) => {
     const res = await fetch(`${BRIDGE_BASE_URL}/status/${depositAddress}`);
     if (!res.ok) throw new Error("Failed to get status");
-    return res.json(); // { transactions: [...] }
+    return res.json(); // { transactions: [...] } [web:182]
   };
 
   return { createDeposit, getStatus };

@@ -1,3 +1,4 @@
+// components/BalanceDisplay.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,9 +12,9 @@ export function BalanceDisplay() {
   const { eoaAddress } = useWallet();
   const [showModal, setShowModal] = useState(false);
   const [safeAddress, setSafeAddress] = useState<string | null>(null);
-  
+
   const { ensureSafe } = useSafeDeployment();
-  
+
   useEffect(() => {
     if (eoaAddress) {
       ensureSafe().then(setSafeAddress).catch(console.error);
@@ -22,7 +23,7 @@ export function BalanceDisplay() {
 
   const { safeBalance, isLoading } = useBalances(eoaAddress, safeAddress);
 
-  if (!eoaAddress || !safeAddress) return null;
+  if (!eoaAddress) return null;
 
   return (
     <>
@@ -31,7 +32,10 @@ export function BalanceDisplay() {
           <Wallet size={16} className="text-gray-600" />
           <div>
             <div className="text-xs text-gray-500">Trading Balance</div>
-            <div className="text-sm font-bold" style={{ letterSpacing: '-0.5px' }}>
+            <div
+              className="text-sm font-bold"
+              style={{ letterSpacing: "-0.5px" }}
+            >
               {isLoading ? (
                 <span className="text-gray-400">Loading...</span>
               ) : (
@@ -54,7 +58,6 @@ export function BalanceDisplay() {
       {showModal && (
         <DepositModal
           eoaAddress={eoaAddress}
-          safeAddress={safeAddress}
           onClose={() => setShowModal(false)}
         />
       )}
