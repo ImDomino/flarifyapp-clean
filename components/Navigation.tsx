@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Home, Briefcase, Settings, MessageCircle, LogOut } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
+import { BalanceDisplay } from "./BalanceDisplay";
 
 export function Navigation() {
   const pathname = usePathname();
@@ -51,7 +52,11 @@ export function Navigation() {
           })}
         </div>
       </div>
-
+          {authenticated && (
+            <div className="fixed right-8 top-8 z-50">
+              <BalanceDisplay />
+            </div>
+          )}
       {/* User Profile Card (bottom left) */}
       {authenticated && (
         <div className="fixed left-[17.5px] bottom-8 z-50">
