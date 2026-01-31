@@ -11,7 +11,7 @@
   "dependencies": {
     "@polymarket/builder-signing-sdk": "^0.0.8",
     "@polymarket/clob-client": "^4.22.8",
-    "@privy-io/react-auth": "^3.12.0",
+    "@privy-io/react-auth": "^3.13.0",
     "@supabase/ssr": "^0.8.0",
     "clsx": "^2.1.0",
     "date-fns": "^3.0.0",

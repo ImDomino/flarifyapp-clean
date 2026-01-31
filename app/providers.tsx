@@ -1,6 +1,6 @@
 'use client';
 
-import { PrivyProvider } from '@privy-io/react-auth';
+import { WalletProvider } from '@/providers/WalletProvider';
 import { useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { createClient } from '@/lib/supabase/client';
@@ -21,74 +21,38 @@ function ProfileSync({ children }: { children: React.ReactNode }) {
         const email = user.google?.email || user.email?.address || '';
         const username = user.google?.name || email.split('@')[0] || `User${user.id.slice(-6)}`;
         
-        // Получаем wallet address из linkedAccounts
-        let walletAddress: string | null = null;
-        
-        console.log('🔍 User linkedAccounts:', {
-          total: user.linkedAccounts?.length || 0,
-          accounts: user.linkedAccounts?.map(a => ({ 
-            type: a.type, 
-            walletClientType: (a as any).walletClientType,
-            address: (a as any).address 
-          }))
-        });
-
-        // Ищем embedded wallet
+        // Получаем wallet address
         const embeddedWallet = user.linkedAccounts?.find(
           (account: any) =>
-            (account.type === 'wallet' || account.type === 'smart_wallet') &&
+            account.type === 'wallet' &&
             account.walletClientType === 'privy' &&
             account.address
         );
         
-        if (embeddedWallet) {
-          walletAddress = (embeddedWallet as any).address;
-          console.log('✅ Found embedded wallet:', walletAddress);
-        } else {
-          console.warn('⚠️ Wallet not created. Waiting 3 more seconds...');
-          
-          // Retry
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-          const retryWallet = user.linkedAccounts?.find(
-            (account: any) =>
-              (account.type === 'wallet' || account.type === 'smart_wallet') &&
-              account.walletClientType === 'privy' &&
-              account.address
-          );
-          
-          if (retryWallet) {
-            walletAddress = (retryWallet as any).address;
-            console.log('✅ Found wallet after retry:', walletAddress);
-          } else {
-            console.error('❌ Wallet still not created. Check Privy Dashboard settings.');
-          }
-        }
+        const walletAddress = embeddedWallet ? (embeddedWallet as any).address : null;
 
-        console.log('🔄 Syncing profile:', { 
-          id: user.id, 
-          email, 
-          username,
-          wallet_address: walletAddress
-        });
+        console.log('🔄 Syncing profile:', { userId: user.id, email, walletAddress });
 
-        // Upsert профиль
-        const { error } = await supabase.from('profiles').upsert({
-          id: user.id,
-          email: email,
-          username: username,
-          wallet_address: walletAddress,
-        }, {
-          onConflict: 'id'
-        });
+        // Upsert profile
+        const { error } = await supabase
+          .from('profiles')
+          .upsert({
+            id: user.id,
+            email,
+            username,
+            wallet_address: walletAddress,
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'id'
+          });
 
         if (error) {
-          console.error('❌ Error syncing profile:', error);
+          console.error('Profile sync error:', error);
         } else {
-          console.log('✅ Profile synced successfully');
+          console.log('✅ Profile synced');
         }
       } catch (error) {
-        console.error('💥 Error in profile sync:', error);
+        console.error('Sync error:', error);
       }
     };
 
@@ -100,23 +64,8 @@ function ProfileSync({ children }: { children: React.ReactNode }) {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
-      config={{
-        loginMethods: ['google'],
-        appearance: {
-          theme: 'dark',
-          accentColor: '#22c55e',
-        },
-        // ПРАВИЛЬНЫЙ конфиг с ethereum
-        embeddedWallets: {
-          ethereum: {
-            createOnLogin: 'users-without-wallets',
-          },
-        },
-      }}
-    >
+    <WalletProvider>
       <ProfileSync>{children}</ProfileSync>
-    </PrivyProvider>
+    </WalletProvider>
   );
 }

@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { X, Loader2, TrendingUp } from "lucide-react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { ethers } from "ethers";
-import { polymarketCLOB } from "@/lib/polymarket/clob-singleton";
+import { usePrivy } from "@privy-io/react-auth";
+import { usePlaceOrder } from "@/hooks/usePlaceOrder";
 
 interface MarketData {
   question: string;
@@ -26,61 +25,13 @@ interface TradingModalProps {
 }
 
 export function TradingModal({ marketId, marketData, outcome, outcomeIndex, onClose }: TradingModalProps) {
-  const { authenticated, ready, login } = usePrivy();
-  const { wallets } = useWallets();
+  const { authenticated, login } = usePrivy();
+  const { placeOrder } = usePlaceOrder();
   const [amount, setAmount] = useState(10);
   const [isTrading, setIsTrading] = useState(false);
-  const [isClobReady, setIsClobReady] = useState(false);
-
-  // Инициализируем CLOB client при монтировании
-  useEffect(() => {
-    const initCLOB = async () => {
-      if (!ready || !authenticated) {
-        console.log('⏳ Waiting for auth...');
-        return;
-      }
-
-      if (polymarketCLOB.isInitialized()) {
-        setIsClobReady(true);
-        return;
-      }
-
-      try {
-        // Ищем embedded wallet Privy
-        const embeddedWallet = wallets.find(
-          (w: any) => w.walletClientType === 'privy'
-        );
-
-        if (!embeddedWallet) {
-          console.warn('⚠️ No embedded Privy wallet found');
-          return;
-        }
-
-        console.log('🔄 Initializing CLOB with Privy wallet...');
-
-        // Получаем EIP-1193 provider
-        const provider = await (embeddedWallet as any).getEthereumProvider();
-        
-        // ВАЖНО: ethers v5 - используем Web3Provider, НЕ BrowserProvider
-        const ethersProvider = new ethers.providers.Web3Provider(provider as any);
-        const signer = ethersProvider.getSigner();
-
-        const success = await polymarketCLOB.initialize(signer);
-        setIsClobReady(success);
-
-        if (success) {
-          console.log('✅ CLOB initialized with Privy embedded wallet');
-        }
-      } catch (error) {
-        console.error('❌ Failed to initialize CLOB:', error);
-      }
-    };
-
-    initCLOB();
-  }, [ready, authenticated, wallets]);
 
   const price = marketData.prices[outcomeIndex];
-  const shares = amount / price;
+  const shares = price > 0 ? amount / price : 0;
   const potentialWin = shares * 1;
   const profit = potentialWin - amount;
 
@@ -90,13 +41,7 @@ export function TradingModal({ marketId, marketData, outcome, outcomeIndex, onCl
       return;
     }
 
-    // Проверяем CLOB client
-    if (!polymarketCLOB.isInitialized()) {
-      alert('CLOB client not ready. Please wait a moment and try again.');
-      return;
-    }
-
-    // Получаем tokenId для outcome
+    // Получаем tokenId
     let tokenId: string | undefined;
     
     if (outcomeIndex === 0) {
@@ -105,7 +50,6 @@ export function TradingModal({ marketId, marketData, outcome, outcomeIndex, onCl
       tokenId = marketData.noTokenId;
     }
 
-    // Fallback: ищем в tokens массиве
     if (!tokenId && marketData.tokens) {
       const token = marketData.tokens[outcomeIndex];
       tokenId = token?.token_id;
@@ -120,7 +64,7 @@ export function TradingModal({ marketId, marketData, outcome, outcomeIndex, onCl
     setIsTrading(true);
 
     try {
-      console.log('🚀 Placing order:', {
+      console.log('🚀 Placing order (client-side):', {
         tokenId,
         outcome,
         amount,
@@ -128,12 +72,15 @@ export function TradingModal({ marketId, marketData, outcome, outcomeIndex, onCl
         shares,
       });
 
-      const order = outcomeIndex === 0
-        ? await polymarketCLOB.buyYes(tokenId, amount, price)
-        : await polymarketCLOB.buyNo(tokenId, amount, price);
+      // Размещаем ордер через client-side hooks
+      const orderId = await placeOrder({
+        tokenId,
+        side: outcomeIndex === 0 ? 'BUY' : 'SELL',
+        price,
+        size: shares,
+      });
 
-      console.log('✅ Order placed:', order);
-      alert(`Order placed successfully! ${amount} USDC on ${outcome}`);
+      alert(`Order placed successfully! Order ID: ${orderId}`);
       onClose();
     } catch (error: any) {
       console.error('Trading error:', error);
@@ -144,121 +91,95 @@ export function TradingModal({ marketId, marketData, outcome, outcomeIndex, onCl
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div 
-        className="bg-card rounded-[30px] max-w-md w-full border border-border card-shadow"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-6 border-b border-border flex items-start gap-3">
-          <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center flex-shrink-0">
-            <TrendingUp className="w-5 h-5 text-primary" />
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-md w-full p-6 relative">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+        >
+          <X size={24} />
+        </button>
+
+        {/* Market info */}
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold mb-2" style={{ letterSpacing: '-1px' }}>
+            {marketData.question}
+          </h2>
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <TrendingUp size={16} />
+            <span>Volume: ${parseFloat(marketData.volume).toLocaleString()}</span>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm leading-tight" style={{ color: '#140106', letterSpacing: '-1px' }}>
-              {marketData.question}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-accent rounded transition-colors"
-          >
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
         </div>
 
-        {/* Amount Input */}
-        <div className="p-6">
-          <div className="bg-background rounded-2xl p-4 mb-4 border border-border">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-4xl font-bold" style={{ color: '#140106' }}>
-                ${amount}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setAmount(Math.min(amount + 1, 1000))}
-                  className="px-4 py-2 bg-card border border-border hover:bg-accent rounded-xl font-semibold transition-colors"
-                  style={{ color: '#140106', fontSize: '16px', letterSpacing: '-1px' }}
-                >
-                  +1
-                </button>
-                <button
-                  onClick={() => setAmount(Math.min(amount + 10, 1000))}
-                  className="px-4 py-2 bg-card border border-border hover:bg-accent rounded-xl font-semibold transition-colors"
-                  style={{ color: '#140106', fontSize: '16px', letterSpacing: '-1px' }}
-                >
-                  +10
-                </button>
-              </div>
+        {/* Outcome selection */}
+        <div className="mb-4">
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <div className="text-sm text-gray-600 mb-1">You're buying</div>
+            <div className="text-2xl font-bold" style={{ letterSpacing: '-1px' }}>
+              {outcome}
             </div>
-
-            {/* Slider */}
-            <input
-              type="range"
-              min="1"
-              max="100"
-              value={amount}
-              onChange={(e) => setAmount(parseInt(e.target.value))}
-              className="w-full h-2 bg-border rounded-lg appearance-none cursor-pointer"
-              style={{ accentColor: '#22c55e' }}
-            />
+            <div className="text-sm text-gray-600 mt-1">
+              at {(price * 100).toFixed(1)}¢
+            </div>
           </div>
+        </div>
 
-          {/* CLOB Status */}
-          {!isClobReady && authenticated && (
-            <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-              <p className="text-sm text-yellow-700" style={{ letterSpacing: '-1px' }}>
-                ⏳ Initializing trading client...
-              </p>
-            </div>
+        {/* Amount input */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Amount (USDC)
+          </label>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(Number(e.target.value))}
+            min="1"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="10"
+          />
+        </div>
+
+        {/* Trade summary */}
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Shares</span>
+            <span className="font-medium">{shares.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Potential win</span>
+            <span className="font-medium">${potentialWin.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between border-t border-gray-200 pt-2">
+            <span className="text-gray-600">Profit if correct</span>
+            <span className={`font-medium ${profit > 0 ? 'text-green-600' : ''}`}>
+              ${profit.toFixed(2)}
+            </span>
+          </div>
+        </div>
+
+        {/* Buy Button */}
+        <button
+          onClick={handleTrade}
+          disabled={isTrading}
+          className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          style={{ letterSpacing: '-0.5px' }}
+        >
+          {isTrading ? (
+            <>
+              <Loader2 className="animate-spin" size={20} />
+              Placing order...
+            </>
+          ) : (
+            `Buy ${outcome} for $${amount}`
           )}
+        </button>
 
-          {/* Buy Button */}
-          <button
-            onClick={handleTrade}
-            disabled={isTrading || !isClobReady}
-            className={`w-full py-4 rounded-xl font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-              outcomeIndex === 0 
-                ? 'bg-green-500 hover:bg-green-600' 
-                : 'bg-red-500 hover:bg-red-600'
-            }`}
-            style={{ fontSize: '18px', letterSpacing: '-1px' }}
-          >
-            {isTrading ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Placing Order...
-              </span>
-            ) : (
-              <div>
-                <div className="text-xl">Buy {outcome}</div>
-                <div className="text-sm font-normal opacity-90">
-                  To win ${potentialWin.toFixed(2)}
-                </div>
-              </div>
-            )}
-          </button>
-
-          {/* Info */}
-          <div className="mt-4 space-y-2 text-sm">
-            <div className="flex justify-between" style={{ color: '#989898' }}>
-              <span>Avg price</span>
-              <span style={{ color: '#140106' }}>{(price * 100).toFixed(1)}¢</span>
-            </div>
-            <div className="flex justify-between" style={{ color: '#989898' }}>
-              <span>Shares</span>
-              <span style={{ color: '#140106' }}>{shares.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between" style={{ color: '#989898' }}>
-              <span>Potential return</span>
-              <span style={{ color: '#140106' }}>${potentialWin.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between" style={{ color: '#989898' }}>
-              <span>Profit if win</span>
-              <span className="text-green-500 font-semibold">+${profit.toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
+        {!authenticated && (
+          <p className="text-center text-sm text-gray-500 mt-4">
+            Please log in to place orders
+          </p>
+        )}
       </div>
     </div>
   );
