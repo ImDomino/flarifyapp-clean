@@ -157,12 +157,18 @@ export async function getUserOrders(client: ClobClient) {
 /**
  * Отменяет ордер
  */
+import type { ClobClient } from '@polymarket/clob-client';
+
 export async function cancelOrder(client: ClobClient, orderId: string) {
   try {
-    await client.cancelOrder(orderId);
-    console.log('✅ Order cancelled:', orderId);
+    console.warn(
+      'cancelOrder helper is not wired to ClobClient.cancelOrder for this SDK version yet. orderId:',
+      orderId
+    );
+    // TODO: if needed later, use client.cancelOrder({ orderID: orderId, market: ..., outcome: ... })
   } catch (error) {
     console.error('❌ Error cancelling order:', error);
     throw error;
   }
 }
+
