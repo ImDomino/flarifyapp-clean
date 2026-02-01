@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 import { polygon } from "viem/chains";
 
 type WalletContextValue = {
-  login: () => Promise<void>;
+  login: () => void;
   logout: () => Promise<void>;
   eoaAddress: string | null;
   ethersSigner: ethers.Signer | null;
@@ -79,7 +79,9 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       config={{
         defaultChain: polygon,
         embeddedWallets: {
-          createOnLogin: "users-without-wallets",
+          ethereum: {
+            createOnLogin: "users-without-wallets",
+          },
         },
       }}
     >
