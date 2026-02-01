@@ -168,26 +168,25 @@ async getBalance(tokenId: string): Promise<number> {
    * Get USDC balance
    */
   async getUSDCBalance(): Promise<number> {
-    if (!this.signer) {
-      return 0;
-    }
+  if (!this.signer) {
+    return 0;
+  }
 
-    try {
-      // USDC contract address on Polygon
-      const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
-      
-      const usdcContract = new ethers.Contract(
-        USDC_ADDRESS,
-        ['function balanceOf(address) view returns (uint256)'],
-        this.signer
-      );
+  try {
+    const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
 
-      const balance = await usdcContract.balanceOf(this.address);
-      return parseFloat(ethers.formatUnits(balance, 6)); // USDC has 6 decimals
-    } catch (error) {
-      console.error('Error fetching USDC balance:', error);
-      return 0;
-    }
+    const usdcContract = new ethers.Contract(
+      USDC_ADDRESS,
+      ['function balanceOf(address) view returns (uint256)'],
+      this.signer
+    );
+
+    const balance = await usdcContract.balanceOf(this.address);
+    return parseFloat(ethers.utils.formatUnits(balance, 6)); // ✅ v5
+  } catch (error) {
+    console.error('Error fetching USDC balance:', error);
+    return 0;
+  }
   }
 
   /**
