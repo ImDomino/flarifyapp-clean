@@ -7,6 +7,7 @@ import { Loader2, CheckCircle, Image as ImageIcon, X } from "lucide-react";
 import Image from "next/image";
 import { MarketSearchInput } from "@/components/MarketSearchInput";
 
+// Расширенный интерфейс Market с поддержкой токенов
 interface Market {
   id: string;
   question: string;
@@ -17,6 +18,14 @@ interface Market {
   volume: string;
   liquidity?: string;
   endDate?: string;
+  // Добавляем опциональные поля для токенов
+  yesTokenId?: string;
+  noTokenId?: string;
+  // Альтернатива: массив токенов
+  tokens?: Array<{
+    token_id: string;
+    outcome: string;
+  }>;
 }
 
 export default function CreatePage() {
@@ -89,8 +98,22 @@ export default function CreatePage() {
 
       let marketData = null;
       if (selectedMarket) {
-        const yesTokenId = selectedMarket.yesTokenId;
-        const noTokenId = selectedMarket.noTokenId;
+        // Безопасное извлечение токенов с fallback
+        let yesTokenId: string | null = null;
+        let noTokenId: string | null = null;
+
+        // 1. Прямая проверка полей
+        if (selectedMarket.yesTokenId && selectedMarket.noTokenId) {
+          yesTokenId = selectedMarket.yesTokenId;
+          noTokenId = selectedMarket.noTokenId;
+        } 
+        // 2. Поиск в массиве tokens
+        else if (selectedMarket.tokens) {
+          const yesToken = selectedMarket.tokens.find(t => t.outcome?.toLowerCase().includes('yes'));
+          const noToken = selectedMarket.tokens.find(t => t.outcome?.toLowerCase().includes('no'));
+          yesTokenId = yesToken?.token_id || null;
+          noTokenId = noToken?.token_id || null;
+        }
 
         console.log('🎯 selectedMarket from search:', selectedMarket);
         console.log('🎯 TokenIds from search:', { 
@@ -100,17 +123,20 @@ export default function CreatePage() {
           hasNo: !!noTokenId,
         });
 
-        marketData = {
-          question: selectedMarket.question,
-          outcomes: selectedMarket.outcomes,
-          prices: selectedMarket.outcomePrices,
-          volume: selectedMarket.volume,
-          url: selectedMarket.url,
-          yesTokenId,
-          noTokenId,
-        };
-        
-        console.log('📝 marketData being sent to API:', marketData);
+        // Только добавляем marketData если есть хотя бы один токен или базовые данные
+        if (yesTokenId || noTokenId || selectedMarket.id) {
+          marketData = {
+            question: selectedMarket.question,
+            outcomes: selectedMarket.outcomes,
+            prices: selectedMarket.outcomePrices,
+            volume: selectedMarket.volume,
+            url: selectedMarket.url,
+            yesTokenId: yesTokenId || undefined,
+            noTokenId: noTokenId || undefined,
+          };
+          
+          console.log('📝 marketData being sent to API:', marketData);
+        }
       }
 
       const response = await fetch('/api/posts/create', {
