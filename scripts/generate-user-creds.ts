@@ -39,7 +39,7 @@ async function generateUserCreds() {
 
   console.log('\n✅ User API Credentials generated!\n');
   console.log('Add these to your .env file:\n');
-  console.log(`POLY_USER_API_KEY=${userApiCreds.apiKey}`);
+  console.log(`POLY_USER_API_KEY=${userApiCreds.key}`);
   console.log(`POLY_USER_API_SECRET=${userApiCreds.secret}`);
   console.log(`POLY_USER_API_PASSPHRASE=${userApiCreds.passphrase}`);
   console.log('\n');
