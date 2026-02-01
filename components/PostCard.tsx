@@ -122,7 +122,7 @@ export function PostCard({ post }: PostCardProps) {
           className="flex items-center gap-2 text-muted-foreground hover:text-chart-2 transition-colors group"
         >
           <MessageCircle className="w-5 h-5 transition-transform group-hover:scale-110" />
-          <span className="text-sm font-medium">{post.comments_count > 0 ? post.comments_count : ''}</span>
+          <span className="text-sm font-medium">{post.comments_count ?? ''}</span>
         </button>
       </div>
     </div>
