@@ -1,19 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { placeUserOrder } from '@/lib/polymarket/clob-server';
+import { Side } from '@polymarket/clob-client';
 
-/**
- * Multi-user Order Placement API
- * 
- * POST /api/polymarket/order
- * Body: {
- *   userId: string,           // От Privy (временно из body)
- *   walletAddress: string,    // От Privy (временно из body)
- *   tokenId: string,
- *   side: 'BUY' | 'SELL',
- *   amount: number (USDC),
- *   price: number (0.0 - 1.0)
- * }
- */
 export async function POST(req: NextRequest) {
   try {
     // Читаем body ОДИН РАЗ
@@ -43,6 +31,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Маппинг строкового side -> enum Side
+    const clobSide = side === 'BUY' ? Side.BUY : Side.SELL;
+
     console.log('📥 Order request:', {
       userId: userId.slice(0, 10) + '...',
       wallet: walletAddress.slice(0, 6) + '...',
@@ -57,7 +48,7 @@ export async function POST(req: NextRequest) {
       userId,
       walletAddress,
       tokenId,
-      side,
+      side: clobSide,
       amount,
       price,
     });
