@@ -2,6 +2,7 @@ import { ClobClient, Side } from '@polymarket/clob-client';
 import { BuilderConfig } from '@polymarket/builder-signing-sdk';
 import { ethers } from 'ethers';
 
+
 /**
  * Polymarket Builder-Attributed CLOB Client
  * 
@@ -157,7 +158,6 @@ export async function getUserOrders(client: ClobClient) {
 /**
  * Отменяет ордер
  */
-import type { ClobClient } from '@polymarket/clob-client';
 
 export async function cancelOrder(client: ClobClient, orderId: string) {
   try {
