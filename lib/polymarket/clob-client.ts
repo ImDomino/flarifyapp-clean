@@ -144,19 +144,25 @@ async cancelOrder(orderId: string): Promise<boolean> {
   /**
    * Get user's balance for a specific token
    */
-  async getBalance(tokenId: string): Promise<number> {
-    if (!this.client || !this.address) {
-      return 0;
-    }
-
-    try {
-      const balance = await this.client.getBalance(this.address, tokenId);
-      return parseFloat(balance || '0');
-    } catch (error) {
-      console.error('Error fetching balance:', error);
-      return 0;
-    }
+  /**
+ * Get user's balance for a specific token
+ */
+async getBalance(tokenId: string): Promise<number> {
+  if (!this.client || !this.address) {
+    return 0;
   }
+
+  try {
+    console.warn(
+      'getBalance via ClobClient.getBalance is not implemented for this SDK version. tokenId:',
+      tokenId
+    );
+    return 0;
+  } catch (error) {
+    console.error('Error fetching balance:', error);
+    return 0;
+  }
+}
 
   /**
    * Get USDC balance
