@@ -74,4 +74,5 @@ export interface User extends Profile {
   wallet?: string | null;
 }
 
-export { Profile as DBProfile, Post as DBPost };
+export type { Profile as DBProfile, Post as DBPost };
+
