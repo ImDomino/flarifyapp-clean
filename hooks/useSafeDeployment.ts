@@ -26,15 +26,20 @@ export const useSafeDeployment = () => {
     const deployed = await relayClient.getDeployed(safeAddress);
 
     if (!deployed) {
-      console.log('📡 Deploying Safe...');
-      
-      const response = await relayClient.deploy();
-      const result = await response.wait();
-      
-      console.log("✅ Safe deployed:", result.proxyAddress);
-    } else {
-      console.log("✅ Safe already deployed:", safeAddress);
-    }
+  console.log('📡 Deploying Safe...');
+  
+  const response = await relayClient.deploy();
+  const result = await response.wait();
+
+  if (!result) {
+    throw new Error("Failed to deploy Safe: empty result");
+  }
+
+    console.log("✅ Safe deployed:", result.proxyAddress);
+  } else {
+    console.log("✅ Safe already deployed:", safeAddress);
+  }
+
 
     return safeAddress;
   }, [eoaAddress, relayClient]);
