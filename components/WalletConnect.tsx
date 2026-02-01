@@ -17,8 +17,9 @@ export function WalletConnect() {
       try {
         setIsLoading(true);
 
-        // 1. Получаем EIP-1193 провайдер от Dynamic
-        const provider = await primaryWallet.connector.getWalletClient(); // у тебя это уже было
+       
+       
+        const provider = await (primaryWallet.connector as any).getWalletClient();
 
         // 2. Оборачиваем его в ethers v5 Web3Provider
         const ethersProvider = new ethers.providers.Web3Provider(provider as any);
@@ -26,6 +27,7 @@ export function WalletConnect() {
 
         // 3. Инициализируем Polymarket CLOB client
         await polymarketCLOB.initialize(signer);
+
 
         // 4. Получаем баланс USDC
         const balance = await polymarketCLOB.getUSDCBalance();
