@@ -30,7 +30,7 @@ export function CommentSection({ postId, comments, currentUserId }: CommentSecti
         user_id: currentUserId,
         content: newComment.trim(),
         created_at: new Date().toISOString(),
-        user: {
+        profiles: {
           id: currentUserId,
           email: "demo@flarifyapp.com",
           username: "DemoUser",
@@ -102,12 +102,12 @@ export function CommentSection({ postId, comments, currentUserId }: CommentSecti
               <div className="flex items-center space-x-3 mb-2">
                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="text-primary font-semibold text-sm">
-                    {comment.user.username[0].toUpperCase()}
+                    {comment.profiles.username[0].toUpperCase()}
                   </span>
                 </div>
                 <div>
                   <p className="font-semibold text-sm text-foreground">
-                    {comment.user.username}
+                    {comment.profiles.username}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(comment.created_at), {
