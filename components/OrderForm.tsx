@@ -36,10 +36,10 @@ export function OrderForm({ post }: OrderFormProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          tokenId: post.polymarket_url,
+          tokenId: post.polymarket_market_id || post.market_data?.yesTokenId,
           side: selectedOutcome,
           amount: parseFloat(amount),
-          price: selectedOutcome === 'YES' ? post.yes_price : post.no_price,
+          price: selectedOutcome === 'YES' ? post.market_data?.prices?.[0] ?? 0.5 : post.market_data?.prices?.[1] ?? 0.5,
           userAddress: wallet?.address,
         }),
       });
@@ -63,9 +63,9 @@ export function OrderForm({ post }: OrderFormProps) {
     }
   };
 
-  const formatPrice = (price: number | null) => {
+  const formatPrice = (price: number | null | undefined) => {
     if (price === null) return "N/A";
-    return `${price.toFixed(1)}¢`;
+    return `${Math.round(price * 100)}¢`;
   };
 
   return (
@@ -90,7 +90,7 @@ export function OrderForm({ post }: OrderFormProps) {
             <span className="text-xs text-muted-foreground">YES</span>
           </div>
           <p className="text-2xl font-bold text-green-500">
-            {formatPrice(post.yes_price)}
+            {formatPrice(post.market_data?.prices?.[0] ?? 0.5)}
           </p>
         </button>
 
@@ -107,7 +107,7 @@ export function OrderForm({ post }: OrderFormProps) {
             <span className="text-xs text-muted-foreground">NO</span>
           </div>
           <p className="text-2xl font-bold text-red-500">
-            {formatPrice(post.no_price)}
+            {formatPrice(post.market_data?.prices?.[1] ?? 0.5)}
           </p>
         </button>
       </div>
