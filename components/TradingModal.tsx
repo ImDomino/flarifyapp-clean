@@ -4,6 +4,8 @@ import { useState } from "react";
 import { X, Loader2, TrendingUp } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { usePlaceOrder } from "@/hooks/usePlaceOrder";
+import { Side } from "@polymarket/clob-client";
+
 
 interface MarketData {
   question: string;
@@ -75,10 +77,11 @@ export function TradingModal({ marketId, marketData, outcome, outcomeIndex, onCl
       // Размещаем ордер через client-side hooks
       const orderId = await placeOrder({
         tokenId,
-        side: outcomeIndex === 0 ? 'BUY' : 'SELL',
+        side: outcomeIndex === 0 ? Side.BUY : Side.SELL,
         price,
         size: shares,
       });
+
 
       alert(`Order placed successfully! Order ID: ${orderId}`);
       onClose();
