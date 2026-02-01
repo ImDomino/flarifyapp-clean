@@ -100,12 +100,12 @@ export function CommentSection({ postId, comments, currentUserId }: CommentSecti
               <div className="flex items-center space-x-3 mb-2">
                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="text-primary font-semibold text-sm">
-                    {comment.profiles.username[0].toUpperCase()}
+                    {comment.profiles.username?.[0]?.toUpperCase() || 'U'}
                   </span>
                 </div>
                 <div>
                   <p className="font-semibold text-sm text-foreground">
-                    {comment.profiles.username}
+                    {comment.profiles.username || 'Anonymous'}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(comment.created_at), {
@@ -114,6 +114,7 @@ export function CommentSection({ postId, comments, currentUserId }: CommentSecti
                   </p>
                 </div>
               </div>
+
               <p className="text-foreground">{comment.content}</p>
             </div>
           ))
