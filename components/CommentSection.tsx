@@ -35,12 +35,11 @@ export function CommentSection({ postId, comments, currentUserId }: CommentSecti
           email: "demo@flarifyapp.com",
           username: "DemoUser",
           avatar_url: null,
-          posts_count: 5,
-          clicks_count: 127,
-          wallet: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
+      };
+
       };
 
       setLocalComments([...localComments, mockNewComment]);
