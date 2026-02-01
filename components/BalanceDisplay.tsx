@@ -57,6 +57,7 @@ export function BalanceDisplay() {
 
       {showModal && (
         <DepositModal
+          isOpen={showModal}
           eoaAddress={eoaAddress}
           onClose={() => setShowModal(false)}
         />
