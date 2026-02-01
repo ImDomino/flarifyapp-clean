@@ -114,7 +114,6 @@ export function CommentSection({ postId, comments, currentUserId }: CommentSecti
                   </p>
                 </div>
               </div>
-
               <p className="text-foreground">{comment.content}</p>
             </div>
           ))

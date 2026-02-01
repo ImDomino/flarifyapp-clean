@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { OrderType } from "@polymarket/clob-client";
+import { OrderType, Side } from "@polymarket/clob-client";
 import { useClobClient } from "./useClobClient";
 
 export const usePlaceOrder = () => {
@@ -10,7 +10,7 @@ export const usePlaceOrder = () => {
   const placeOrder = useCallback(
     async (params: {
       tokenId: string;
-      side: 'BUY' | 'SELL';
+      side: Side;
       price: number;
       size: number;
     }) => {
