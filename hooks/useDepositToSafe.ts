@@ -22,10 +22,12 @@ export const useDepositToSafe = () => {
       const safeAddress = await ensureSafe();
       const amountWei = parseUnits(amount, USDC_E_DECIMALS);
 
-      const response = await relayClient.transferUsdce(
+      // ts-expect-error transferUsdce exists on runtime client but is missing in TS typings
+      const response = await (relayClient as any).transferUsdce(
         safeAddress,
         amountWei.toString()
       );
+
 
       console.log("⏳ Waiting for transaction...");
 
