@@ -1,4 +1,5 @@
 // Polymarket API Types
+import type { Side } from '@polymarket/clob-client';
 
 export interface PolymarketMarket {
   id: string;
@@ -29,7 +30,7 @@ export interface OrderArgs {
   tokenID: string;
   price: number;
   size: number;
-  side: 'BUY' | 'SELL';
+  side: Side;              
   feeRateBps?: number;
   nonce?: number;
   expiration?: number;
