@@ -12,11 +12,7 @@ export function DynamicProvider({ children }: { children: React.ReactNode }) {
         environmentId: DYNAMIC_ENVIRONMENT_ID,
         walletConnectors: [EthereumWalletConnectors],
         initialAuthenticationMode: 'connect-only',
-        networkValidation: {
-          enabled: true,
-          // Require Polygon network
-          expectedChainId: 137,
-        },
+        // networkValidation убран, чтобы соответствовать актуальному типу настроек
       }}
     >
       {children}
