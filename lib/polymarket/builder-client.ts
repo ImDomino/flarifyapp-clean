@@ -145,13 +145,14 @@ export async function placeSellOrder(
  */
 export async function getUserOrders(client: ClobClient) {
   try {
-    const orders = await client.getOrders();
-    return orders;
+    console.warn("getUserOrders is not implemented for current ClobClient version");
+    return [];
   } catch (error) {
     console.error('❌ Error fetching orders:', error);
     return [];
   }
 }
+
 
 /**
  * Отменяет ордер
