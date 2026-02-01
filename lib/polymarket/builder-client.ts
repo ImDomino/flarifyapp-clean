@@ -52,7 +52,7 @@ export function createPolymarketClient(
   const client = new ClobClient(
     'https://clob.polymarket.com', // CLOB API URL
     137, // Chain ID (Polygon Mainnet)
-    signer, // Ethers v5.x signer от Privy wallet
+    signer as any, // Ethers v5.x signer от Privy wallet
     userApiCreds, // User API credentials (если есть)
     2, // signatureType: 2 для Safe proxy wallets, 0 для EOA
     funderAddress, // Safe proxy wallet address (если используется Safe)
