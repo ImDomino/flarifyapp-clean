@@ -91,18 +91,18 @@ async function getServerClobClient(
   const builderPassphrase = process.env.POLY_BUILDER_PASSPHRASE;
 
   if (builderApiKey && builderSecret && builderPassphrase) {
-    const builderCreds = new BuilderApiKeyCreds({
-      key: builderApiKey,
-      secret: builderSecret,
-      passphrase: builderPassphrase,
-    });
+  const builderCreds: BuilderApiKeyCreds = {
+    key: builderApiKey,
+    secret: builderSecret,
+    passphrase: builderPassphrase,
+  };
 
-    builderConfig = new BuilderConfig({
-      localBuilderCreds: builderCreds,
-    });
+  builderConfig = new BuilderConfig({
+    localBuilderCreds: builderCreds,
+  });
 
-    console.log('✅ Builder attribution enabled');
-  }
+  console.log('✅ Builder attribution enabled');
+}
 
   // Создаём CLOB client
   const signatureType = 0; // EOA
