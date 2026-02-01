@@ -34,6 +34,7 @@ export function CommentSection({ postId, comments, currentUserId }: CommentSecti
           id: currentUserId,
           email: "demo@flarifyapp.com",
           username: "DemoUser",
+          wallet_address: null,  // ✅ Обязательное поле!
           avatar_url: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
