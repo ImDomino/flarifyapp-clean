@@ -64,9 +64,10 @@ export function OrderForm({ post }: OrderFormProps) {
   };
 
   const formatPrice = (price: number | null | undefined) => {
-    if (price === null) return "N/A";
+    if (price == null) return "N/A";  
     return `${Math.round(price * 100)}¢`;
   };
+
 
   return (
     <div className="bg-secondary/30 rounded-lg p-4 border border-border space-y-4">
