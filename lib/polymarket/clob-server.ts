@@ -58,7 +58,7 @@ async function getServerClobClient(
     const l1Client = new ClobClient(HOST, CHAIN_ID, signer);
     const userApiCreds = await l1Client.createOrDeriveApiKey();
 
-    apiKey = userApiCreds.apiKey;
+    apiKey = userApiCreds.key;
     secret = userApiCreds.secret;
     passphrase = userApiCreds.passphrase;
 
