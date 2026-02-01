@@ -17,37 +17,35 @@ export function CommentSection({ postId, comments, currentUserId }: CommentSecti
   const [localComments, setLocalComments] = useState(comments);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUserId || !newComment.trim()) return;
+  e.preventDefault();
+  if (!currentUserId || !newComment.trim()) return;
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    // Simulate comment submission
-    setTimeout(() => {
-      const mockNewComment: CommentWithUser = {
-        id: `c-${Date.now()}`,
-        post_id: postId,
-        user_id: currentUserId,
-        content: newComment.trim(),
+  setTimeout(() => {
+    const mockNewComment: CommentWithUser = {
+      id: `c-${Date.now()}`,
+      post_id: postId,
+      user_id: currentUserId,
+      content: newComment.trim(),
+      created_at: new Date().toISOString(),
+      profiles: {
+        id: currentUserId,
+        email: "demo@flarifyapp.com",
+        username: "DemoUser",
+        wallet_address: null,
+        avatar_url: null,
         created_at: new Date().toISOString(),
-        profiles: {
-          id: currentUserId,
-          email: "demo@flarifyapp.com",
-          username: "DemoUser",
-          wallet_address: null,  // ✅ Обязательное поле!
-          avatar_url: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      };
+        updated_at: new Date().toISOString(),
+      },
+    };
 
-      };
-
-      setLocalComments([...localComments, mockNewComment]);
-      setNewComment("");
-      setIsSubmitting(false);
-    }, 1000);
-  };
+    setLocalComments([...localComments, mockNewComment]);
+    setNewComment("");
+    setIsSubmitting(false);
+  }, 1000);  // ✅ Только эта ;
+};
+  
 
   return (
     <div className="bg-card rounded-lg border border-border p-6">
