@@ -10,6 +10,9 @@ interface MarketData {
   prices: number[];
   volume: string;
   url: string;
+  yesTokenId?: string;
+  noTokenId?: string;
+  tokens?: Array<{ token_id: string; outcome: string; price: string }>;
 }
 
 interface MarketCardProps {
@@ -36,75 +39,83 @@ export function MarketCard({ marketId, marketData, builderId = 'FLARIFYAPP' }: M
   };
 
   const isBinaryMarket = marketData.outcomes.length === 2;
+  const yesPercentage = Math.round(marketData.prices[0] * 100);
+  const noPercentage = isBinaryMarket ? Math.round(marketData.prices[1] * 100) : 0;
 
   return (
     <>
-      <div className="mt-3 bg-card rounded-[20px] overflow-hidden border border-border card-shadow">
+      <div className="mt-3 bg-secondary/30 rounded-2xl overflow-hidden border border-white/10 backdrop-blur-xl card-shadow">
+        {/* Header */}
         <div className="p-4 flex items-start gap-3">
-          <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center flex-shrink-0">
-            <TrendingUp className="w-5 h-5 text-primary" />
+          <div className="w-10 h-10 bg-gradient-to-br from-[#2A56F2] to-[#9DFECB] rounded-xl flex items-center justify-center flex-shrink-0">
+            <TrendingUp className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm leading-tight mb-1" style={{ color: '#140106', letterSpacing: '-1px' }}>
+            <p className="font-semibold text-sm leading-tight mb-1 text-foreground">
               {marketData.question}
             </p>
-            <div className="flex items-center gap-2 text-xs" style={{ color: '#989898' }}>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Volume2 className="w-3 h-3" />
               <span>{formatVolume(marketData.volume)} Vol</span>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold text-primary">
-              {Math.round(marketData.prices[0] * 100)}%
+            <div className="text-2xl font-bold bg-gradient-to-r from-[#9DFECB] to-[#2A56F2] bg-clip-text text-transparent">
+              {yesPercentage}%
             </div>
-            <div className="text-xs" style={{ color: '#989898' }}>chance</div>
+            <div className="text-xs text-muted-foreground">chance</div>
           </div>
         </div>
 
+        {/* Betting Buttons */}
         {isBinaryMarket ? (
           <div className="p-4 pt-0 flex gap-3">
             <button
               onClick={() => handleOutcomeClick(0, marketData.outcomes[0])}
-              className="flex-1 py-4 bg-green-500 hover:bg-green-600 rounded-xl font-bold text-white transition-all text-lg"
-              style={{ letterSpacing: '-1px' }}
+              className="flex-1 py-4 bg-gradient-to-r from-[#9DFECB]/20 to-[#9DFECB]/10 hover:from-[#9DFECB]/30 hover:to-[#9DFECB]/20 border border-[#9DFECB]/20 rounded-xl font-bold text-[#9DFECB] transition-all text-lg backdrop-blur-sm"
             >
-              {marketData.outcomes[0]}
+              <div className="flex flex-col items-center">
+                <span>{marketData.outcomes[0]}</span>
+                <span className="text-xs opacity-70">{yesPercentage}¢</span>
+              </div>
             </button>
             <button
               onClick={() => handleOutcomeClick(1, marketData.outcomes[1])}
-              className="flex-1 py-4 bg-red-500 hover:bg-red-600 rounded-xl font-bold text-white transition-all text-lg"
-              style={{ letterSpacing: '-1px' }}
+              className="flex-1 py-4 bg-gradient-to-r from-destructive/20 to-destructive/10 hover:from-destructive/30 hover:to-destructive/20 border border-destructive/20 rounded-xl font-bold text-destructive transition-all text-lg backdrop-blur-sm"
             >
-              {marketData.outcomes[1]}
+              <div className="flex flex-col items-center">
+                <span>{marketData.outcomes[1]}</span>
+                <span className="text-xs opacity-70">{noPercentage}¢</span>
+              </div>
             </button>
           </div>
         ) : (
           <div className="p-4 pt-0 space-y-2">
             {marketData.outcomes.map((outcome, index) => (
-              <div
+              <button
                 key={index}
-                className="flex items-center justify-between p-3 bg-accent rounded-lg hover:bg-accent/70 transition-colors cursor-pointer"
                 onClick={() => handleOutcomeClick(index, outcome)}
+                className="w-full flex items-center justify-between p-3 bg-secondary/50 rounded-xl hover:bg-secondary/70 transition-all border border-white/5"
               >
                 <div className="flex-1">
-                  <p className="font-semibold text-sm" style={{ color: '#140106', letterSpacing: '-1px' }}>
+                  <p className="font-semibold text-sm text-foreground">
                     {outcome}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold" style={{ color: '#140106' }}>
+                  <span className="text-lg font-bold text-foreground">
                     {Math.round(marketData.prices[index] * 100)}%
                   </span>
                   <div className="flex gap-2">
-                    <button className="px-3 py-1 bg-green-500 hover:bg-green-600 rounded text-white text-xs font-bold transition-colors">
+                    <span className="px-3 py-1 bg-[#9DFECB]/20 text-[#9DFECB] rounded text-xs font-bold">
                       Yes
-                    </button>
-                    <button className="px-3 py-1 bg-red-500 hover:bg-red-600 rounded text-white text-xs font-bold transition-colors">
+                    </span>
+                    <span className="px-3 py-1 bg-destructive/20 text-destructive rounded text-xs font-bold">
                       No
-                    </button>
+                    </span>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}

@@ -26,73 +26,85 @@ export function Navigation() {
   };
 
   const username = user?.google?.name || user?.email?.address?.split('@')[0] || 'Unknown';
-  const handle = '@' + username.toLowerCase().replace(/\s+/g, '');
 
   return (
     <>
       {/* Sidebar Navigation */}
-      <div className="fixed left-[17.5px] top-1/2 -translate-y-1/2 z-50">
-        <div className="w-20 h-[350px] bg-card border border-border rounded-[29px] card-shadow flex flex-col items-center justify-center gap-8 py-8">
+      <div className="fixed left-0 top-0 h-full w-20 lg:w-72 bg-sidebar border-r border-sidebar-border p-4 flex flex-col z-50">
+        {/* Logo / Title */}
+        <div className="hidden lg:block mb-8 px-2">
+          <h1 className="text-2xl font-bold text-gradient-blue-aqua">
+            Flarify
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1">Prediction Market Social</p>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 space-y-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center justify-center transition-all hover:scale-105 ${
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all relative group ${
                   isActive
-                    ? "text-[#140106]"
-                    : "text-[#C2C2C2] hover:text-[#140106]"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 }`}
-                title={item.label}
               >
-                <item.icon className="w-10 h-10" strokeWidth={isActive ? 2 : 2} />
+                {isActive && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#2A56F2]/20 to-[#9DFECB]/20 rounded-2xl" />
+                )}
+                <item.icon className="w-6 h-6 relative z-10 transition-transform group-hover:scale-110" />
+                <span className="hidden lg:block relative z-10 font-medium">{item.label}</span>
               </Link>
             );
           })}
-        </div>
-      </div>
-          {authenticated && (
-            <div className="fixed right-8 top-8 z-50">
-              <BalanceDisplay />
-            </div>
-          )}
-      {/* User Profile Card (bottom left) */}
-      {authenticated && (
-        <div className="fixed left-[17.5px] bottom-8 z-50">
-          <div className="bg-card border border-border rounded-[20px] card-shadow w-[200px]">
+        </nav>
+
+        {/* Balance (Desktop only) */}
+        {authenticated && (
+          <div className="hidden lg:block mb-4 px-2">
+            <BalanceDisplay />
+          </div>
+        )}
+
+        {/* User Profile Card */}
+        {authenticated && (
+          <div className="border-t border-sidebar-border pt-4">
             <button
               onClick={() => router.push('/profile')}
-              className="p-4 flex items-center gap-3 hover:bg-accent/30 transition-all w-full"
+              className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-sidebar-accent/50 transition-all"
             >
-              <div className="w-[50px] h-[50px] rounded-full bg-[#C2C2C2] flex items-center justify-center flex-shrink-0">
-                <span className="text-lg font-bold text-white">
-                  {username[0].toUpperCase()}
-                </span>
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2A56F2] to-[#9DFECB] flex items-center justify-center text-sm font-semibold text-white">
+                {username[0].toUpperCase()}
               </div>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="font-bold text-sm truncate" style={{ color: '#140106', letterSpacing: '-1px' }}>
-                  {username}
-                </p>
-                <p className="text-xs truncate" style={{ color: '#989898', letterSpacing: '0px' }}>
-                  {handle}
-                </p>
+              <div className="hidden lg:block flex-1 text-left">
+                <p className="text-sm font-medium text-sidebar-foreground truncate">{username}</p>
+                <p className="text-xs text-muted-foreground">@{username.toLowerCase().replace(/\s+/g, '')}</p>
               </div>
             </button>
             
             {/* Logout Button */}
-            <div className="border-t border-border">
-              <button
-                onClick={handleLogout}
-                className="p-3 flex items-center gap-2 hover:bg-red-500/10 transition-all w-full text-left"
-              >
-                <LogOut className="w-4 h-4 text-red-500" />
-                <span className="text-sm font-semibold text-red-500" style={{ letterSpacing: '-1px' }}>
-                  Logout
-                </span>
-              </button>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center lg:justify-start gap-3 mt-2 px-4 py-3 rounded-2xl text-destructive hover:bg-destructive/10 transition-all"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="hidden lg:block font-medium">Logout</span>
+            </button>
           </div>
+        )}
+      </div>
+
+      {/* Main content padding */}
+      <div className="pl-20 lg:pl-72" />
+
+      {/* Mobile Balance (top right) */}
+      {authenticated && (
+        <div className="lg:hidden fixed right-4 top-4 z-50">
+          <BalanceDisplay />
         </div>
       )}
     </>

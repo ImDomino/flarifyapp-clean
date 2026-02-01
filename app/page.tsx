@@ -57,94 +57,86 @@ export default function Home() {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-3xl mx-auto">
       {/* Search Bar */}
-      <div className="mb-4">
-        <div className="relative bg-card border border-border rounded-[30px] card-shadow">
+      <div className="mb-6">
+        <div className="relative bg-card border border-white/10 rounded-3xl backdrop-blur-xl card-shadow">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search..."
-            className="w-full pl-14 pr-4 py-4 bg-transparent border-none rounded-[30px] focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground placeholder:text-muted-foreground"
-            style={{ fontSize: '20px', letterSpacing: '-1px' }}
+            className="w-full pl-14 pr-4 py-4 bg-transparent border-none rounded-3xl focus:outline-none focus:ring-2 focus:ring-white/20 text-foreground placeholder:text-muted-foreground"
           />
         </div>
       </div>
 
-      {/* Posts Container */}
-      <div className="bg-card border border-border rounded-[30px] card-shadow overflow-hidden">
-        {/* Create Post Header */}
-        <div className="border-b border-border p-6 flex items-center justify-between bg-card">
+      {/* Create Post Prompt */}
+      <div className="mb-6 bg-card border border-white/10 rounded-3xl backdrop-blur-xl p-6 card-shadow">
+        <div className="flex items-center gap-4">
           <input
             type="text"
             placeholder="What's the latest?"
             readOnly
             onClick={() => window.location.href = '/create'}
             className="flex-1 bg-transparent border-none focus:outline-none text-muted-foreground cursor-pointer"
-            style={{ fontSize: '20px', letterSpacing: '-1px' }}
           />
           <button
             onClick={() => window.location.href = '/create'}
-            className="px-8 py-3 bg-card border border-border rounded-xl font-bold text-foreground hover:bg-accent transition-colors"
-            style={{ fontSize: '20px', letterSpacing: '-1px' }}
+            className="px-6 py-2 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
           >
             Post
           </button>
         </div>
+      </div>
 
-        {/* Posts List */}
-        <div className="divide-y divide-border">
-          {posts.length === 0 ? (
-            <div className="text-center py-16 px-6">
-              <p className="text-muted-foreground mb-4" style={{ fontSize: '20px', letterSpacing: '-1px' }}>
-                No posts yet. Be the first to create one!
-              </p>
+      {/* Posts List */}
+      {posts.length === 0 ? (
+        <div className="text-center py-16 px-6 bg-card border border-white/10 rounded-3xl backdrop-blur-xl card-shadow">
+          <p className="text-muted-foreground mb-4">
+            No posts yet. Be the first to create one!
+          </p>
+          <button
+            onClick={() => window.location.href = '/create'}
+            className="px-6 py-3 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white rounded-xl hover:opacity-90 transition-opacity font-medium"
+          >
+            Create First Post
+          </button>
+        </div>
+      ) : (
+        <>
+          {posts.map((post, index) => (
+            <PostCard key={post.id} post={post} />
+          ))}
+
+          {/* Load More */}
+          {hasMore && (
+            <div className="text-center py-6">
               <button
-                onClick={() => window.location.href = '/create'}
-                className="px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors font-bold"
-                style={{ fontSize: '20px', letterSpacing: '-1px' }}
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
+                className="px-6 py-3 bg-card border border-white/10 rounded-2xl hover:bg-card/80 transition-all font-medium disabled:opacity-50 card-shadow"
               >
-                Create First Post
+                {isLoadingMore ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading...
+                  </span>
+                ) : (
+                  "Load More Posts"
+                )}
               </button>
             </div>
-          ) : (
-            <>
-              {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
-              ))}
-
-              {/* Load More */}
-              {hasMore && (
-                <div className="text-center py-6">
-                  <button
-                    onClick={handleLoadMore}
-                    disabled={isLoadingMore}
-                    className="px-6 py-3 bg-card border border-border rounded-xl hover:bg-accent transition-colors font-semibold disabled:opacity-50"
-                    style={{ fontSize: '20px', letterSpacing: '-1px', color: '#140106' }}
-                  >
-                    {isLoadingMore ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading...
-                      </span>
-                    ) : (
-                      "Load More Posts"
-                    )}
-                  </button>
-                </div>
-              )}
-
-              {!hasMore && posts.length > 0 && (
-                <div className="text-center py-6">
-                  <p className="text-muted-foreground text-sm" style={{ letterSpacing: '-1px' }}>
-                    That's all for now! 🎉
-                  </p>
-                </div>
-              )}
-            </>
           )}
-        </div>
-      </div>
+
+          {!hasMore && posts.length > 0 && (
+            <div className="text-center py-6">
+              <p className="text-muted-foreground text-sm">
+                That's all for now! 🎉
+              </p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

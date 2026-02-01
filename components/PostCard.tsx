@@ -19,7 +19,9 @@ export function PostCard({ post }: PostCardProps) {
   const router = useRouter();
   const { user } = usePrivy();
 
-  const handleLike = async () => {
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
     if (!user) {
       alert('Please sign in to like posts');
       return;
@@ -52,119 +54,75 @@ export function PostCard({ post }: PostCardProps) {
   };
 
   const username = post.profiles?.username || post.profiles?.email?.split('@')[0] || 'Unknown';
-  const handle = '@' + username.toLowerCase().replace(/\s+/g, '');
-  const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true }).replace('about ', '');
+  const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
 
   return (
-    <div className="p-6 bg-card transition-colors cursor-pointer" onClick={() => router.push(`/post/${post.id}`)}>
+    <div
+      className="relative overflow-hidden rounded-3xl bg-card backdrop-blur-xl border border-white/10 p-6 mb-4 cursor-pointer hover:border-white/20 transition-all card-shadow card-hover"
+      onClick={() => router.push(`/post/${post.id}`)}
+    >
       {/* Header */}
-      <div className="flex items-start gap-3 mb-3">
-        <div 
-          className="w-[60px] h-[60px] rounded-full bg-[#C2C2C2] flex items-center justify-center flex-shrink-0"
-          style={{ background: '#C2C2C2' }}
-        >
-          <span className="text-xl font-bold text-white">
-            {username[0].toUpperCase()}
-          </span>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2A56F2] to-[#9DFECB] flex items-center justify-center text-lg font-semibold text-white">
+          {username[0].toUpperCase()}
         </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span 
-              className="font-bold truncate"
-              style={{ fontSize: '20px', letterSpacing: '-1px', color: '#140106' }}
-            >
-              {username}
-            </span>
-            <span className="text-xs truncate" style={{ letterSpacing: '0px', color: '#989898' }}>
-              {handle}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-1 h-1 rounded-full bg-[#989898]"></span>
-            <span className="text-sm whitespace-nowrap" style={{ letterSpacing: '0px', color: '#989898' }}>
-              {timeAgo.replace(' ago', '')}
-            </span>
-          </div>
+        <div>
+          <p className="font-medium text-foreground">{username}</p>
+          <p className="text-xs text-muted-foreground">{timeAgo}</p>
         </div>
       </div>
 
       {/* Content */}
-      <div className="mb-3 pl-[72px]">
-        <p 
-          className="whitespace-pre-wrap break-words mb-3"
-          style={{ fontSize: '20px', lineHeight: '24px', letterSpacing: '-1px', color: '#140106' }}
-        >
-          {post.content}
-        </p>
+      <p className="text-foreground/90 mb-4 whitespace-pre-wrap">{post.content}</p>
 
-        {/* Image */}
-        {post.image_url && (
-          <div className="relative w-full rounded-[30px] overflow-hidden border border-border mt-3" style={{ maxHeight: '500px' }}>
-            <Image
-              src={post.image_url}
-              alt="Post image"
-              width={690}
-              height={500}
-              className="w-full h-auto object-cover"
-              unoptimized
-            />
-          </div>
-        )}
+      {/* Image */}
+      {post.image_url && (
+        <div className="relative w-full rounded-2xl overflow-hidden border border-white/10 mb-4" style={{ maxHeight: '500px' }}>
+          <Image
+            src={post.image_url}
+            alt="Post image"
+            width={690}
+            height={500}
+            className="w-full h-auto object-cover"
+            unoptimized
+          />
+        </div>
+      )}
 
-        {/* Market Card */}
-        {post.polymarket_market_id && post.market_data && (
-          <div onClick={(e) => e.stopPropagation()}>
-            {(() => {
-              const finalMarketData = {
-                ...post.market_data,
-                // Прокидываем tokenIds из БД если они есть
-                yesTokenId: post.yes_token_id || post.market_data.yesTokenId,
-                noTokenId: post.no_token_id || post.market_data.noTokenId,
-              };
-              
-              console.log('🔍 PostCard marketData:', {
-                post_yes_token_id: post.yes_token_id,
-                post_no_token_id: post.no_token_id,
-                market_data_yesTokenId: post.market_data.yesTokenId,
-                market_data_noTokenId: post.market_data.noTokenId,
-                final_yesTokenId: finalMarketData.yesTokenId,
-                final_noTokenId: finalMarketData.noTokenId,
-              });
-              
-              return (
-                <MarketCard 
-                  marketData={finalMarketData}
-                  marketId={post.polymarket_market_id}
-                />
-              );
-            })()}
-          </div>
-        )}
-      </div>
+      {/* Market Card */}
+      {post.polymarket_market_id && post.market_data && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <MarketCard 
+            marketData={{
+              ...post.market_data,
+              yesTokenId: post.yes_token_id || post.market_data.yesTokenId,
+              noTokenId: post.no_token_id || post.market_data.noTokenId,
+            }}
+            marketId={post.polymarket_market_id}
+          />
+        </div>
+      )}
 
       {/* Actions */}
-      <div className="flex items-center gap-8 pl-[72px]" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-6 pt-4 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={handleLike}
-          className={`flex items-center gap-2 group transition-colors ${
-            hasLiked ? "text-red-500" : "text-[#989898] hover:text-red-500"
+          className={`flex items-center gap-2 transition-colors group ${
+            hasLiked
+              ? "text-chart-5"
+              : "text-muted-foreground hover:text-chart-5"
           }`}
         >
-          <Heart className={`w-5 h-5 ${hasLiked && "fill-current"} transition-all group-hover:scale-110`} />
-          <span className="font-semibold text-xs" style={{ letterSpacing: '-1px' }}>
-            {likes > 0 ? (likes >= 1000 ? `${(likes / 1000).toFixed(1)}k` : likes) : ''}
-          </span>
+          <Heart className={`w-5 h-5 transition-transform group-hover:scale-110 ${hasLiked && "fill-current"}`} />
+          <span className="text-sm font-medium">{likes > 0 ? likes : ''}</span>
         </button>
-
+        
         <button
           onClick={() => router.push(`/post/${post.id}`)}
-          className="flex items-center gap-2 text-[#989898] hover:text-primary group transition-colors"
+          className="flex items-center gap-2 text-muted-foreground hover:text-chart-2 transition-colors group"
         >
-          <MessageCircle className="w-5 h-5 group-hover:scale-110 transition-all" />
-          <span className="font-semibold text-xs" style={{ letterSpacing: '-1px' }}>
-            {post.comments_count > 0 ? (post.comments_count >= 1000 ? `${(post.comments_count / 1000).toFixed(1)}k` : post.comments_count) : ''}
-          </span>
+          <MessageCircle className="w-5 h-5 transition-transform group-hover:scale-110" />
+          <span className="text-sm font-medium">{post.comments_count > 0 ? post.comments_count : ''}</span>
         </button>
       </div>
     </div>

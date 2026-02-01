@@ -6,27 +6,35 @@
 
 @layer base {
   :root {
-    /* New Light Theme */
-    --background: 0 0% 94%;          /* #EFEEF1 */
-    --foreground: 270 94% 4%;        /* #140106 */
-    --card: 330 33% 98%;             /* #FBF7F8 */
-    --card-foreground: 270 94% 4%;   /* #140106 */
-    --popover: 330 33% 98%;
-    --popover-foreground: 270 94% 4%;
-    --primary: 142 76% 36%;          /* Keep green */
-    --primary-foreground: 210 40% 98%;
-    --secondary: 0 0% 76%;           /* #C2C2C2 */
-    --secondary-foreground: 270 94% 4%;
-    --muted: 0 0% 60%;               /* #989898 */
-    --muted-foreground: 0 0% 60%;    /* #989898 */
-    --accent: 0 0% 94%;
-    --accent-foreground: 270 94% 4%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 0 0% 76%;              /* #C2C2C2 */
-    --input: 0 0% 76%;
-    --ring: 142 76% 36%;
-    --radius: 1.875rem;              /* 30px */
+    /* Dark Theme (из Photographer Portfolio дизайна) */
+    --background: 10 10% 4%;          /* #0a0a0c */
+    --foreground: 0 0% 96%;           /* #f5f5f7 */
+    --card: 0 0% 11%;                 /* #1c1c1e */
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 142 76% 36%;           /* Keep green for Polymarket */
+    --primary-foreground: 0 0% 4%;
+    --secondary: 0 0% 17%;            /* #2c2c2e */
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 17%;
+    --muted-foreground: 0 0% 56%;     /* #8e8e93 */
+    --accent: 0 0% 17%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 4 90% 60%;         /* #ff453a */
+    --destructive-foreground: 0 0% 96%;
+    --border: 0 0% 100% / 0.1;        /* rgba(255,255,255,0.1) */
+    --input: 0 0% 100% / 0.05;
+    --ring: 0 0% 100% / 0.2;
+    
+    /* Chart colors - градиенты из нового дизайна */
+    --chart-1: 157 100% 79%;          /* #9DFECB - бирюзовый */
+    --chart-2: 224 86% 56%;           /* #2A56F2 - синий */
+    --chart-3: 224 86% 56%;
+    --chart-4: 33 100% 52%;           /* #ff9f0a */
+    --chart-5: 351 100% 61%;          /* #ff375f */
+    
+    --radius: 1.25rem;                /* 20px */
   }
 }
 
@@ -38,18 +46,16 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    letter-spacing: -0.05em;
   }
   
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Nunito Sans', sans-serif;
-    letter-spacing: -0.05em;
   }
 }
 
 @layer utilities {
   .card-shadow {
-    box-shadow: 0px 0px 20px 1px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
   }
   
   .card-hover {
@@ -57,23 +63,20 @@
   }
   
   .card-hover:hover {
-    transform: translateY(-1px);
-    box-shadow: 0px 2px 24px 2px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.2);
   }
   
-  .text-primary-dark {
-    color: #140106;
+  /* Gradient utilities */
+  .gradient-blue-aqua {
+    background: linear-gradient(135deg, #2A56F2 0%, #9DFECB 100%);
   }
   
-  .text-secondary-gray {
-    color: #989898;
-  }
-  
-  .bg-card-light {
-    background: #FBF7F8;
-  }
-  
-  .border-gray {
-    border-color: #C2C2C2;
+  .text-gradient-blue-aqua {
+    background: linear-gradient(135deg, #2A56F2 0%, #9DFECB 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
