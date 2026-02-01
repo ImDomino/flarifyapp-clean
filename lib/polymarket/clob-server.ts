@@ -5,7 +5,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { ClobClient } from '@polymarket/clob-client';
+import { ClobClient, Side } from '@polymarket/clob-client';
 import { BuilderConfig, BuilderApiKeyCreds } from '@polymarket/builder-signing-sdk';
 import { getPrivyUserContext } from '@/lib/auth/privy-server';
 import { createClient } from '@/lib/supabase/server';
@@ -165,11 +165,12 @@ export async function placeUserOrder(
 
   // Создаём ордер
   const order = await client.createOrder({
-    tokenID: tokenId,
-    price: price,
-    side: side === 'BUY' ? 0 : 1,
-    size: size,
-  });
+  tokenID: tokenId,
+  price: price,
+  side: side === 'BUY' ? Side.BUY : Side.SELL,
+  size: size,
+});
+
 
   console.log('✅ Order created:', order);
 
