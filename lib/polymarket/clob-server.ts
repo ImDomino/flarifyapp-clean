@@ -81,7 +81,7 @@ async function getServerClobClient(
     console.log('✅ Created and saved new L2 credentials');
   }
 
-  const userApiCreds = { apiKey, secret, passphrase };
+  const userApiCreds = { key: apiKey, secret, passphrase };
 
   // Builder configuration (опционально)
   let builderConfig: BuilderConfig | undefined;
