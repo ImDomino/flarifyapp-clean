@@ -25,33 +25,35 @@ export function BalanceDisplay() {
 
   if (!eoaAddress) return null;
 
+  const displayBalance = isLoading
+    ? "Loading..."
+    : `${parseFloat(safeBalance).toFixed(2)} USDC.e`;
+
   return (
     <>
-      <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg">
+      <div className="flex items-center gap-3 px-4 py-2 bg-secondary/30 border border-white/10 rounded-2xl">
         <div className="flex items-center gap-2">
-          <Wallet size={16} className="text-gray-600" />
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#2A56F2] to-[#9DFECB] flex items-center justify-center">
+            <Wallet size={16} className="text-white" />
+          </div>
           <div>
-            <div className="text-xs text-gray-500">Trading Balance</div>
+            <div className="text-[11px] text-muted-foreground">Trading Balance</div>
             <div
-              className="text-sm font-bold"
-              style={{ letterSpacing: "-0.5px" }}
+              className="text-sm sm:text-base font-bold text-foreground"
+              style={{ letterSpacing: "-0.3px" }}
             >
-              {isLoading ? (
-                <span className="text-gray-400">Loading...</span>
-              ) : (
-                <span>{parseFloat(safeBalance).toFixed(2)} USDC.e</span>
-              )}
+              {displayBalance}
             </div>
           </div>
         </div>
 
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white rounded-xl hover:opacity-90 text-xs sm:text-sm font-medium transition-colors"
           title="Deposit to trading wallet"
         >
-          <Plus size={16} />
-          <span>Deposit</span>
+          <Plus size={14} />
+          <span className="hidden sm:inline">Deposit</span>
         </button>
       </div>
 
