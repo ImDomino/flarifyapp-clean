@@ -11,7 +11,7 @@ import { usePlaceOrder } from "@/hooks/usePlaceOrder";
 interface MarketData {
   question: string;
   outcomes: string[];
-  prices: number[]; 
+  prices: number[]; // цена в USDC
   volume: string;
   url: string;
   yesTokenId?: string;
@@ -142,151 +142,154 @@ export function TradingModal({
               transition={{ type: "spring", duration: 0.5 }}
               className="w-[90vw] max-w-md bg-card border border-white/10 rounded-3xl shadow-2xl pointer-events-auto"
             >
-            {/* Header */}
-            <div className="relative p-6 pb-4 border-b border-white/10">
-              <button
-                onClick={onClose}
-                className="absolute top-4 right-4 p-2 rounded-xl hover:bg-white/10 transition-colors"
-              >
-                <X className="w-5 h-5 text-muted-foreground" />
-              </button>
-
-              <div className="flex items-center gap-2 mb-1">
-                <TrendingUp className="w-5 h-5 text-[#2A56F2]" />
-                <h2 className="text-lg font-semibold text-foreground">
-                  Place Order
-                </h2>
-              </div>
-              <p className="text-xs text-muted-foreground line-clamp-2 mb-1">
-                {marketData.question}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Volume: ${parseFloat(marketData.volume).toLocaleString()}
-              </p>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-4">
-              {/* Trade Info */}
-              <div className="bg-secondary/30 border border-white/5 rounded-2xl p-4 space-y-2">
-                <p className="text-sm text-muted-foreground">You're buying</p>
-                <div className="flex items-baseline gap-2">
-                  <span
-                    className={`text-3xl font-bold ${
-                      side === "yes" ? "text-chart-1" : "text-destructive"
-                    }`}
-                  >
-                    {outcome}
-                  </span>
-                  <span className="text-muted-foreground">
-                    at {displayPriceCents.toFixed(1)}¢
-                  </span>
-                </div>
-              </div>
-
-              {/* Amount Input */}
-              <div className="space-y-2">
-                <label
-                  htmlFor="amount"
-                  className="text-sm font-medium text-foreground"
+              {/* Header */}
+              <div className="relative p-6 pb-4 border-b border-white/10">
+                <button
+                  onClick={onClose}
+                  className="absolute top-4 right-4 p-2 rounded-xl hover:bg-white/10 transition-colors"
                 >
-                  Amount (USDC)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    $
-                  </span>
-                  <input
-                    id="amount"
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-secondary/50 border border-white/10 rounded-2xl pl-8 pr-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-[#2A56F2]/50 transition-all placeholder:text-muted-foreground"
-                    min="0"
-                    step="0.01"
-                  />
+                  <X className="w-5 h-5 text-muted-foreground" />
+                </button>
+
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="w-5 h-5 text-[#2A56F2]" />
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Place Order
+                  </h2>
                 </div>
-              </div>
-
-              {/* Calculations */}
-              {amountNum > 0 && price > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="space-y-3 overflow-hidden"
-                >
-                  <div className="bg-secondary/20 border border-white/5 rounded-2xl p-4 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        Shares
-                      </span>
-                      <span className="text-sm font-medium text-foreground">
-                        {shares.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        Potential win
-                      </span>
-                      <span className="text-sm font-medium text-foreground">
-                        ${potentialWin.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="h-px bg-white/5" />
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-foreground">
-                        Profit if correct
-                      </span>
-                      <span
-                        className={`text-base font-bold ${
-                          profit > 0 ? "text-chart-1" : "text-muted-foreground"
-                        }`}
-                      >
-                        ${profit.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Buy Button */}
-              <button
-                onClick={handleTrade}
-                disabled={
-                  !amountNum || amountNum <= 0 || isProcessing || price <= 0
-                }
-                className={`w-full py-4 rounded-2xl font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
-                  side === "yes"
-                    ? "bg-chart-1 hover:bg-chart-1/90 shadow-chart-1/30"
-                    : "bg-destructive hover:bg-destructive/90 shadow-destructive/30"
-                }`}
-              >
-                {isProcessing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{
-                        duration: 1,
-                        repeat: Infinity,
-                        ease: "linear",
-                      }}
-                      className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-                    />
-                    Placing order...
-                  </span>
-                ) : (
-                  `Buy ${outcome} for $${amountNum.toFixed(2)}`
-                )}
-              </button>
-
-              {!authenticated && (
-                <p className="text-center text-xs text-muted-foreground mt-2">
-                  Please log in to place orders
+                <p className="text-xs text-muted-foreground line-clamp-2 mb-1">
+                  {marketData.question}
                 </p>
-              )}
-            </div>
-          </motion.div>
+                <p className="text-sm text-muted-foreground">
+                  Volume: ${parseFloat(marketData.volume).toLocaleString()}
+                </p>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 space-y-4">
+                {/* Trade Info */}
+                <div className="bg-secondary/30 border border-white/5 rounded-2xl p-4 space-y-2">
+                  <p className="text-sm text-muted-foreground">You're buying</p>
+                  <div className="flex items-baseline gap-2">
+                    <span
+                      className={`text-3xl font-bold ${
+                        side === "yes" ? "text-chart-1" : "text-destructive"
+                      }`}
+                    >
+                      {outcome}
+                    </span>
+                    <span className="text-muted-foreground">
+                      at {displayPriceCents.toFixed(1)}¢
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amount Input */}
+                <div className="space-y-2">
+                  <label
+                    htmlFor="amount"
+                    className="text-sm font-medium text-foreground"
+                  >
+                    Amount (USDC)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      $
+                    </span>
+                    <input
+                      id="amount"
+                      type="number"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full bg-secondary/50 border border-white/10 rounded-2xl pl-8 pr-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-[#2A56F2]/50 transition-all placeholder:text-muted-foreground"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+
+                {/* Calculations */}
+                {amountNum > 0 && price > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="space-y-3 overflow-hidden"
+                  >
+                    <div className="bg-secondary/20 border border-white/5 rounded-2xl p-4 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">
+                          Shares
+                        </span>
+                        <span className="text-sm font-medium text-foreground">
+                          {shares.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">
+                          Potential win
+                        </span>
+                        <span className="text-sm font-medium text-foreground">
+                          ${potentialWin.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="h-px bg-white/5" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-foreground">
+                          Profit if correct
+                        </span>
+                        <span
+                          className={`text-base font-bold ${
+                            profit > 0
+                              ? "text-chart-1"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          ${profit.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Buy Button */}
+                <button
+                  onClick={handleTrade}
+                  disabled={
+                    !amountNum || amountNum <= 0 || isProcessing || price <= 0
+                  }
+                  className={`w-full py-4 rounded-2xl font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
+                    side === "yes"
+                      ? "bg-chart-1 hover:bg-chart-1/90 shadow-chart-1/30"
+                      : "bg-destructive hover:bg-destructive/90 shadow-destructive/30"
+                  }`}
+                >
+                  {isProcessing ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{
+                          duration: 1,
+                          repeat: Infinity,
+                          ease: "linear",
+                        }}
+                        className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                      />
+                      Placing order...
+                    </span>
+                  ) : (
+                    `Buy ${outcome} for $${amountNum.toFixed(2)}`
+                  )}
+                </button>
+
+                {!authenticated && (
+                  <p className="text-center text-xs text-muted-foreground mt-2">
+                    Please log in to place orders
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
