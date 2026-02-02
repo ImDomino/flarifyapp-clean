@@ -20,7 +20,7 @@ export const useClobClient = () => {
     // Builder configuration с remote signing
    const builderConfig = new BuilderConfig({
       remoteBuilderConfig: {
-        url: "http://localhost:3000/api/polymarket/sign", // dev
+        url: "http://prototype1231.vercel.app/api/polymarket/sign", // dev
       },
     });
 

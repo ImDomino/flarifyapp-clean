@@ -133,14 +133,15 @@ export function TradingModal({
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999]"
           />
 
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: "spring", duration: 0.5 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md bg-card border border-white/10 rounded-3xl shadow-2xl z-[10000]"
-          >
+          {/* Modal wrapper */}
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              className="w-[90vw] max-w-md bg-card border border-white/10 rounded-3xl shadow-2xl pointer-events-auto"
+            >
             {/* Header */}
             <div className="relative p-6 pb-4 border-b border-white/10">
               <button

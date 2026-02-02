@@ -13,7 +13,7 @@ export const useRelayClient = () => {
 
     const builderConfig = new BuilderConfig({
       remoteBuilderConfig: {
-        url: "http://localhost:3000/api/polymarket/sign",
+        url: "http://prototype1231.vercel.app/api/polymarket/sign",
       },
     });
 
