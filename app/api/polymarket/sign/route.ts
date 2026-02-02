@@ -23,12 +23,9 @@ export async function POST(request: NextRequest) {
   );
 
   return NextResponse.json({
-  ok: true,
-  ENV: {
-    key: !!BUILDER_CREDENTIALS.key,
-    secret: !!BUILDER_CREDENTIALS.secret,
-    passphrase: !!BUILDER_CREDENTIALS.passphrase,
-  },
-});
+    POLY_BUILDER_SIGNATURE: signature,
+    POLY_BUILDER_TIMESTAMP: sigTimestamp,
+    POLY_BUILDER_API_KEY: BUILDER_CREDENTIALS.key,
+    POLY_BUILDER_PASSPHRASE: BUILDER_CREDENTIALS.passphrase,
+  });
 }
-
