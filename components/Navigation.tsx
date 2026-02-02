@@ -28,6 +28,7 @@ export function Navigation() {
   const { eoaAddress } = useWallet();
   const [safeAddress, setSafeAddress] = useState<string | null>(null);
   const { ensureSafe } = useSafeDeployment();
+  
 
   useEffect(() => {
     if (eoaAddress) {
@@ -35,7 +36,7 @@ export function Navigation() {
     }
   }, [eoaAddress, ensureSafe]);
 
-  const { safeBalance, isLoading } = useBalances(eoaAddress, safeAddress);
+  const { safeBalance, isLoading, refresh } = useBalances(eoaAddress, safeAddress);
   const safeNum = parseFloat(safeBalance || "0");
 
   const navItems = [
@@ -128,7 +129,10 @@ export function Navigation() {
                   </p>
                 </div>
                 <p className="text-[10px] text-muted-foreground/70">
-                  Funds available for trading
+                  Funds available for trading:{" "}
+                  <span className="font-semibold text-foreground">
+                    {isLoading ? "$0.00" : `$${safeNum.toFixed(2)}`}
+                  </span>
                 </p>
               </div>
 
@@ -199,6 +203,7 @@ export function Navigation() {
           isOpen={isDepositOpen}
           eoaAddress={eoaAddress}
           onClose={() => setIsDepositOpen(false)}
+          onRefreshBalance={refresh}
         />
       )}
     </>

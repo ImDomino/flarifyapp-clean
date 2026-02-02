@@ -10,6 +10,7 @@ interface DepositModalProps {
   eoaAddress: string;
   isOpen: boolean;
   onClose: () => void;
+  onRefreshBalance?: () => void;
 }
 
 export function DepositModal({ eoaAddress, isOpen, onClose }: DepositModalProps) {
