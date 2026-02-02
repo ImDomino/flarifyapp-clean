@@ -6,9 +6,7 @@ import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { useWallet } from "@/providers/WalletProvider";
 import { useUserApiCredentials } from "./useUserApiCredentials";
 
-const BUILDER_SIGN_URL =
-  process.env.NEXT_PUBLIC_BUILDER_SIGN_URL ??
-  "https://prototype1231.vercel.app/api/polymarket/sign";
+const BUILDER_SIGN_URL = process.env.NEXT_PUBLIC_BUILDER_SIGN_URL as string;
 
 export const useClobClient = () => {
   const { ethersSigner, eoaAddress } = useWallet();
@@ -19,7 +17,11 @@ export const useClobClient = () => {
       throw new Error("No signer or address");
     }
 
-    console.log("🔧 Initializing CLOB client...");
+    if (!BUILDER_SIGN_URL) {
+      throw new Error("NEXT_PUBLIC_BUILDER_SIGN_URL is not set");
+    }
+
+    console.log("🔧 Initializing CLOB client with", BUILDER_SIGN_URL);
 
     const builderConfig = new BuilderConfig({
       remoteBuilderConfig: {
@@ -34,8 +36,8 @@ export const useClobClient = () => {
       137,
       ethersSigner as any,
       creds,
-      0,          // signatureType = 0 (EOA)
-      eoaAddress, // funder = user's wallet
+      0,
+      eoaAddress,
       undefined,
       false,
       builderConfig
