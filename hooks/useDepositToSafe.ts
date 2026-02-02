@@ -8,7 +8,18 @@ import { useSafeDeployment } from "./useSafeDeployment";
 const USDC_E_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 const USDC_E_DECIMALS = 6;
 
-const ERC20_TRANSFER_ABI = [
+// Полный ERC20 ABI для approve + transfer
+const ERC20_ABI = [
+  {
+    name: "approve",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
   {
     name: "transfer",
     type: "function",
@@ -33,43 +44,74 @@ export const useDepositToSafe = () => {
 
       console.log("💸 Depositing to Safe via relayer:", { amount });
 
-      const safeAddress = await ensureSafe();
-      const amountWei = parseUnits(amount, USDC_E_DECIMALS);
+      try {
+        // Шаг 1: Убедимся что Safe развернут
+        const safeAddress = await ensureSafe();
+        console.log("✅ Safe address confirmed:", safeAddress);
 
-      const data = encodeFunctionData({
-        abi: ERC20_TRANSFER_ABI,
-        functionName: "transfer",
-        args: [safeAddress as `0x${string}`, amountWei],
-      });
 
-      const tx = {
-        to: USDC_E_ADDRESS as `0x${string}`,
-        data,
-        value: "0",
-      };
+        console.log("🔓 Approving USDC.e for Safe...");
+        const approveData = encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [safeAddress as `0x${string}`, parseUnits('1000000', USDC_E_DECIMALS)],  // 1M max
+        });
+        const approveTx = {
+          to: USDC_E_ADDRESS as `0x${string}`,
+          data: approveData,
+          value: "0",
+        };
+        const approveResp = await relayClient.execute([approveTx], "Approve USDC.e");
+        await approveResp.wait();
+        console.log("✅ USDC.e approved!");
 
-      const response = await relayClient.execute([tx], "Deposit USDC.e to Safe");
-      console.log("⏳ Waiting for transaction...");
-      const result = await response.wait();
+        // Шаг 4: Кодируем transfer (бывший 3)
+        const transferData = encodeFunctionData({
+          abi: ERC20_ABI,  // Теперь полный ABI
+          functionName: "transfer",
+          args: [safeAddress as `0x${string}`, amountWei],
+        });
 
-      if (!result) {
-        throw new Error("Relayer returned empty result");
+        // Шаг 5: Transfer tx
+        const transferTx = {
+          to: USDC_E_ADDRESS as `0x${string}`,
+          data: transferData,
+          value: "0",
+        };
+
+        // Шаг 6: Выполняем
+        console.log("🚀 Executing deposit...");
+        const depositResp = await relayClient.execute([transferTx], "Deposit USDC.e to Safe");
+        const result = await depositResp.wait();
+        console.log('🆔 TX ID:', depositResp.transactionID);
+
+// Поллинг вместо wait()
+const txId = depositResp.transactionID;
+let status = await relayClient.getTransaction(txId);
+console.log('FINAL STATUS:', status);
+        if (!result?.transactionHash) {
+          throw new Error("No tx hash");
+        }
+
+        console.log("✅ Deposit successful:", {
+          txHash: result.transactionHash,
+          safeAddress,
+          explorerUrl: `https://polygonscan.com/tx/${result.transactionHash}`,
+        });
+
+        return { success: true, txHash: result.transactionHash, safeAddress };
+      } catch (error: any) {
+        console.error("❌ Deposit error:", error);
+        throw error;
       }
-
-      console.log("✅ Deposit successful:", {
-        txHash: result.transactionHash,
-        safeAddress,
-        amount,
-      });
-
-      return {
-        success: true,
-        txHash: result.transactionHash,
-        safeAddress,
-      };
+      
     },
+    
     [relayClient, ensureSafe]
   );
+
+  
+
 
   return { depositToSafe };
 };
