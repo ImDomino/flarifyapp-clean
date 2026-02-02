@@ -1,5 +1,7 @@
+// components/Navigation.tsx
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -10,17 +12,31 @@ import {
   LogOut,
   Wallet,
 } from "lucide-react";
-import { useState } from "react"; 
 import { usePrivy } from "@privy-io/react-auth";
-import { BalanceDisplay } from "./BalanceDisplay";
-import { DepositModal } from "./DepositModal";
 import { motion } from "framer-motion";
+import { DepositModal } from "./DepositModal";
+import { useWallet } from "@/providers/WalletProvider";
+import { useSafeDeployment } from "@/hooks/useSafeDeployment";
+import { useBalances } from "@/hooks/useBalances";
 
 export function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
   const { authenticated, user, logout } = usePrivy();
   const [isDepositOpen, setIsDepositOpen] = useState(false);
+
+  const { eoaAddress } = useWallet();
+  const [safeAddress, setSafeAddress] = useState<string | null>(null);
+  const { ensureSafe } = useSafeDeployment();
+
+  useEffect(() => {
+    if (eoaAddress) {
+      ensureSafe().then(setSafeAddress).catch(console.error);
+    }
+  }, [eoaAddress, ensureSafe]);
+
+  const { safeBalance, isLoading } = useBalances(eoaAddress, safeAddress);
+  const safeNum = parseFloat(safeBalance || "0");
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
@@ -40,8 +56,6 @@ export function Navigation() {
     user?.google?.name ||
     user?.email?.address?.split("@")[0] ||
     "Unknown";
-
-  const eoaAddress = user?.wallet?.address ?? null;
 
   return (
     <>
@@ -99,12 +113,24 @@ export function Navigation() {
           })}
         </nav>
 
-        {/* Balance + Deposit */}
+        {/* Balance & Deposit (Figma-style) */}
         {authenticated && (
           <div className="mb-4 px-2">
-            {/* Desktop: баланс + кнопка депозита */}
             <div className="hidden lg:block space-y-3">
-              <BalanceDisplay />
+              <div className="bg-secondary/30 border border-white/10 rounded-2xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">
+                  Trading Balance
+                </p>
+                <div className="flex items-center gap-2 mb-1">
+                  <Wallet className="w-5 h-5 text-foreground/80" />
+                  <p className="text-2xl font-bold text-foreground">
+                    {isLoading ? "$0.00" : `$${safeNum.toFixed(2)}`}
+                  </p>
+                </div>
+                <p className="text-[10px] text-muted-foreground/70">
+                  Funds available for trading
+                </p>
+              </div>
 
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -117,12 +143,12 @@ export function Navigation() {
               </motion.button>
             </div>
 
-            {/* Mobile: только иконка депозита (баланс уже сверху через BalanceDisplay) */}
+            {/* Mobile version - just icon */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsDepositOpen(true)}
-              className="lg:hidden w-12 h-12 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white rounded-2xl flex items-center justify-center shadow-lg mt-2"
+              className="lg:hidden w-12 h-12 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white rounded-2xl flex items-center justify-center shadow-lg"
             >
               <Wallet className="w-6 h-6" />
             </motion.button>
@@ -166,13 +192,6 @@ export function Navigation() {
 
       {/* Main content padding */}
       <div className="pl-20 lg:pl-72" />
-
-      {/* Mobile Balance (top right) */}
-      {authenticated && (
-        <div className="lg:hidden fixed right-4 top-4 z-50">
-          <BalanceDisplay />
-        </div>
-      )}
 
       {/* Deposit modal */}
       {authenticated && eoaAddress && (
