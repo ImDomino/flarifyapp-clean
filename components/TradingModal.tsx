@@ -94,7 +94,7 @@ export function TradingModal({
     setIsProcessing(true);
 
     try {
-      console.log("🚀 Placing order (client-side):", {
+      console.log("🚀 Placing BUY order:", {
         tokenId,
         outcome,
         amount: amountNum,
@@ -102,19 +102,39 @@ export function TradingModal({
         shares,
       });
 
+      // ⚠️ ВАЖНО: Используем только BUY ордера
+      // SELL требует:
+      // 1. Наличия outcome-токенов на балансе
+      // 2. Установленного allowance на Exchange-контракт
+      // 
+      // Для покупки YES или NO всегда используем BUY:
+      // - BUY YES токена = ставка на YES
+      // - BUY NO токена = ставка на NO
       const orderId = await placeOrder({
         tokenId,
-        side: outcomeIndex === 0 ? Side.BUY : Side.SELL,
+        side: Side.BUY, // Всегда BUY для покупки outcome
         price,
         size: shares,
       });
 
-      alert(`Order placed successfully! Order ID: ${orderId}`);
+      alert(`✅ Order placed successfully!\n\nOrder ID: ${orderId}\n\nYou bought ${shares.toFixed(2)} ${outcome} shares`);
       onClose();
       setAmount("10");
     } catch (error: any) {
       console.error("Trading error:", error);
-      alert(`Failed to place order: ${error.message || "Unknown error"}`);
+      
+      // Улучшенная обработка ошибок
+      let errorMessage = error.message || "Unknown error";
+      
+      if (error.message?.includes("not enough balance")) {
+        errorMessage = "❌ Insufficient USDC balance.\n\nPlease deposit funds using the 'Deposit' button in navigation.";
+      } else if (error.message?.includes("allowance")) {
+        errorMessage = "❌ Token approval required.\n\nThis usually happens on first trade. Please try again.";
+      } else if (error.message?.includes("insufficient funds")) {
+        errorMessage = "❌ Insufficient MATIC for gas.\n\nYou need ~0.01 MATIC for transaction fees.";
+      }
+      
+      alert(`Failed to place order:\n\n${errorMessage}`);
     } finally {
       setIsProcessing(false);
     }
@@ -287,6 +307,14 @@ export function TradingModal({
                     Please log in to place orders
                   </p>
                 )}
+
+                {/* Info Banner */}
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                  <p className="text-xs text-blue-400 leading-relaxed">
+                    💡 <strong>How it works:</strong> You're buying {outcome} shares at {displayPriceCents.toFixed(1)}¢ each. 
+                    If the outcome happens, each share pays $1. Your profit would be ${profit.toFixed(2)}.
+                  </p>
+                </div>
               </div>
             </motion.div>
           </div>
