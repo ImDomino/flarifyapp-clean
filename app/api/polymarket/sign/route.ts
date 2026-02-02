@@ -13,6 +13,12 @@ const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
 export async function POST(request: NextRequest) {
   const { method, path, body } = await request.json();
   const sigTimestamp = Date.now().toString();
+  console.log("SIGN INPUT", { method, path, body });
+  console.log("BUILDER_CREDS", {
+  key: BUILDER_CREDENTIALS.key,
+  hasSecret: !!BUILDER_CREDENTIALS.secret,
+  hasPassphrase: !!BUILDER_CREDENTIALS.passphrase,
+});
 
   const signature = buildHmacSignature(
     BUILDER_CREDENTIALS.secret,
@@ -28,4 +34,6 @@ export async function POST(request: NextRequest) {
     POLY_BUILDER_API_KEY: BUILDER_CREDENTIALS.key,
     POLY_BUILDER_PASSPHRASE: BUILDER_CREDENTIALS.passphrase,
   });
+
+
 }
