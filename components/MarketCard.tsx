@@ -121,8 +121,9 @@ export function MarketCard({ marketId, marketData, builderId = 'FLARIFYAPP' }: M
         )}
       </div>
 
-      {showTradingModal && selectedOutcome && (
+      {selectedOutcome && (
         <TradingModal
+          isOpen={showTradingModal}
           marketId={marketId}
           marketData={marketData}
           outcome={selectedOutcome.name}
