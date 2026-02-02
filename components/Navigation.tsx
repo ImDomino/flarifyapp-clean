@@ -10,6 +10,7 @@ import {
   LogOut,
   Wallet,
 } from "lucide-react";
+import { useState } from "react"; 
 import { usePrivy } from "@privy-io/react-auth";
 import { BalanceDisplay } from "./BalanceDisplay";
 import { DepositModal } from "./DepositModal";
