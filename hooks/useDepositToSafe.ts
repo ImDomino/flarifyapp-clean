@@ -49,25 +49,32 @@ export const useDepositToSafe = () => {
         const safeAddress = await ensureSafe();
         console.log("✅ Safe address confirmed:", safeAddress);
 
+        // Шаг 2: Конвертируем сумму в wei
+        const amountWei = parseUnits(amount, USDC_E_DECIMALS);
+        console.log("📋 Amount in wei:", amountWei.toString());
 
+        // Шаг 3: APPROVE USDC.e для Safe
         console.log("🔓 Approving USDC.e for Safe...");
         const approveData = encodeFunctionData({
           abi: ERC20_ABI,
           functionName: "approve",
-          args: [safeAddress as `0x${string}`, parseUnits('1000000', USDC_E_DECIMALS)],  // 1M max
+          args: [safeAddress as `0x${string}`, parseUnits("1000000", USDC_E_DECIMALS)], // 1M max
         });
         const approveTx = {
           to: USDC_E_ADDRESS as `0x${string}`,
           data: approveData,
           value: "0",
         };
-        const approveResp = await relayClient.execute([approveTx], "Approve USDC.e");
+        const approveResp = await relayClient.execute(
+          [approveTx],
+          "Approve USDC.e"
+        );
         await approveResp.wait();
         console.log("✅ USDC.e approved!");
 
-        // Шаг 4: Кодируем transfer (бывший 3)
+        // Шаг 4: Кодируем transfer
         const transferData = encodeFunctionData({
-          abi: ERC20_ABI,  // Теперь полный ABI
+          abi: ERC20_ABI,
           functionName: "transfer",
           args: [safeAddress as `0x${string}`, amountWei],
         });
@@ -81,37 +88,58 @@ export const useDepositToSafe = () => {
 
         // Шаг 6: Выполняем
         console.log("🚀 Executing deposit...");
-        const depositResp = await relayClient.execute([transferTx], "Deposit USDC.e to Safe");
-        const result = await depositResp.wait();
-        console.log('🆔 TX ID:', depositResp.transactionID);
+        const depositResp = await relayClient.execute(
+          [transferTx],
+          "Deposit USDC.e to Safe"
+        );
+        console.log("🆔 TX ID:", depositResp.transactionID);
 
-// Поллинг вместо wait()
-const txId = depositResp.transactionID;
-let status = await relayClient.getTransaction(txId);
-console.log('FINAL STATUS:', status);
-        if (!result?.transactionHash) {
-          throw new Error("No tx hash");
+        // Можно использовать wait, но он вернёт undefined при STATE_FAILED,
+        // поэтому дополнительно логируем через getTransaction.
+        const resultArray = await relayClient.getTransaction(
+          depositResp.transactionID
+        );
+        const status = resultArray[0];
+        console.log("FINAL STATUS:", status);
+
+        if (!status) {
+          throw new Error("No relayer status");
+        }
+
+        if (
+          status.state === "STATE_FAILED" ||
+          status.state === "STATE_INVALID"
+        ) {
+          
+          const anyStatus = status as any;
+          const msg =
+            anyStatus.errorMsg || `Relayer failed: ${status.state}`;
+          throw new Error(msg);
+        }
+
+        if (!status.transactionHash) {
+          throw new Error("No tx hash (still pending?)");
         }
 
         console.log("✅ Deposit successful:", {
-          txHash: result.transactionHash,
+          txHash: status.transactionHash,
           safeAddress,
-          explorerUrl: `https://polygonscan.com/tx/${result.transactionHash}`,
+          amount,
+          explorerUrl: `https://polygonscan.com/tx/${status.transactionHash}`,
         });
 
-        return { success: true, txHash: result.transactionHash, safeAddress };
+        return {
+          success: true,
+          txHash: status.transactionHash,
+          safeAddress,
+        };
       } catch (error: any) {
         console.error("❌ Deposit error:", error);
         throw error;
       }
-      
     },
-    
     [relayClient, ensureSafe]
   );
-
-  
-
 
   return { depositToSafe };
 };
