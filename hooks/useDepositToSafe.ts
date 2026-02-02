@@ -1,11 +1,25 @@
 "use client";
 
 import { useCallback } from "react";
-import { parseUnits } from "viem";
+import { encodeFunctionData, parseUnits } from "viem";
 import { useRelayClient } from "./useRelayClient";
 import { useSafeDeployment } from "./useSafeDeployment";
 
+const USDC_E_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 const USDC_E_DECIMALS = 6;
+
+const ERC20_TRANSFER_ABI = [
+  {
+    name: "transfer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
 
 export const useDepositToSafe = () => {
   const relayClient = useRelayClient();
@@ -17,31 +31,40 @@ export const useDepositToSafe = () => {
         throw new Error("Relay client not initialized");
       }
 
-      console.log("💸 Depositing to Safe:", { amount });
+      console.log("💸 Depositing to Safe via relayer:", { amount });
 
       const safeAddress = await ensureSafe();
       const amountWei = parseUnits(amount, USDC_E_DECIMALS);
 
-      // ts-expect-error transferUsdce exists on runtime client but is missing in TS typings
-      const response = await (relayClient as any).transferUsdce(
-        safeAddress,
-        amountWei.toString()
-      );
+      const data = encodeFunctionData({
+        abi: ERC20_TRANSFER_ABI,
+        functionName: "transfer",
+        args: [safeAddress as `0x${string}`, amountWei],
+      });
 
+      const tx = {
+        to: USDC_E_ADDRESS as `0x${string}`,
+        data,
+        value: "0",
+      };
 
+      const response = await relayClient.execute([tx], "Deposit USDC.e to Safe");
       console.log("⏳ Waiting for transaction...");
+      const result = await response.wait();
 
-      const receipt = await response.wait();
+      if (!result) {
+        throw new Error("Relayer returned empty result");
+      }
 
       console.log("✅ Deposit successful:", {
-        txHash: receipt.transactionHash,
+        txHash: result.transactionHash,
         safeAddress,
         amount,
       });
 
       return {
         success: true,
-        txHash: receipt.transactionHash,
+        txHash: result.transactionHash,
         safeAddress,
       };
     },

@@ -131,10 +131,7 @@ export function Navigation() {
                 </p>
               </div>
               <p className="text-[10px] text-muted-foreground/70 mb-2">
-                Wallet: ${eoaNum.toFixed(2)} · Funds available for trading:{" "}
-                <span className="font-semibold text-foreground">
-                  ${safeNum.toFixed(2)}
-                </span>
+                Wallet: ${eoaNum.toFixed(2)}
               </p>
 
               <MoveToSafeButton
