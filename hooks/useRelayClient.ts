@@ -1,11 +1,14 @@
+// hooks/useRelayClient.ts
 "use client";
 
 import { useMemo } from "react";
-import { RelayClient } from "@polymarket/builder-relayer-client";
+import { RelayClient, RelayerTxType } from "@polymarket/builder-relayer-client";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { useWallet } from "@/providers/WalletProvider";
 
 const BUILDER_SIGN_URL = process.env.NEXT_PUBLIC_BUILDER_SIGN_URL as string;
+const RELAYER_URL = "https://relayer-v2.polymarket.com/";
+const CHAIN_ID = 137;
 
 export const useRelayClient = () => {
   const { ethersSigner } = useWallet();
@@ -18,22 +21,17 @@ export const useRelayClient = () => {
     }
 
     const builderConfig = new BuilderConfig({
-      remoteBuilderConfig: {
-        url: BUILDER_SIGN_URL,
-      },
+      remoteBuilderConfig: { url: BUILDER_SIGN_URL },
     });
 
-    console.log("🔧 Initializing Relay client with", BUILDER_SIGN_URL);
-
     return new RelayClient(
-      "https://relayer-v2.polymarket.com/",
-      137,
+      RELAYER_URL,
+      CHAIN_ID,
       ethersSigner as any,
-      builderConfig
+      builderConfig,
+      RelayerTxType.SAFE // явно SAFE
     );
   }, [ethersSigner]);
 
   return relayClient;
-  
 };
-
