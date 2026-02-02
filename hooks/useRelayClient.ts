@@ -5,6 +5,10 @@ import { RelayClient } from "@polymarket/builder-relayer-client";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { useWallet } from "@/providers/WalletProvider";
 
+const BUILDER_SIGN_URL =
+  process.env.NEXT_PUBLIC_BUILDER_SIGN_URL ??
+  "http://localhost:3000/api/polymarket/sign";
+
 export const useRelayClient = () => {
   const { ethersSigner } = useWallet();
 
@@ -13,15 +17,15 @@ export const useRelayClient = () => {
 
     const builderConfig = new BuilderConfig({
       remoteBuilderConfig: {
-        url: "http://prototype1231.vercel.app/api/polymarket/sign",
+        url: BUILDER_SIGN_URL,
       },
     });
 
-    console.log('🔧 Initializing Relay client...');
+    console.log("🔧 Initializing Relay client...");
 
     return new RelayClient(
       "https://relayer-v2.polymarket.com/",
-      137, // Polygon chain ID
+      137,
       ethersSigner as any,
       builderConfig
     );
@@ -29,5 +33,3 @@ export const useRelayClient = () => {
 
   return relayClient;
 };
-
-
