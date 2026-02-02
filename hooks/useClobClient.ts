@@ -8,7 +8,7 @@ import { useUserApiCredentials } from "./useUserApiCredentials";
 
 const BUILDER_SIGN_URL =
   process.env.NEXT_PUBLIC_BUILDER_SIGN_URL ??
-  "http://localhost:3000/api/polymarket/sign";
+  "https://prototype1231.vercel.app/api/polymarket/sign";
 
 export const useClobClient = () => {
   const { ethersSigner, eoaAddress } = useWallet();
