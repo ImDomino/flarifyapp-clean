@@ -18,8 +18,6 @@ import { DepositModal } from "./DepositModal";
 import { useWallet } from "@/providers/WalletProvider";
 import { useSafeDeployment } from "@/hooks/useSafeDeployment";
 import { useBalances } from "@/hooks/useBalances";
-import { MoveToSafeButton } from "./MoveToSafeButton";
-
 
 export function Navigation() {
   const pathname = usePathname();
@@ -31,16 +29,14 @@ export function Navigation() {
   const [safeAddress, setSafeAddress] = useState<string | null>(null);
   const { ensureSafe } = useSafeDeployment();
   
-
   useEffect(() => {
     if (eoaAddress) {
       ensureSafe().then(setSafeAddress).catch(console.error);
     }
   }, [eoaAddress, ensureSafe]);
 
-  const { safeBalance, isLoading, refresh, eoaBalance } = useBalances(eoaAddress, safeAddress);
+  const { safeBalance, isLoading, refresh } = useBalances(eoaAddress, safeAddress);
   const safeNum = parseFloat(safeBalance || "0");
-  const eoaNum = parseFloat(eoaBalance || "0");
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
@@ -117,28 +113,23 @@ export function Navigation() {
           })}
         </nav>
 
-        {/* Balance & Deposit (Figma-style) */}
+        {/* Balance & Deposit */}
         {authenticated && (
           <div className="mb-4 px-2">
             <div className="hidden lg:block space-y-3">
-             <div className="bg-secondary/30 border border-white/10 rounded-2xl p-4">
-              <p className="text-xs text-muted-foreground mb-1">
-                Trading Balance
-              </p>
-              <div className="flex items-center gap-2 mb-1">
-                <p className="text-2xl font-bold text-foreground">
-                  {isLoading ? "$0.00" : `$${safeNum.toFixed(2)}`}
+              <div className="bg-secondary/30 border border-white/10 rounded-2xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">
+                  Trading Balance
+                </p>
+                <div className="flex items-center gap-2 mb-3">
+                  <p className="text-2xl font-bold text-foreground">
+                    {isLoading ? "$0.00" : `$${safeNum.toFixed(2)}`}
+                  </p>
+                </div>
+                <p className="text-[10px] text-muted-foreground/70 mb-2">
+                  Bridge deposits go directly to this balance
                 </p>
               </div>
-              <p className="text-[10px] text-muted-foreground/70 mb-2">
-                Wallet: ${eoaNum.toFixed(2)}
-              </p>
-
-              <MoveToSafeButton
-                eoaBalance={eoaBalance}
-                onMoved={refresh}
-              />
-            </div>
 
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -202,10 +193,10 @@ export function Navigation() {
       <div className="pl-20 lg:pl-72" />
 
       {/* Deposit modal */}
-      {authenticated && eoaAddress && (
+      {authenticated && eoaAddress && safeAddress && (
         <DepositModal
           isOpen={isDepositOpen}
-          eoaAddress={eoaAddress}
+          eoaAddress={safeAddress}
           onClose={() => setIsDepositOpen(false)}
           onRefreshBalance={refresh}
         />

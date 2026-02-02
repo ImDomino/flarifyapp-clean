@@ -18,7 +18,6 @@ const ERC20_ABI = [
 ] as const;
 
 export const useBalances = (eoaAddress: string | null, safeAddress: string | null) => {
-  const [eoaBalance, setEoaBalance] = useState<string>("0");
   const [safeBalance, setSafeBalance] = useState<string>("0");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,17 +27,10 @@ export const useBalances = (eoaAddress: string | null, safeAddress: string | nul
   });
 
   const fetchBalances = useCallback(async () => {
-    if (!eoaAddress || !safeAddress) return;
+    if (!safeAddress) return;
 
     setIsLoading(true);
     try {
-      const eoaBalanceRaw = await publicClient.readContract({
-        address: USDC_E_ADDRESS,
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [eoaAddress as `0x${string}`],
-      });
-
       const safeBalanceRaw = await publicClient.readContract({
         address: USDC_E_ADDRESS,
         abi: ERC20_ABI,
@@ -46,26 +38,23 @@ export const useBalances = (eoaAddress: string | null, safeAddress: string | nul
         args: [safeAddress as `0x${string}`],
       });
 
-      setEoaBalance(formatUnits(eoaBalanceRaw, USDC_E_DECIMALS));
       setSafeBalance(formatUnits(safeBalanceRaw, USDC_E_DECIMALS));
 
-      console.log("💰 Balances fetched:", {
-        eoa: formatUnits(eoaBalanceRaw, USDC_E_DECIMALS),
+      console.log("💰 Safe balance fetched:", {
         safe: formatUnits(safeBalanceRaw, USDC_E_DECIMALS),
       });
     } catch (error) {
-      console.error("Error fetching balances:", error);
+      console.error("Error fetching balance:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [eoaAddress, safeAddress]);
+  }, [safeAddress]);
 
   useEffect(() => {
     fetchBalances();
   }, [fetchBalances]);
 
   return {
-    eoaBalance,
     safeBalance,
     isLoading,
     refresh: fetchBalances,

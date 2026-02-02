@@ -1,3 +1,4 @@
+// hooks/useSafeDeployment.ts
 "use client";
 
 import { useCallback } from "react";
@@ -23,23 +24,69 @@ export const useSafeDeployment = () => {
 
     console.log('🔍 Checking Safe deployment:', safeAddress);
 
+    // Проверяем развернут ли Safe
     const deployed = await relayClient.getDeployed(safeAddress);
 
     if (!deployed) {
-  console.log('📡 Deploying Safe...');
-  
-  const response = await relayClient.deploy();
-  const result = await response.wait();
+      console.log('📡 Deploying Safe...');
+      
+      try {
+        const response = await relayClient.deploy();
+        
+        // ✅ ИСПРАВЛЕНИЕ: Правильная обработка ответа от relayer
+        const result = await response.wait();
 
-  if (!result) {
-    throw new Error("Failed to deploy Safe: empty result");
-  }
+        if (!result) {
+          // Если wait() вернул null, получаем статус
+          console.warn("⚠️ deploy.wait() returned null, checking status...");
+          
+          const statusArray = await relayClient.getTransaction(response.transactionID);
+          const status = statusArray[0];
+          
+          console.error("❌ Deploy status:", status);
+          
+          let errorMsg = "Failed to deploy Safe";
+          if (status?.metadata) {
+            try {
+              const metadata = typeof status.metadata === 'string' 
+                ? JSON.parse(status.metadata) 
+                : status.metadata;
+              errorMsg = metadata.error || metadata.message || errorMsg;
+            } catch (e) {
+              // Ignore
+            }
+          }
+          
+          throw new Error(`${errorMsg} (State: ${status?.state || 'UNKNOWN'})`);
+        }
 
-    console.log("✅ Safe deployed:", result.proxyAddress);
-  } else {
-    console.log("✅ Safe already deployed:", safeAddress);
-  }
-
+        console.log("✅ Safe deployed:", result.proxyAddress);
+        
+        // Дополнительная проверка что адреса совпадают
+        if (result.proxyAddress.toLowerCase() !== safeAddress.toLowerCase()) {
+          console.warn("⚠️ Warning: Deployed Safe address mismatch", {
+            expected: safeAddress,
+            got: result.proxyAddress
+          });
+        }
+        
+        return safeAddress;
+      } catch (error: any) {
+        console.error("❌ Safe deployment error:", error);
+        
+        // Улучшенные сообщения об ошибках
+        if (error.message.includes("insufficient funds")) {
+          throw new Error("Insufficient MATIC for Safe deployment. Please add some MATIC to your wallet.");
+        }
+        if (error.message.includes("user rejected")) {
+          throw new Error("Safe deployment was rejected");
+        }
+        
+        throw new Error(`Failed to deploy Safe: ${error.message}`);
+      }
+    } else {
+      console.log("✅ Safe already deployed:", safeAddress);
+    }
 
     return safeAddress;
   }, [eoaAddress, relayClient]);
