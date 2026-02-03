@@ -67,13 +67,8 @@ export default function Home() {
     <div className="w-full max-w-3xl mx-auto">
       
 
-      {/* Search Bar */}
-      <div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        className="mb-6"
-      >
+     {/* Search Bar */}
+      <div className="mb-6">
         <div className="relative bg-card border border-white/10 rounded-3xl backdrop-blur-xl card-shadow">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <input
@@ -83,6 +78,7 @@ export default function Home() {
           />
         </div>
       </div>
+
 
       {/* Create Post Prompt */}
       <motion.div
