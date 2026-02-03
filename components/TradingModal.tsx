@@ -51,6 +51,10 @@ export function TradingModal({
     [amountNum, price]
   );
 
+  // Polymarket минимум: 5 shares
+  const MIN_SHARES = 5;
+  const minAmount = useMemo(() => MIN_SHARES * price, [price]);
+
   // твоя логика: potentialWin = shares * 1; profit = potentialWin - amount
   const potentialWin = useMemo(
     () => (shares > 0 ? shares * 1 : 0),
@@ -63,6 +67,9 @@ export function TradingModal({
 
   const side: "yes" | "no" = outcomeIndex === 0 ? "yes" : "no";
   const displayPriceCents = price * 100;
+  
+  // Проверка минимального размера
+  const isBelowMinimum = shares > 0 && shares < MIN_SHARES;
 
   const resolveTokenId = (): string | undefined => {
     if (outcomeIndex === 0 && marketData.yesTokenId) return marketData.yesTokenId;
@@ -126,7 +133,9 @@ export function TradingModal({
       // Улучшенная обработка ошибок
       let errorMessage = error.message || "Unknown error";
       
-      if (error.message?.includes("not enough balance")) {
+      if (error.message?.includes("Size") && error.message?.includes("minimum")) {
+        errorMessage = `❌ Order too small.\n\nMinimum order size: ${MIN_SHARES} shares ($${minAmount.toFixed(2)} at current price).\n\nPlease increase your order amount.`;
+      } else if (error.message?.includes("not enough balance")) {
         errorMessage = "❌ Insufficient USDC balance.\n\nPlease deposit funds using the 'Deposit' button in navigation.";
       } else if (error.message?.includes("allowance")) {
         errorMessage = "❌ Token approval required.\n\nThis usually happens on first trade. Please try again.";
@@ -193,7 +202,9 @@ export function TradingModal({
                   <div className="flex items-baseline gap-2">
                     <span
                       className={`text-3xl font-bold ${
-                        side === "yes" ? "text-chart-1" : "text-destructive"
+                        side === "yes"
+                          ? "text-[#7BEFB9] drop-shadow-[0_0_14px_rgba(123,239,185,0.7)]"
+                          : "text-[#FF375F] drop-shadow-[0_0_14px_rgba(255,55,95,0.7)]"
                       }`}
                     >
                       {outcome}
@@ -269,6 +280,19 @@ export function TradingModal({
                         </span>
                       </div>
                     </div>
+
+                    {/* Минимальное предупреждение */}
+                    {isBelowMinimum && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3"
+                      >
+                        <p className="text-xs text-yellow-400 leading-relaxed">
+                          ⚠️ <strong>Minimum order size:</strong> {MIN_SHARES} shares (${minAmount.toFixed(2)} at current price)
+                        </p>
+                      </motion.div>
+                    )}
                   </motion.div>
                 )}
 
@@ -276,12 +300,12 @@ export function TradingModal({
                 <button
                   onClick={handleTrade}
                   disabled={
-                    !amountNum || amountNum <= 0 || isProcessing || price <= 0
+                    !amountNum || amountNum <= 0 || isProcessing || price <= 0 || isBelowMinimum
                   }
-                  className={`w-full py-4 rounded-2xl font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
+                  className={`w-full py-4 rounded-2xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
                     side === "yes"
-                      ? "bg-chart-1 hover:bg-chart-1/90 shadow-chart-1/30"
-                      : "bg-destructive hover:bg-destructive/90 shadow-destructive/30"
+                      ? "bg-[#3ABF8A] text-white hover:bg-[#34AC7C] shadow-[0_0_22px_rgba(58,191,138,0.6)]"
+                      : "bg-destructive text-white hover:bg-destructive/90 shadow-[0_0_22px_rgba(255,55,95,0.6)]"
                   }`}
                 >
                   {isProcessing ? (
@@ -297,10 +321,13 @@ export function TradingModal({
                       />
                       Placing order...
                     </span>
+                  ) : isBelowMinimum ? (
+                    `Minimum ${MIN_SHARES} shares ($${minAmount.toFixed(2)})`
                   ) : (
                     `Buy ${outcome} for $${amountNum.toFixed(2)}`
                   )}
                 </button>
+
 
                 {!authenticated && (
                   <p className="text-center text-xs text-muted-foreground mt-2">
@@ -313,6 +340,7 @@ export function TradingModal({
                   <p className="text-xs text-blue-400 leading-relaxed">
                     💡 <strong>How it works:</strong> You're buying {outcome} shares at {displayPriceCents.toFixed(1)}¢ each. 
                     If the outcome happens, each share pays $1. Your profit would be ${profit.toFixed(2)}.
+                    {isBelowMinimum && <span className="block mt-1 text-yellow-400">⚠️ <strong>Note:</strong> Minimum {MIN_SHARES} shares required.</span>}
                   </p>
                 </div>
               </div>

@@ -65,23 +65,10 @@ export default function Home() {
 
   return (
     <div className="w-full max-w-3xl mx-auto">
-      {/* Hero Section */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="mb-8 text-center"
-      >
-        <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] bg-clip-text text-transparent">
-          Welcome to Flarify
-        </h1>
-        <p className="text-muted-foreground text-lg">
-          The social network for prediction markets
-        </p>
-      </motion.div>
+      
 
       {/* Search Bar */}
-      <motion.div
+      <div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.1 }}
@@ -95,7 +82,7 @@ export default function Home() {
             className="w-full pl-14 pr-4 py-4 bg-transparent border-none rounded-3xl focus:outline-none focus:ring-2 focus:ring-white/20 text-foreground placeholder:text-muted-foreground"
           />
         </div>
-      </motion.div>
+      </div>
 
       {/* Create Post Prompt */}
       <motion.div
