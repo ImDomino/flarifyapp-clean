@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, TrendingUp, Heart, MessageCircle, Wallet } from "lucide-react";
 import { motion } from "framer-motion";
 import { PostCard } from "@/components/PostCard";
+import { PositionsTab } from "@/components/PositionsTab";
 import type { PostWithUser } from "@/lib/types";
 
 export default function ProfilePage() {
@@ -73,27 +74,6 @@ export default function ProfilePage() {
 
   const username = user?.google?.name || user?.email?.address?.split('@')[0] || 'User';
   const email = user?.google?.email || user?.email?.address || '';
-
-  const polymarketPositions = [
-    {
-      id: '1',
-      question: 'Will Trump win 2024?',
-      position: 'Yes',
-      amount: '$250',
-      currentOdds: 52,
-      profit: '+$45',
-      isWinning: true,
-    },
-    {
-      id: '2',
-      question: 'Will Bitcoin hit $100k in 2025?',
-      position: 'Yes',
-      amount: '$500',
-      currentOdds: 67,
-      profit: '+$134',
-      isWinning: true,
-    },
-  ];
 
   return (
     <div className="w-full space-y-6">
@@ -273,59 +253,7 @@ export default function ProfilePage() {
           )}
 
           {activeTab === 'positions' && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-6">
-                <TrendingUp className="w-5 h-5 text-[#9DFECB]" />
-                <h3 className="text-lg font-semibold text-foreground">My Polymarket Positions</h3>
-              </div>
-
-              {polymarketPositions.map((position) => (
-                <motion.div
-                  key={position.id}
-                  whileHover={{ scale: 1.02 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                  className="rounded-3xl bg-secondary/30 border border-white/10 p-6 card-shadow backdrop-blur-xl"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <p className="text-foreground font-medium mb-2">{position.question}</p>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          position.position === 'Yes'
-                            ? 'bg-[#9DFECB]/20 text-[#9DFECB]'
-                            : 'bg-[#FF375F]/20 text-[#FF375F]'
-                        }`}>
-                          {position.position}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {position.amount}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-3xl font-bold ${
-                        position.isWinning ? 'text-[#9DFECB]' : 'text-[#FF375F]'
-                      }`}>
-                        {position.profit}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {position.currentOdds}% odds
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${position.currentOdds}%` }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                      className={position.position === 'Yes' ? 'bg-[#9DFECB]' : 'bg-[#FF375F]'}
-                      style={{ height: '100%' }}
-                    />
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+            <PositionsTab />
           )}
 
           {activeTab === 'activity' && (

@@ -34,34 +34,22 @@ export const useClobClient = () => {
     const creds = await getOrCreateCreds();
 
     // ✅ КРИТИЧНО: Получаем Safe proxy address как funder
-    // Это адрес, где лежат USDC и который проверяет CLOB
     let safeAddress: string | null = null;
     try {
       safeAddress = await ensureSafe();
       console.log("✅ Safe address for funder:", safeAddress);
     } catch (error) {
       console.error("⚠️ Failed to get Safe address, using EOA as funder:", error);
-      safeAddress = eoaAddress; // Fallback к EOA если Safe не получилось
+      safeAddress = eoaAddress;
     }
 
-    // ✅ ВАЖНО: Правильная конфигурация для Polymarket
-    // 
-    // signatureType:
-    // - 0 = EOA (если торгуем напрямую с EOA)
-    // - 1 = Polymarket Proxy (если используем email/proxy wallet)  
-    // - 2 = Safe Wallet (если используем Safe - НАШ СЛУЧАЙ)
-    //
-    // funder:
-    // - Адрес, где лежат USDC и который CLOB будет проверять
-    // - Для Safe это должен быть Safe proxy address
-    // - CLOB проверит: balance(funder) >= makerAmount && allowance(funder) >= makerAmount
     const clobClient = new ClobClient(
       "https://clob.polymarket.com",
-      137, // Polygon
+      137,
       ethersSigner as any,
-      creds, // L2 User API credentials
-      2, // signatureType: 2 для Safe wallet
-      safeAddress, // funder: Safe proxy address (где лежат USDC!)
+      creds,
+      2, // Safe signatureType
+      safeAddress,
       undefined,
       false,
       builderConfig
@@ -72,7 +60,15 @@ export const useClobClient = () => {
     console.log("  - Funder (Safe):", safeAddress);
     console.log("  - Signature Type: 2 (Safe)");
 
-    return { clobClient, eoaAddress, safeAddress };
+    // ✅ ДОБАВЛЕНО: signerAddress для фильтрации ордеров
+    const signerAddress = eoaAddress; // EOA адрес (может отличаться от safeAddress)
+
+    return { 
+      clobClient, 
+      eoaAddress, 
+      safeAddress,
+      signerAddress // Для фильтра maker=0x01fc88...
+    };
   }, [ethersSigner, eoaAddress, getOrCreateCreds, ensureSafe]);
 
   return { initClobClient };
