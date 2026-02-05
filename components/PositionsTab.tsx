@@ -52,7 +52,7 @@ export function PositionsTab() {
           <TrendingUp className="w-8 h-8 text-blue-300" />
         </div>
         <p className="text-slate-400 mb-4">
-          You don't have any open positions
+          You don't have any positions
         </p>
         <p className="text-xs text-slate-500">
           Place orders on markets to see them here
@@ -67,7 +67,7 @@ export function PositionsTab() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="font-display text-lg font-semibold tracking-tight text-slate-100">
-            Open Positions
+            Positions
           </h3>
           <p className="text-sm text-slate-400">
             {positions.length} {positions.length === 1 ? "position" : "positions"}

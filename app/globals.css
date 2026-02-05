@@ -73,7 +73,7 @@
   }
   
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Clash Grotesk', sans-serif;
+    @apply font-display;
     font-weight: 600;
     letter-spacing: -0.02em;
   }

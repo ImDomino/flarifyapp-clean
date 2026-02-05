@@ -3,9 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { Heart, MessageCircle, ArrowLeft, Trash2, Loader2, Send } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  ArrowLeft,
+  Trash2,
+  Loader2,
+  Send,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { PostWithUser } from "@/lib/types";
+import { MarketCard } from "@/components/MarketCard"; // путь подправь под свой проект
 
 interface Comment {
   id: string;
@@ -25,7 +33,7 @@ export default function PostDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { authenticated, user, login } = usePrivy();
-  
+
   const [post, setPost] = useState<PostWithUser | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
@@ -45,15 +53,17 @@ export default function PostDetailPage() {
     try {
       const response = await fetch(`/api/posts?page=1&limit=100`);
       const data = await response.json();
-      const foundPost = data.posts.find((p: PostWithUser) => p.id === postId);
-      
+      const foundPost = data.posts.find(
+        (p: PostWithUser) => p.id === postId,
+      );
+
       if (foundPost) {
         setPost(foundPost);
         setLikes(foundPost.likes_count || 0);
         setHasLiked(foundPost.user_has_liked || false);
       }
     } catch (error) {
-      console.error('Error loading post:', error);
+      console.error("Error loading post:", error);
     } finally {
       setIsLoading(false);
     }
@@ -65,21 +75,21 @@ export default function PostDetailPage() {
       const data = await response.json();
       setComments(data.comments || []);
     } catch (error) {
-      console.error('Error loading comments:', error);
+      console.error("Error loading comments:", error);
     }
   };
 
   const handleLike = async () => {
     if (!user) {
-      alert('Please sign in to like posts');
+      alert("Please sign in to like posts");
       return;
     }
 
     try {
-      const response = await fetch('/api/likes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+      const response = await fetch("/api/likes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           post_id: postId,
           user_id: user.id,
         }),
@@ -88,22 +98,22 @@ export default function PostDetailPage() {
       const data = await response.json();
 
       if (data.success) {
-        if (data.action === 'liked') {
-          setLikes(likes + 1);
+        if (data.action === "liked") {
+          setLikes((prev) => prev + 1);
           setHasLiked(true);
         } else {
-          setLikes(likes - 1);
+          setLikes((prev) => prev - 1);
           setHasLiked(false);
         }
       }
     } catch (error) {
-      console.error('Error toggling like:', error);
+      console.error("Error toggling like:", error);
     }
   };
 
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
       login();
       return;
@@ -114,9 +124,9 @@ export default function PostDetailPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/comments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           post_id: postId,
           user_id: user.id,
@@ -131,20 +141,20 @@ export default function PostDetailPage() {
         loadComments();
       }
     } catch (error) {
-      console.error('Error posting comment:', error);
+      console.error("Error posting comment:", error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeletePost = async () => {
-    if (!confirm('Are you sure you want to delete this post?')) return;
+    if (!confirm("Are you sure you want to delete this post?")) return;
 
     try {
       const response = await fetch(`/api/posts/delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           post_id: postId,
           user_id: user?.id,
         }),
@@ -153,24 +163,24 @@ export default function PostDetailPage() {
       const data = await response.json();
 
       if (data.success) {
-        router.push('/');
+        router.push("/");
       } else {
-        alert(data.error || 'Failed to delete post');
+        alert(data.error || "Failed to delete post");
       }
     } catch (error) {
-      console.error('Error deleting post:', error);
-      alert('Failed to delete post');
+      console.error("Error deleting post:", error);
+      alert("Failed to delete post");
     }
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!confirm('Are you sure you want to delete this comment?')) return;
+    if (!confirm("Are you sure you want to delete this comment?")) return;
 
     try {
       const response = await fetch(`/api/comments/delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           comment_id: commentId,
           user_id: user?.id,
         }),
@@ -181,11 +191,11 @@ export default function PostDetailPage() {
       if (data.success) {
         loadComments();
       } else {
-        alert(data.error || 'Failed to delete comment');
+        alert(data.error || "Failed to delete comment");
       }
     } catch (error) {
-      console.error('Error deleting comment:', error);
-      alert('Failed to delete comment');
+      console.error("Error deleting comment:", error);
+      alert("Failed to delete comment");
     }
   };
 
@@ -203,7 +213,7 @@ export default function PostDetailPage() {
         <div className="bg-card rounded-lg border border-border p-8">
           <h1 className="text-2xl font-bold mb-4">Post Not Found</h1>
           <button
-            onClick={() => router.push('/')}
+            onClick={() => router.push("/")}
             className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
           >
             Go Home
@@ -213,7 +223,10 @@ export default function PostDetailPage() {
     );
   }
 
-  const username = post.profiles?.username || post.profiles?.email?.split('@')[0] || 'Unknown';
+  const username =
+    post.profiles?.username ||
+    post.profiles?.email?.split("@")[0] ||
+    "Unknown";
   const isOwnPost = user?.id === post.user_id;
 
   return (
@@ -240,7 +253,9 @@ export default function PostDetailPage() {
             <div>
               <p className="font-semibold text-foreground">{username}</p>
               <p className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                {formatDistanceToNow(new Date(post.created_at), {
+                  addSuffix: true,
+                })}
               </p>
             </div>
           </div>
@@ -258,7 +273,28 @@ export default function PostDetailPage() {
         </div>
 
         {/* Content */}
-        <p className="text-foreground mb-4 whitespace-pre-wrap text-lg">{post.content}</p>
+        <p className="text-foreground mb-4 whitespace-pre-wrap text-lg">
+          {post.content}
+        </p>
+
+        {/* Image */}
+        {post.image_url && (
+          <div className="mt-2 mb-4 overflow-hidden rounded-lg border border-border bg-background">
+            <img
+              src={post.image_url}
+              alt="Post image"
+              className="w-full h-auto object-cover"
+            />
+          </div>
+        )}
+
+        {/* Polymarket card */}
+        {post.market_data && post.polymarket_market_id && (
+          <MarketCard
+            marketId={post.polymarket_market_id}
+            marketData={post.market_data}
+          />
+        )}
 
         {/* Actions */}
         <div className="flex items-center space-x-4 pt-4 border-t border-border">
@@ -283,7 +319,9 @@ export default function PostDetailPage() {
 
       {/* Comments Section */}
       <div className="bg-card rounded-lg border border-border p-6">
-        <h2 className="text-xl font-bold mb-4">Comments ({comments.length})</h2>
+        <h2 className="text-xl font-bold mb-4">
+          Comments ({comments.length})
+        </h2>
 
         {/* Comment Form */}
         {authenticated ? (
@@ -315,7 +353,9 @@ export default function PostDetailPage() {
           </form>
         ) : (
           <div className="mb-6 p-4 bg-secondary/50 rounded-lg border border-border">
-            <p className="text-muted-foreground mb-3">Sign in to comment</p>
+            <p className="text-muted-foreground mb-3">
+              Sign in to comment
+            </p>
             <button
               onClick={login}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
@@ -333,11 +373,17 @@ export default function PostDetailPage() {
             </p>
           ) : (
             comments.map((comment) => {
-              const commentUsername = comment.profiles?.username || comment.profiles?.email?.split('@')[0] || 'Unknown';
+              const commentUsername =
+                comment.profiles?.username ||
+                comment.profiles?.email?.split("@")[0] ||
+                "Unknown";
               const isOwnComment = user?.id === comment.user_id;
 
               return (
-                <div key={comment.id} className="bg-secondary/30 rounded-lg p-4 border border-border">
+                <div
+                  key={comment.id}
+                  className="bg-secondary/30 rounded-lg p-4 border border-border"
+                >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center space-x-3">
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -346,14 +392,18 @@ export default function PostDetailPage() {
                         </span>
                       </div>
                       <div>
-                        <p className="font-semibold text-sm text-foreground">{commentUsername}</p>
+                        <p className="font-semibold text-sm text-foreground">
+                          {commentUsername}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                          {formatDistanceToNow(
+                            new Date(comment.created_at),
+                            { addSuffix: true },
+                          )}
                         </p>
                       </div>
                     </div>
 
-                    {/* Delete Comment Button */}
                     {isOwnComment && (
                       <button
                         onClick={() => handleDeleteComment(comment.id)}
@@ -364,7 +414,9 @@ export default function PostDetailPage() {
                       </button>
                     )}
                   </div>
-                  <p className="text-foreground whitespace-pre-wrap">{comment.content}</p>
+                  <p className="text-foreground whitespace-pre-wrap">
+                    {comment.content}
+                  </p>
                 </div>
               );
             })
