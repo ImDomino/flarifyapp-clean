@@ -1,34 +1,25 @@
-// components/Navigation.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Home,
-  Briefcase,
-  Settings,
-  MessageCircle,
-  LogOut,
-  Wallet,
-} from "lucide-react";
+import { Home, PenSquare, User, Settings, Wallet, LogOut, ArrowRight } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { motion } from "framer-motion";
 import { DepositModal } from "./DepositModal";
 import { useWallet } from "@/providers/WalletProvider";
 import { useSafeDeployment } from "@/hooks/useSafeDeployment";
 import { useBalances } from "@/hooks/useBalances";
 
-export function Navigation() {
+export function NavigationSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { authenticated, user, logout } = usePrivy();
+  const { authenticated, user, logout, login } = usePrivy();
   const [isDepositOpen, setIsDepositOpen] = useState(false);
 
   const { eoaAddress } = useWallet();
   const [safeAddress, setSafeAddress] = useState<string | null>(null);
   const { ensureSafe } = useSafeDeployment();
-  
+
   useEffect(() => {
     if (eoaAddress) {
       ensureSafe().then(setSafeAddress).catch(console.error);
@@ -40,9 +31,9 @@ export function Navigation() {
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
-    { href: "/create", icon: MessageCircle, label: "Post" },
-    { href: "/profile", icon: Briefcase, label: "Profile" },
-    { href: "/admin", icon: Settings, label: "Settings" },
+    { href: "/create", icon: PenSquare, label: "Post" },
+    { href: "/profile", icon: User, label: "Profile" },
+    { href: "/settings", icon: Settings, label: "Settings" },
   ];
 
   const handleLogout = async () => {
@@ -52,147 +43,117 @@ export function Navigation() {
     }
   };
 
-  const username =
-    user?.google?.name ||
-    user?.email?.address?.split("@")[0] ||
-    "Unknown";
+  const username = user?.google?.name || user?.email?.address?.split("@")[0] || "User";
 
   return (
     <>
-      {/* Sidebar Navigation */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="fixed left-0 top-0 h-full w-20 lg:w-72 bg-sidebar border-r border-sidebar-border p-4 flex flex-col z-50"
-      >
-        {/* Logo / Title */}
-        <div className="hidden lg:block mb-8 px-2">
-          <h1 className="text-2xl font-bold text-gradient-blue-aqua">
-            Flarify
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Prediction Market Social
-          </p>
-        </div>
+      <aside className="hidden lg:flex lg:flex-col">
+        <div className="rounded-xl bg-base-900/70 backdrop-blur border border-white/5 shadow-soft overflow-hidden">
+          {/* Logo */}
+          <div className="px-5 pt-5 pb-4 border-b border-white/5">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500/20 to-teal-500/20 border border-white/10 flex items-center justify-center shadow-soft">
+                <span className="font-display font-bold tracking-tight text-lg text-blue-200">F</span>
+              </div>
+              <div>
+                <div className="font-display font-semibold tracking-tight text-lg">Flarify</div>
+                <div className="text-xs text-slate-400">Prediction Market Social</div>
+              </div>
+            </div>
+          </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-2">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            const Icon = item.icon;
+          {/* Navigation */}
+          <nav className="p-3">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              const Icon = item.icon;
 
-            return (
-              <motion.div
-                key={item.href}
-                whileHover={{ scale: 1.02, x: 4 }}
-                whileTap={{ scale: 0.98 }}
-              >
+              return (
                 <Link
+                  key={item.href}
                   href={item.href}
-                  className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all relative group ${
+                  className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
                     isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                      ? "text-slate-200 bg-white/5 border border-white/5"
+                      : "text-slate-200 hover:bg-white/5"
                   }`}
                 >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute inset-0 bg-gradient-to-r from-[#2A56F2]/20 to-[#9DFECB]/20 rounded-2xl"
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                    />
-                  )}
-                  <Icon className="w-6 h-6 relative z-10 transition-transform group-hover:scale-110" />
-                  <span className="hidden lg:block relative z-10 font-medium">
-                    {item.label}
-                  </span>
+                  <Icon className={`text-lg ${isActive ? "text-blue-300" : "text-slate-400 group-hover:text-blue-300"} transition`} />
+                  <span>{item.label}</span>
                 </Link>
-              </motion.div>
-            );
-          })}
-        </nav>
+              );
+            })}
+          </nav>
 
-        {/* Balance & Deposit */}
-        {authenticated && (
-          <div className="mb-4 px-2">
-            <div className="hidden lg:block space-y-3">
-              <div className="bg-secondary/30 border border-white/10 rounded-2xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">
-                  Trading Balance
-                </p>
-                <div className="flex items-center gap-2 mb-3">
-                  <p className="text-2xl font-bold text-foreground">
-                    {isLoading ? "$0.00" : `$${safeNum.toFixed(2)}`}
-                  </p>
+          {/* Balance Card */}
+          {authenticated && (
+            <div className="p-4 border-t border-white/5">
+              <div className="rounded-xl bg-base-850/70 border border-white/5 p-4 shadow-soft">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs text-slate-400">Trading Balance</div>
+                    <div className="mt-1 text-2xl font-display font-semibold tracking-tight">
+                      ${isLoading ? "0.00" : safeNum.toFixed(2)}
+                    </div>
+                    <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                      Bridge deposits go directly to this balance.
+                    </p>
+                  </div>
+                  <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-500/15 to-teal-500/15 border border-white/10 flex items-center justify-center">
+                    <Wallet className="text-lg text-teal-200" />
+                  </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground/70 mb-2">
-                  Bridge deposits go directly to this balance
-                </p>
+                <button
+                  onClick={() => setIsDepositOpen(true)}
+                  className="relative mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow overflow-hidden"
+                >
+                  <span className="relative z-10">Deposit</span>
+                  <ArrowRight className="relative z-10 w-4 h-4" />
+                  <span className="absolute inset-0 opacity-30 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,.65),transparent)] -translate-x-[120%] animate-sheen"></span>
+                </button>
               </div>
 
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setIsDepositOpen(true)}
-                className="w-full bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white font-medium py-3 px-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#2A56F2]/30"
+              {/* User Card */}
+              <div className="mt-4 flex items-center gap-3 rounded-xl bg-base-850/60 border border-white/5 px-3 py-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center shadow-soft">
+                  <span className="font-display font-bold text-white">
+                    {username[0].toUpperCase()}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold leading-5 truncate">{username}</div>
+                  <div className="text-xs text-slate-400 truncate">
+                    @{username.toLowerCase().replace(/\s+/g, "")}
+                  </div>
+                </div>
+              </div>
+
+              {/* Logout */}
+              <button
+                onClick={handleLogout}
+                className="mt-3 inline-flex items-center gap-2 text-sm text-rose-300 hover:text-rose-200 transition"
               >
-                <Wallet className="w-5 h-5" />
-                Deposit
-              </motion.button>
+                <LogOut className="text-lg" />
+                Logout
+              </button>
             </div>
+          )}
 
-            {/* Mobile version - just icon */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsDepositOpen(true)}
-              className="lg:hidden w-12 h-12 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white rounded-2xl flex items-center justify-center shadow-lg"
-            >
-              <Wallet className="w-6 h-6" />
-            </motion.button>
-          </div>
-        )}
+          {/* Login prompt for non-authenticated users */}
+          {!authenticated && (
+            <div className="p-4 border-t border-white/5">
+              <button
+                onClick={login}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow"
+              >
+                Sign in with Google
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
 
-        {/* User Profile Card */}
-        {authenticated && (
-          <div className="border-t border-sidebar-border pt-4">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              onClick={() => router.push("/profile")}
-              className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-sidebar-accent/50 transition-all"
-            >
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2A56F2] to-[#9DFECB] flex items-center justify-center text-sm font-semibold text-white">
-                {username[0].toUpperCase()}
-              </div>
-              <div className="hidden lg:block flex-1 text-left">
-                <p className="text-sm font-medium text-sidebar-foreground truncate">
-                  {username}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  @{username.toLowerCase().replace(/\s+/g, "")}
-                </p>
-              </div>
-            </motion.button>
-
-            {/* Logout Button */}
-            <motion.button
-              whileHover={{ scale: 1.02, backgroundColor: "rgba(255,69,58,0.1)" }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center lg:justify-start gap-3 mt-2 px-4 py-3 rounded-2xl text-destructive hover:bg-destructive/10 transition-all"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="hidden lg:block font-medium">Logout</span>
-            </motion.button>
-          </div>
-        )}
-      </motion.div>
-
-      {/* Main content padding */}
-      <div className="pl-20 lg:pl-72" />
-
-      {/* Deposit modal */}
+      {/* Deposit Modal */}
       {authenticated && eoaAddress && safeAddress && (
         <DepositModal
           isOpen={isDepositOpen}

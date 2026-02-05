@@ -1,13 +1,11 @@
-// components/DepositModal.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Copy, CheckCircle2, ChevronDown, Loader2, AlertCircle } from "lucide-react";
+import { X, Copy, CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 import { useBridgeDeposit } from "@/hooks/useBridgeDeposit";
 
 interface DepositModalProps {
-  eoaAddress: string; // This is actually the Safe address
+  eoaAddress: string;
   isOpen: boolean;
   onClose: () => void;
   onRefreshBalance?: () => void;
@@ -37,14 +35,11 @@ export function DepositModal({ eoaAddress, isOpen, onClose, onRefreshBalance }: 
         const evmAddr = res.address?.evm;
         if (evmAddr) {
           setBridgeAddress(evmAddr);
-          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${evmAddr}&bgcolor=1a1d2e&color=ffffff&margin=0`;
+          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${evmAddr}&bgcolor=121318&color=ffffff&margin=0`;
           setQrCodeUrl(qrUrl);
-        } else {
-          console.error("No EVM address in bridge response", res);
         }
       } catch (error) {
         console.error("Failed to create deposit:", error);
-        alert("Failed to create deposit address. Please try again.");
       } finally {
         setIsLoading(false);
         setInitialized(true);
@@ -54,7 +49,6 @@ export function DepositModal({ eoaAddress, isOpen, onClose, onRefreshBalance }: 
     void init();
   }, [isOpen, initialized, createDeposit]);
 
-  // Auto-check status every 10 seconds if bridge address exists
   useEffect(() => {
     if (!bridgeAddress || !isOpen) return;
 
@@ -64,7 +58,6 @@ export function DepositModal({ eoaAddress, isOpen, onClose, onRefreshBalance }: 
         const status = await getStatus(bridgeAddress);
         setDepositStatus(status);
         
-        // If we have completed transactions, refresh balance
         if (status?.transactions?.length > 0) {
           const hasCompleted = status.transactions.some(
             (tx: any) => tx.status === "completed" || tx.status === "confirmed"
@@ -80,12 +73,8 @@ export function DepositModal({ eoaAddress, isOpen, onClose, onRefreshBalance }: 
       }
     };
 
-    // Check immediately
     checkStatus();
-
-    // Then check every 10 seconds
     const interval = setInterval(checkStatus, 10000);
-
     return () => clearInterval(interval);
   }, [bridgeAddress, isOpen, getStatus, onRefreshBalance]);
 
@@ -120,211 +109,182 @@ export function DepositModal({ eoaAddress, isOpen, onClose, onRefreshBalance }: 
     (tx: any) => tx.status === "completed" || tx.status === "confirmed"
   );
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999]"
-          />
+  if (!isOpen) return null;
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ type: "spring", duration: 0.4 }}
-            className="fixed inset-0 z-[10000] flex items-center justify-center px-3 sm:px-4"
-          >
-            <div className="w-full max-w-md max-h-[90vh] bg-card border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
-              {/* Header */}
-              <div className="relative p-6 border-b border-white/10 shrink-0">
-                <h2 className="text-xl font-semibold text-center text-foreground">
-                  Add funds
-                </h2>
-                <button
-                  onClick={onClose}
-                  className="absolute right-4 top-4 p-2 rounded-full hover:bg-white/10 transition-colors text-foreground"
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999]"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-none px-4">
+        <div className="w-full max-w-md max-h-[90vh] bg-base-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto">
+          {/* Header */}
+          <div className="relative p-5 border-b border-white/5 shrink-0">
+            <h2 className="font-display text-xl font-semibold text-center text-slate-100">
+              Add funds
+            </h2>
+            <button
+              onClick={onClose}
+              className="absolute right-4 top-4 p-2 rounded-lg hover:bg-white/10 transition-colors"
+            >
+              <X className="w-5 h-5 text-slate-400" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-5 space-y-5 overflow-y-auto custom-scrollbar">
+            {/* Status Alerts */}
+            {hasPendingDeposits && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
+                <Loader2 className="w-5 h-5 text-amber-400 animate-spin mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm text-amber-300 font-medium mb-1">Processing deposit...</p>
+                  <p className="text-xs text-slate-400">Usually takes 1-5 minutes.</p>
+                </div>
+              </div>
+            )}
+
+            {hasCompletedDeposits && (
+              <div className="bg-teal-500/10 border border-teal-500/20 rounded-xl p-4 flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-teal-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm text-teal-300 font-medium mb-1">Deposit completed!</p>
+                  <p className="text-xs text-slate-400">Your funds have been transferred.</p>
+                </div>
+              </div>
+            )}
+
+            {/* How it works */}
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+              <p className="text-sm text-blue-300 font-medium mb-2">💡 How it works</p>
+              <ol className="text-xs text-slate-400 space-y-1 list-decimal list-inside">
+                <li>Send USDC to the bridge address below</li>
+                <li>Polymarket bridge processes your deposit</li>
+                <li>Funds arrive in your Safe (1-5 minutes)</li>
+                <li>Start trading!</li>
+              </ol>
+            </div>
+
+            {/* Token & Chain Selectors */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-300 mb-1.5 block">Token</label>
+                <select
+                  value={selectedToken}
+                  onChange={(e) => setSelectedToken(e.target.value)}
+                  className="w-full px-4 py-3 bg-base-850/50 border border-white/10 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 >
-                  <X className="w-5 h-5" />
-                </button>
+                  <option>USDC</option>
+                  <option>ETH</option>
+                  <option>USDT</option>
+                </select>
               </div>
 
-              {/* Content */}
-              <div className="p-6 space-y-6 overflow-y-auto">
-                {/* Status Alert */}
-                {hasPendingDeposits && (
-                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 flex items-start gap-3">
-                    <Loader2 className="w-5 h-5 text-yellow-500 animate-spin mt-0.5 flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-sm text-yellow-500 font-medium mb-1">
-                        Processing deposit...
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Your funds are being transferred to your Safe. This usually takes 1-5 minutes.
-                      </p>
-                    </div>
-                  </div>
-                )}
+              <div>
+                <label className="text-xs font-medium text-slate-300 mb-1.5 block">Network</label>
+                <select
+                  value={selectedChain}
+                  onChange={(e) => setSelectedChain(e.target.value)}
+                  className="w-full px-4 py-3 bg-base-850/50 border border-white/10 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                >
+                  <option>Polygon</option>
+                  <option>Ethereum</option>
+                  <option>Arbitrum</option>
+                  <option>Base</option>
+                </select>
+              </div>
+            </div>
 
-                {hasCompletedDeposits && (
-                  <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-start gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-sm text-green-500 font-medium mb-1">
-                        Deposit completed!
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Your funds have been transferred to your Safe. Refresh to see updated balance.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Important Info */}
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-                  <p className="text-sm text-blue-400 font-medium mb-2">
-                    💡 How it works
-                  </p>
-                  <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-                    <li>Send USDC to the bridge address below</li>
-                    <li>Polymarket bridge processes your deposit</li>
-                    <li>Funds arrive in your Safe (1-5 minutes)</li>
-                    <li>Start trading!</li>
-                  </ol>
+            {/* QR Code */}
+            {isLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+              </div>
+            ) : qrCodeUrl && bridgeAddress ? (
+              <div className="flex justify-center">
+                <div className="p-4 bg-base-850/50 rounded-xl border border-white/10">
+                  <img src={qrCodeUrl} alt="Deposit Address QR" className="w-56 h-56 rounded-lg" />
                 </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-slate-400">
+                Failed to load deposit address
+              </div>
+            )}
 
-                {/* Token & Chain Selectors */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Token</label>
-                    <select
-                      value={selectedToken}
-                      onChange={(e) => setSelectedToken(e.target.value)}
-                      className="w-full px-4 py-3 bg-secondary/50 border border-white/10 rounded-xl text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
-                    >
-                      <option>USDC</option>
-                      <option>ETH</option>
-                      <option>USDT</option>
-                    </select>
+            {/* Deposit Address */}
+            {bridgeAddress && (
+              <div>
+                <label className="text-xs font-medium text-slate-300 mb-1.5 block">
+                  Bridge deposit address
+                </label>
+                <div className="relative">
+                  <div className="bg-base-850/50 border border-white/10 rounded-xl p-4 pr-12 font-mono text-sm break-all text-slate-200">
+                    {bridgeAddress}
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Network</label>
-                    <select
-                      value={selectedChain}
-                      onChange={(e) => setSelectedChain(e.target.value)}
-                      className="w-full px-4 py-3 bg-secondary/50 border border-white/10 rounded-xl text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
-                    >
-                      <option>Polygon</option>
-                      <option>Ethereum</option>
-                      <option>Arbitrum</option>
-                      <option>Base</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* QR Code */}
-                {isLoading ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : qrCodeUrl && bridgeAddress ? (
-                  <div className="flex justify-center">
-                    <div className="p-4 bg-secondary/50 rounded-2xl border border-white/10">
-                      <img src={qrCodeUrl} alt="Deposit Address QR" className="w-64 h-64 rounded-xl" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Failed to load deposit address
-                  </div>
-                )}
-
-                {/* Deposit Address */}
-                {bridgeAddress && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Bridge deposit address
-                    </label>
-                    <div className="relative">
-                      <div className="bg-secondary/50 border border-white/10 rounded-xl p-4 pr-12 font-mono text-sm break-all text-foreground">
-                        {bridgeAddress}
-                      </div>
-                      <button
-                        onClick={handleCopy}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg hover:bg-white/10 transition-colors"
-                      >
-                        {copied ? (
-                          <CheckCircle2 className="w-5 h-5 text-chart-1" />
-                        ) : (
-                          <Copy className="w-5 h-5 text-muted-foreground" />
-                        )}
-                      </button>
-                    </div>
-                    {copied && (
-                      <motion.p
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="text-xs text-chart-1 text-center"
-                      >
-                        Address copied!
-                      </motion.p>
-                    )}
-                  </div>
-                )}
-
-                {/* Your Safe Address */}
-                <div className="bg-secondary/30 border border-white/10 rounded-xl p-4">
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Funds will be sent to your Safe:
-                  </p>
-                  <p className="text-xs font-mono text-foreground break-all">
-                    {eoaAddress}
-                  </p>
-                </div>
-
-                {/* Details */}
-                <div className="border border-white/10 rounded-xl overflow-hidden">
                   <button
-                    onClick={() => setShowDetails(!showDetails)}
-                    className="w-full px-4 py-3 bg-secondary/50 flex items-center justify-between text-foreground hover:bg-secondary/70 transition-colors"
+                    onClick={handleCopy}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg hover:bg-white/10 transition-colors"
                   >
-                    <span className="text-sm font-medium">Details</span>
-                    <ChevronDown className={`w-5 h-5 transition-transform ${showDetails ? "rotate-180" : ""}`} />
+                    {copied ? (
+                      <CheckCircle2 className="w-5 h-5 text-teal-400" />
+                    ) : (
+                      <Copy className="w-5 h-5 text-slate-400" />
+                    )}
                   </button>
+                </div>
+                {copied && (
+                  <p className="text-xs text-teal-400 text-center mt-2">Address copied!</p>
+                )}
+              </div>
+            )}
 
-                  {showDetails && (
-                    <div className="px-4 py-3 bg-secondary/30 border-t border-white/10 space-y-2 text-sm text-muted-foreground">
-                      <div className="flex justify-between">
-                        <span>Network fee</span>
-                        <span className="text-foreground">~$0.50</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Min deposit</span>
-                        <span className="text-foreground">$1.00</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Processing time</span>
-                        <span className="text-foreground">1-5 min</span>
-                      </div>
-                      {checkingStatus && (
-                        <div className="flex justify-between items-center">
-                          <span>Status</span>
-                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                        </div>
-                      )}
+            {/* Your Safe Address */}
+            <div className="bg-base-850/30 border border-white/5 rounded-xl p-4">
+              <p className="text-xs text-slate-500 mb-2">Funds will be sent to your Safe:</p>
+              <p className="text-xs font-mono text-slate-300 break-all">{eoaAddress}</p>
+            </div>
+
+            {/* Details */}
+            <div className="border border-white/10 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setShowDetails(!showDetails)}
+                className="w-full px-4 py-3 bg-base-850/50 flex items-center justify-between text-slate-200 hover:bg-base-850/70 transition-colors"
+              >
+                <span className="text-sm font-medium">Details</span>
+                <ChevronDown className={`w-5 h-5 transition-transform ${showDetails ? "rotate-180" : ""}`} />
+              </button>
+
+              {showDetails && (
+                <div className="px-4 py-3 bg-base-850/30 border-t border-white/5 space-y-2 text-sm text-slate-400">
+                  <div className="flex justify-between">
+                    <span>Network fee</span>
+                    <span className="text-slate-200">~$0.50</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Min deposit</span>
+                    <span className="text-slate-200">$1.00</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Processing time</span>
+                    <span className="text-slate-200">1-5 min</span>
+                  </div>
+                  {checkingStatus && (
+                    <div className="flex justify-between items-center">
+                      <span>Status</span>
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
                     </div>
                   )}
                 </div>
-              </div>
+              )}
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

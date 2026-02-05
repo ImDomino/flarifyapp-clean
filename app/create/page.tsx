@@ -3,10 +3,9 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { Loader2, CheckCircle, Image as ImageIcon, X } from "lucide-react";
+import { CheckCircle, Image as ImageIcon, X, ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { MarketSearchInput } from "@/components/MarketSearchInput";
-import { motion } from "framer-motion";
 
 interface Market {
   id: string;
@@ -110,14 +109,6 @@ export default function CreatePage() {
           noTokenId = noToken?.token_id || null;
         }
 
-        console.log('🎯 selectedMarket from search:', selectedMarket);
-        console.log('🎯 TokenIds from search:', { 
-          yesTokenId, 
-          noTokenId,
-          hasYes: !!yesTokenId,
-          hasNo: !!noTokenId,
-        });
-
         if (yesTokenId || noTokenId || selectedMarket.id) {
           marketData = {
             question: selectedMarket.question,
@@ -128,8 +119,6 @@ export default function CreatePage() {
             yesTokenId: yesTokenId || undefined,
             noTokenId: noTokenId || undefined,
           };
-          
-          console.log('📝 marketData being sent to API:', marketData);
         }
       }
 
@@ -166,78 +155,70 @@ export default function CreatePage() {
 
   if (!authenticated) {
     return (
-      <div className="max-w-2xl mx-auto text-center py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-card rounded-3xl border border-white/10 p-8 card-shadow backdrop-blur-xl"
-        >
-          <h1 className="text-3xl font-bold mb-4 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] bg-clip-text text-transparent">
+      <div className="text-center py-12">
+        <div className="rounded-xl bg-base-900/70 border border-white/5 shadow-card p-8">
+          <h1 className="font-display text-2xl font-semibold tracking-tight mb-4">
             Sign in to Create Posts
           </h1>
-          <p className="text-muted-foreground mb-6">
+          <p className="text-slate-400 mb-6">
             You need to be signed in to create posts
           </p>
           <button
             onClick={login}
-            className="px-8 py-4 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white rounded-2xl hover:opacity-90 transition-opacity font-bold text-lg shadow-lg shadow-[#2A56F2]/30"
+            className="inline-flex items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow"
           >
             Sign in with Google
           </button>
-        </motion.div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+    <div className="space-y-5">
+      {/* Back button */}
+      <button
+        onClick={() => router.back()}
+        className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition"
       >
-        <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] bg-clip-text text-transparent">
-          Create Post
-        </h1>
-        <p className="text-muted-foreground mb-8">
-          Share your thoughts with the community
-        </p>
-      </motion.div>
+        <ArrowLeft className="w-4 h-4" />
+        Back
+      </button>
 
-      <motion.form
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        onSubmit={handleSubmit}
-        className="space-y-6 bg-card p-8 rounded-3xl border border-white/10 card-shadow backdrop-blur-xl"
-      >
-        {/* Post Text */}
-        <div className="space-y-3">
-          <label htmlFor="post-text" className="text-sm font-semibold text-foreground">
+      {/* Header */}
+      <div>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">Create Post</h1>
+        <p className="mt-1 text-sm text-slate-400">Share your thoughts with the community</p>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Post Content */}
+        <div className="rounded-xl bg-base-900/60 border border-white/5 shadow-soft p-5">
+          <label className="block text-sm font-semibold text-slate-200 mb-3">
             What's on your mind?
           </label>
           <textarea
-            id="post-text"
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="Share your thoughts..."
-            className="w-full min-h-[200px] bg-secondary/50 border border-white/10 rounded-2xl p-4 resize-none focus:outline-none focus:ring-2 focus:ring-[#2A56F2]/50 transition-all placeholder:text-muted-foreground text-foreground"
+            placeholder="Share your market insights, predictions, or analysis..."
+            className="w-full min-h-[180px] bg-base-850/50 border border-white/10 rounded-xl p-4 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all placeholder:text-slate-500 text-slate-200"
             required
           />
-          <div className="flex justify-between items-center text-xs text-muted-foreground">
+          <div className="mt-2 flex justify-between items-center text-xs text-slate-500">
             <span>{content.length} characters</span>
-            {content.length > 0 && <span className="text-[#9DFECB]">✓</span>}
+            {content.length > 0 && <span className="text-teal-400">✓</span>}
           </div>
         </div>
 
         {/* Image Upload */}
-        <div className="space-y-3">
-          <label className="text-sm font-semibold text-foreground">
+        <div className="rounded-xl bg-base-900/60 border border-white/5 shadow-soft p-5">
+          <label className="block text-sm font-semibold text-slate-200 mb-3">
             Image (optional)
           </label>
           
           {imagePreview ? (
-            <div className="relative rounded-2xl overflow-hidden border border-white/10">
+            <div className="relative rounded-xl overflow-hidden border border-white/10">
               <Image
                 src={imagePreview}
                 alt="Upload preview"
@@ -254,7 +235,7 @@ export default function CreatePage() {
               </button>
             </div>
           ) : (
-            <label className="flex flex-col items-center justify-center h-48 bg-secondary/50 border-2 border-dashed border-white/10 rounded-2xl cursor-pointer hover:bg-secondary/70 hover:border-white/20 transition-all group">
+            <label className="flex flex-col items-center justify-center h-40 bg-base-850/50 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:bg-base-850/70 hover:border-white/20 transition-all group">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -262,16 +243,16 @@ export default function CreatePage() {
                 onChange={handleImageSelect}
                 className="hidden"
               />
-              <ImageIcon className="w-12 h-12 text-muted-foreground mb-2 group-hover:scale-110 transition-transform" />
-              <span className="text-sm text-muted-foreground">Click to upload image</span>
-              <span className="text-xs text-muted-foreground mt-1">PNG, JPG up to 10MB</span>
+              <ImageIcon className="w-10 h-10 text-slate-500 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm text-slate-400">Click to upload image</span>
+              <span className="text-xs text-slate-500 mt-1">PNG, JPG up to 10MB</span>
             </label>
           )}
         </div>
 
-        {/* Polymarket Market Field */}
-        <div className="space-y-3">
-          <label className="text-sm font-semibold text-foreground">
+        {/* Polymarket Market */}
+        <div className="rounded-xl bg-base-900/60 border border-white/5 shadow-soft p-5">
+          <label className="block text-sm font-semibold text-slate-200 mb-3">
             Add Polymarket Market (optional)
           </label>
           <MarketSearchInput
@@ -282,73 +263,59 @@ export default function CreatePage() {
 
         {/* Success Message */}
         {success && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="p-4 bg-[#9DFECB]/10 border border-[#9DFECB]/20 rounded-2xl flex items-center space-x-3 text-[#9DFECB]"
-          >
-            <CheckCircle className="h-5 w-5" />
-            <span className="font-medium">Post created! Redirecting...</span>
-          </motion.div>
+          <div className="rounded-xl bg-teal-500/10 border border-teal-500/20 p-4 flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-teal-400" />
+            <span className="text-sm font-medium text-teal-200">Post created! Redirecting...</span>
+          </div>
         )}
 
-        {/* Create Button */}
+        {/* Submit Button */}
         <button
           type="submit"
           disabled={!content.trim() || isLoading || isUploading}
-          className="w-full bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white font-bold py-4 rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#2A56F2]/20"
+          className="relative w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-4 text-sm font-semibold text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isUploading ? (
-            <span className="flex items-center justify-center gap-2">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-              />
+            <span className="flex items-center gap-2">
+              <div className="w-5 h-5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin"></div>
               Uploading Image...
             </span>
           ) : isLoading ? (
-            <span className="flex items-center justify-center gap-2">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-              />
+            <span className="flex items-center gap-2">
+              <div className="w-5 h-5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin"></div>
               Creating...
             </span>
           ) : (
-            'Create Post'
+            <>
+              <span className="relative z-10">Create Post</span>
+              <span className="absolute inset-0 opacity-30 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,.65),transparent)] -translate-x-[120%] animate-sheen"></span>
+            </>
           )}
         </button>
-      </motion.form>
+      </form>
 
       {/* Tips */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="mt-6 bg-secondary/30 border border-white/5 rounded-2xl p-5 backdrop-blur-xl"
-      >
-        <h3 className="font-semibold text-sm mb-3 text-foreground">Tips for a great post:</h3>
-        <ul className="text-sm text-muted-foreground space-y-2">
+      <div className="rounded-xl bg-base-850/40 border border-white/5 p-5">
+        <h3 className="text-sm font-semibold text-slate-200 mb-3">Tips for a great post:</h3>
+        <ul className="text-sm text-slate-400 space-y-2">
           <li className="flex items-start gap-2">
-            <span className="text-[#9DFECB]">•</span>
+            <span className="text-teal-400 mt-0.5">•</span>
             <span>Be clear and concise with your message</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-[#9DFECB]">•</span>
+            <span className="text-teal-400 mt-0.5">•</span>
             <span>Add relevant images to increase engagement</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-[#9DFECB]">•</span>
+            <span className="text-teal-400 mt-0.5">•</span>
             <span>Link to Polymarket markets for prediction discussions</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-[#9DFECB]">•</span>
+            <span className="text-teal-400 mt-0.5">•</span>
             <span>Be respectful and follow community guidelines</span>
           </li>
         </ul>
-      </motion.div>
+      </div>
     </div>
   );
 }

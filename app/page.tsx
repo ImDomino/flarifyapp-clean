@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PostCard } from "@/components/PostCard";
-import { Loader2, Search, Plus } from "lucide-react";
-import { motion } from "framer-motion";
+import { Search, Plus, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { PostWithUser } from "@/lib/types";
 
@@ -54,136 +53,111 @@ export default function Home() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-8 h-8 border-2 border-[#2A56F2]/30 border-t-[#2A56F2] rounded-full"
-        />
+        <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-3xl mx-auto">
-      
-
-     {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative bg-card border border-white/10 rounded-3xl backdrop-blur-xl card-shadow">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="w-full pl-14 pr-4 py-4 bg-transparent border-none rounded-3xl focus:outline-none focus:ring-2 focus:ring-white/20 text-foreground placeholder:text-muted-foreground"
-          />
+    <div className="space-y-5">
+      {/* Search Bar */}
+      <div className="relative">
+        <div className="rounded-xl bg-base-900/70 border border-white/5 shadow-soft overflow-hidden">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search markets, users, or posts..."
+              className="w-full pl-12 pr-4 py-4 bg-transparent border-none focus:outline-none focus:ring-0 text-slate-200 placeholder:text-slate-500"
+            />
+          </div>
         </div>
       </div>
 
-
       {/* Create Post Prompt */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="mb-6 bg-card border border-white/10 rounded-3xl backdrop-blur-xl p-6 card-shadow hover:border-white/20 transition-all cursor-pointer group"
+      <div 
         onClick={() => router.push('/create')}
+        className="rounded-xl bg-base-900/60 border border-white/5 shadow-soft p-5 cursor-pointer hover:bg-base-900/80 hover:border-white/10 transition-all group"
       >
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2A56F2] to-[#9DFECB] flex items-center justify-center group-hover:scale-110 transition-transform">
+          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center shadow-soft group-hover:scale-105 transition-transform">
             <Plus className="w-6 h-6 text-white" />
           </div>
-          <input
-            type="text"
-            placeholder="What's the latest?"
-            readOnly
-            className="flex-1 bg-transparent border-none focus:outline-none text-muted-foreground cursor-pointer"
-          />
+          <div className="flex-1 min-w-0">
+            <input
+              type="text"
+              placeholder="What's the latest?"
+              readOnly
+              className="w-full bg-transparent border-none focus:outline-none text-slate-400 cursor-pointer"
+            />
+          </div>
           <button
             onClick={(e) => {
               e.stopPropagation();
               router.push('/create');
             }}
-            className="px-6 py-3 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white rounded-2xl font-medium hover:opacity-90 transition-opacity shadow-lg shadow-[#2A56F2]/30"
+            className="relative inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow overflow-hidden"
           >
-            Post
+            <span className="relative z-10">Post</span>
+            <span className="absolute inset-0 opacity-30 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,.65),transparent)] -translate-x-[120%] animate-sheen"></span>
           </button>
         </div>
-      </motion.div>
+      </div>
 
       {/* Posts List */}
       {posts.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="text-center py-16 px-6 bg-card border border-white/10 rounded-3xl backdrop-blur-xl card-shadow"
-        >
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-[#2A56F2]/20 to-[#9DFECB]/20 flex items-center justify-center">
-            <Plus className="w-10 h-10 text-[#2A56F2]" />
+        <div className="rounded-xl bg-base-900/60 border border-white/5 shadow-card p-8 text-center">
+          <div className="h-20 w-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500/20 to-teal-500/20 flex items-center justify-center">
+            <Plus className="w-10 h-10 text-blue-300" />
           </div>
-          <p className="text-muted-foreground mb-4 text-lg">
-            No posts yet. Be the first to create one!
+          <h3 className="font-display text-xl font-semibold tracking-tight mb-2">No posts yet</h3>
+          <p className="text-slate-400 mb-6">
+            Be the first to create a post and share your market insights!
           </p>
           <button
             onClick={() => router.push('/create')}
-            className="px-8 py-4 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-lg shadow-[#2A56F2]/30"
+            className="inline-flex items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow"
           >
             Create First Post
           </button>
-        </motion.div>
+        </div>
       ) : (
         <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            {posts.map((post, index) => (
-              <motion.div
-                key={post.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 * (index % 5) }}
-              >
-                <PostCard post={post} />
-              </motion.div>
+          <div className="space-y-4">
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} />
             ))}
-          </motion.div>
+          </div>
 
           {/* Load More */}
           {hasMore && (
-            <div className="text-center py-6">
+            <div className="text-center pt-4">
               <button
                 onClick={handleLoadMore}
                 disabled={isLoadingMore}
-                className="px-8 py-4 bg-card border border-white/10 rounded-2xl hover:bg-card/80 hover:border-white/20 transition-all font-medium disabled:opacity-50 card-shadow"
+                className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-slate-200 bg-white/5 hover:bg-white/10 border border-white/10 transition disabled:opacity-50"
               >
                 {isLoadingMore ? (
-                  <span className="flex items-center gap-2">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="w-4 h-4 border-2 border-[#2A56F2]/30 border-t-[#2A56F2] rounded-full"
-                    />
+                  <>
+                    <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
                     Loading...
-                  </span>
+                  </>
                 ) : (
-                  "Load More Posts"
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Load More Posts
+                  </>
                 )}
               </button>
             </div>
           )}
 
           {!hasMore && posts.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center py-6"
-            >
-              <p className="text-muted-foreground text-sm">
+            <div className="text-center py-6">
+              <p className="text-sm text-slate-500">
                 That's all for now! 🎉
               </p>
-            </motion.div>
+            </div>
           )}
         </>
       )}

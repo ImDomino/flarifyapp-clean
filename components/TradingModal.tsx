@@ -1,9 +1,7 @@
-// components/TradingModal.tsx
 "use client";
 
 import { useState, useMemo } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { X, TrendingUp } from "lucide-react";
+import { X, TrendingUp, Info } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Side } from "@polymarket/clob-client";
 import { usePlaceOrder } from "@/hooks/usePlaceOrder";
@@ -11,7 +9,7 @@ import { usePlaceOrder } from "@/hooks/usePlaceOrder";
 interface MarketData {
   question: string;
   outcomes: string[];
-  prices: number[]; // цена в USDC
+  prices: number[];
   volume: string;
   url: string;
   yesTokenId?: string;
@@ -39,11 +37,10 @@ export function TradingModal({
   const { authenticated, login } = usePrivy();
   const { placeOrder } = usePlaceOrder();
 
-  // amount в USDC, как раньше, но через строку для красивого инпута
   const [amount, setAmount] = useState<string>("10");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const price = marketData.prices[outcomeIndex] ?? 0; // цена в USDC
+  const price = marketData.prices[outcomeIndex] ?? 0;
   const amountNum = useMemo(() => parseFloat(amount || "0"), [amount]);
 
   const shares = useMemo(
@@ -51,11 +48,9 @@ export function TradingModal({
     [amountNum, price]
   );
 
-  // Polymarket минимум: 5 shares
   const MIN_SHARES = 5;
   const minAmount = useMemo(() => MIN_SHARES * price, [price]);
 
-  // твоя логика: potentialWin = shares * 1; profit = potentialWin - amount
   const potentialWin = useMemo(
     () => (shares > 0 ? shares * 1 : 0),
     [shares]
@@ -67,8 +62,6 @@ export function TradingModal({
 
   const side: "yes" | "no" = outcomeIndex === 0 ? "yes" : "no";
   const displayPriceCents = price * 100;
-  
-  // Проверка минимального размера
   const isBelowMinimum = shares > 0 && shares < MIN_SHARES;
 
   const resolveTokenId = (): string | undefined => {
@@ -91,35 +84,16 @@ export function TradingModal({
     const tokenId = resolveTokenId();
 
     if (!tokenId) {
-      console.error("Missing tokenId:", { outcomeIndex, marketData });
-      alert(
-        `Token ID not found for ${outcome}. This market may not support trading yet.`
-      );
+      alert(`Token ID not found for ${outcome}. This market may not support trading yet.`);
       return;
     }
 
     setIsProcessing(true);
 
     try {
-      console.log("🚀 Placing BUY order:", {
-        tokenId,
-        outcome,
-        amount: amountNum,
-        price,
-        shares,
-      });
-
-      // ⚠️ ВАЖНО: Используем только BUY ордера
-      // SELL требует:
-      // 1. Наличия outcome-токенов на балансе
-      // 2. Установленного allowance на Exchange-контракт
-      // 
-      // Для покупки YES или NO всегда используем BUY:
-      // - BUY YES токена = ставка на YES
-      // - BUY NO токена = ставка на NO
       const orderId = await placeOrder({
         tokenId,
-        side: Side.BUY, // Всегда BUY для покупки outcome
+        side: Side.BUY,
         price,
         size: shares,
       });
@@ -128,19 +102,12 @@ export function TradingModal({
       onClose();
       setAmount("10");
     } catch (error: any) {
-      console.error("Trading error:", error);
-      
-      // Улучшенная обработка ошибок
       let errorMessage = error.message || "Unknown error";
       
       if (error.message?.includes("Size") && error.message?.includes("minimum")) {
-        errorMessage = `❌ Order too small.\n\nMinimum order size: ${MIN_SHARES} shares ($${minAmount.toFixed(2)} at current price).\n\nPlease increase your order amount.`;
+        errorMessage = `❌ Order too small.\n\nMinimum order size: ${MIN_SHARES} shares ($${minAmount.toFixed(2)} at current price).`;
       } else if (error.message?.includes("not enough balance")) {
-        errorMessage = "❌ Insufficient USDC balance.\n\nPlease deposit funds using the 'Deposit' button in navigation.";
-      } else if (error.message?.includes("allowance")) {
-        errorMessage = "❌ Token approval required.\n\nThis usually happens on first trade. Please try again.";
-      } else if (error.message?.includes("insufficient funds")) {
-        errorMessage = "❌ Insufficient MATIC for gas.\n\nYou need ~0.01 MATIC for transaction fees.";
+        errorMessage = "❌ Insufficient USDC balance.\n\nPlease deposit funds using the 'Deposit' button.";
       }
       
       alert(`Failed to place order:\n\n${errorMessage}`);
@@ -149,205 +116,158 @@ export function TradingModal({
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999]"
-          />
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999]"
+        onClick={onClose}
+      />
 
-          {/* Modal wrapper */}
-          <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-none">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", duration: 0.5 }}
-              className="w-[90vw] max-w-md bg-card border border-white/10 rounded-3xl shadow-2xl pointer-events-auto"
+      {/* Modal */}
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-none px-4">
+        <div className="w-full max-w-md bg-base-900 border border-white/10 rounded-2xl shadow-2xl pointer-events-auto">
+          {/* Header */}
+          <div className="relative p-5 border-b border-white/5">
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10 transition-colors"
             >
-              {/* Header */}
-              <div className="relative p-6 pb-4 border-b border-white/10">
-                <button
-                  onClick={onClose}
-                  className="absolute top-4 right-4 p-2 rounded-xl hover:bg-white/10 transition-colors"
-                >
-                  <X className="w-5 h-5 text-muted-foreground" />
-                </button>
+              <X className="w-5 h-5 text-slate-400" />
+            </button>
 
-                <div className="flex items-center gap-2 mb-1">
-                  <TrendingUp className="w-5 h-5 text-[#2A56F2]" />
-                  <h2 className="text-lg font-semibold text-foreground">
-                    Place Order
-                  </h2>
-                </div>
-                <p className="text-xs text-muted-foreground line-clamp-2 mb-1">
-                  {marketData.question}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Volume: ${parseFloat(marketData.volume).toLocaleString()}
-                </p>
-              </div>
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className="w-5 h-5 text-blue-300" />
+              <h2 className="font-display text-lg font-semibold tracking-tight text-slate-100">
+                Place Order
+              </h2>
+            </div>
+            <p className="text-xs text-slate-400 line-clamp-2 pr-8">
+              {marketData.question}
+            </p>
+          </div>
 
-              {/* Content */}
-              <div className="p-6 space-y-4">
-                {/* Trade Info */}
-                <div className="bg-secondary/30 border border-white/5 rounded-2xl p-4 space-y-2">
-                  <p className="text-sm text-muted-foreground">You're buying</p>
-                  <div className="flex items-baseline gap-2">
-                    <span
-                      className={`text-3xl font-bold ${
-                        side === "yes"
-                          ? "text-[#7BEFB9] drop-shadow-[0_0_14px_rgba(123,239,185,0.7)]"
-                          : "text-[#FF375F] drop-shadow-[0_0_14px_rgba(255,55,95,0.7)]"
-                      }`}
-                    >
-                      {outcome}
-                    </span>
-                    <span className="text-muted-foreground">
-                      at {displayPriceCents.toFixed(1)}¢
-                    </span>
-                  </div>
-                </div>
-
-                {/* Amount Input */}
-                <div className="space-y-2">
-                  <label
-                    htmlFor="amount"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Amount (USDC)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      $
-                    </span>
-                    <input
-                      id="amount"
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full bg-secondary/50 border border-white/10 rounded-2xl pl-8 pr-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-[#2A56F2]/50 transition-all placeholder:text-muted-foreground"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                </div>
-
-                {/* Calculations */}
-                {amountNum > 0 && price > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="space-y-3 overflow-hidden"
-                  >
-                    <div className="bg-secondary/20 border border-white/5 rounded-2xl p-4 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
-                          Shares
-                        </span>
-                        <span className="text-sm font-medium text-foreground">
-                          {shares.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
-                          Potential win
-                        </span>
-                        <span className="text-sm font-medium text-foreground">
-                          ${potentialWin.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="h-px bg-white/5" />
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-foreground">
-                          Profit if correct
-                        </span>
-                        <span
-                          className={`text-base font-bold ${
-                            profit > 0
-                              ? "text-chart-1"
-                              : "text-muted-foreground"
-                          }`}
-                        >
-                          ${profit.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Минимальное предупреждение */}
-                    {isBelowMinimum && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3"
-                      >
-                        <p className="text-xs text-yellow-400 leading-relaxed">
-                          ⚠️ <strong>Minimum order size:</strong> {MIN_SHARES} shares (${minAmount.toFixed(2)} at current price)
-                        </p>
-                      </motion.div>
-                    )}
-                  </motion.div>
-                )}
-
-                {/* Buy Button */}
-                <button
-                  onClick={handleTrade}
-                  disabled={
-                    !amountNum || amountNum <= 0 || isProcessing || price <= 0 || isBelowMinimum
-                  }
-                  className={`w-full py-4 rounded-2xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
+          {/* Content */}
+          <div className="p-5 space-y-4">
+            {/* Trade Info */}
+            <div className="bg-base-850/50 border border-white/5 rounded-xl p-4">
+              <p className="text-sm text-slate-400 mb-1">You're buying</p>
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={`text-2xl font-display font-semibold ${
                     side === "yes"
-                      ? "bg-[#3ABF8A] text-white hover:bg-[#34AC7C] shadow-[0_0_22px_rgba(58,191,138,0.6)]"
-                      : "bg-destructive text-white hover:bg-destructive/90 shadow-[0_0_22px_rgba(255,55,95,0.6)]"
+                      ? "text-teal-300"
+                      : "text-rose-300"
                   }`}
                 >
-                  {isProcessing ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{
-                          duration: 1,
-                          repeat: Infinity,
-                          ease: "linear",
-                        }}
-                        className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-                      />
-                      Placing order...
-                    </span>
-                  ) : isBelowMinimum ? (
-                    `Minimum ${MIN_SHARES} shares ($${minAmount.toFixed(2)})`
-                  ) : (
-                    `Buy ${outcome} for $${amountNum.toFixed(2)}`
-                  )}
-                </button>
+                  {outcome}
+                </span>
+                <span className="text-slate-400 text-sm">
+                  at {displayPriceCents.toFixed(1)}¢
+                </span>
+              </div>
+            </div>
 
+            {/* Amount Input */}
+            <div>
+              <label className="text-sm font-medium text-slate-200 mb-2 block">
+                Amount (USDC)
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  $
+                </span>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-base-850/50 border border-white/10 rounded-xl pl-8 pr-4 py-3.5 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-slate-500 text-slate-100"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+            </div>
 
-                {!authenticated && (
-                  <p className="text-center text-xs text-muted-foreground mt-2">
-                    Please log in to place orders
-                  </p>
-                )}
-
-                {/* Info Banner */}
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
-                  <p className="text-xs text-blue-400 leading-relaxed">
-                    💡 <strong>How it works:</strong> You're buying {outcome} shares at {displayPriceCents.toFixed(1)}¢ each. 
-                    If the outcome happens, each share pays $1. Your profit would be ${profit.toFixed(2)}.
-                    {isBelowMinimum && <span className="block mt-1 text-yellow-400">⚠️ <strong>Note:</strong> Minimum {MIN_SHARES} shares required.</span>}
-                  </p>
+            {/* Calculations */}
+            {amountNum > 0 && price > 0 && (
+              <div className="bg-base-850/30 border border-white/5 rounded-xl p-4 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-400">Shares</span>
+                  <span className="text-sm font-medium text-slate-200">
+                    {shares.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-400">Potential win</span>
+                  <span className="text-sm font-medium text-slate-200">
+                    ${potentialWin.toFixed(2)}
+                  </span>
+                </div>
+                <div className="h-px bg-white/5" />
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-slate-200">Profit if correct</span>
+                  <span
+                    className={`text-base font-bold ${
+                      profit > 0 ? "text-teal-300" : "text-slate-400"
+                    }`}
+                  >
+                    ${profit.toFixed(2)}
+                  </span>
                 </div>
               </div>
-            </motion.div>
+            )}
+
+            {/* Minimum warning */}
+            {isBelowMinimum && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+                <p className="text-xs text-amber-300">
+                  ⚠️ Minimum order: {MIN_SHARES} shares (${minAmount.toFixed(2)} at current price)
+                </p>
+              </div>
+            )}
+
+            {/* Buy Button */}
+            <button
+              onClick={handleTrade}
+              disabled={!amountNum || amountNum <= 0 || isProcessing || price <= 0 || isBelowMinimum}
+              className={`w-full py-4 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                side === "yes"
+                  ? "bg-teal-500 text-white hover:bg-teal-400 shadow-[0_0_20px_rgba(20,184,166,0.3)]"
+                  : "bg-rose-500 text-white hover:bg-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.3)]"
+              }`}
+            >
+              {isProcessing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Placing order...
+                </span>
+              ) : isBelowMinimum ? (
+                `Minimum ${MIN_SHARES} shares ($${minAmount.toFixed(2)})`
+              ) : (
+                `Buy ${outcome} for $${amountNum.toFixed(2)}`
+              )}
+            </button>
+
+            {!authenticated && (
+              <p className="text-center text-xs text-slate-500">
+                Please sign in to place orders
+              </p>
+            )}
+
+            {/* Info */}
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+              <p className="text-xs text-blue-300 leading-relaxed">
+                <Info className="w-3.5 h-3.5 inline mr-1" />
+                You're buying {outcome} shares at {displayPriceCents.toFixed(1)}¢ each. 
+                If correct, each share pays $1. Profit: ${profit.toFixed(2)}.
+              </p>
+            </div>
           </div>
-        </>
-      )}
-    </AnimatePresence>
+        </div>
+      </div>
+    </>
   );
 }
