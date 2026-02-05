@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { X, TrendingUp, Info } from "lucide-react";
+import { X, TrendingUp, TrendingDown, Info, AlertCircle, Loader2 } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Side } from "@polymarket/clob-client";
 import { usePlaceOrder } from "@/hooks/usePlaceOrder";
@@ -26,6 +26,8 @@ interface TradingModalProps {
   isOpen: boolean;
 }
 
+type TradeType = "buy" | "sell";
+
 export function TradingModal({
   marketId,
   marketData,
@@ -37,8 +39,10 @@ export function TradingModal({
   const { authenticated, login } = usePrivy();
   const { placeOrder } = usePlaceOrder();
 
+  const [tradeType, setTradeType] = useState<TradeType>("buy");
   const [amount, setAmount] = useState<string>("10");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const price = marketData.prices[outcomeIndex] ?? 0;
   const amountNum = useMemo(() => parseFloat(amount || "0"), [amount]);
@@ -51,6 +55,7 @@ export function TradingModal({
   const MIN_SHARES = 5;
   const minAmount = useMemo(() => MIN_SHARES * price, [price]);
 
+  // Для BUY: потенциальный выигрыш
   const potentialWin = useMemo(
     () => (shares > 0 ? shares * 1 : 0),
     [shares]
@@ -58,6 +63,12 @@ export function TradingModal({
   const profit = useMemo(
     () => potentialWin - amountNum,
     [potentialWin, amountNum]
+  );
+
+  // Для SELL: получаемая сумма
+  const sellProceeds = useMemo(
+    () => amountNum * price, // amountNum здесь = количество шардов
+    [amountNum, price]
   );
 
   const side: "yes" | "no" = outcomeIndex === 0 ? "yes" : "no";
@@ -74,7 +85,7 @@ export function TradingModal({
   };
 
   const handleTrade = async () => {
-    if (!amountNum || amountNum <= 0) return;
+    setError(null);
 
     if (!authenticated) {
       login();
@@ -82,10 +93,30 @@ export function TradingModal({
     }
 
     const tokenId = resolveTokenId();
-
     if (!tokenId) {
-      alert(`Token ID not found for ${outcome}. This market may not support trading yet.`);
+      setError(`Token ID not found for ${outcome}. This market may not support trading yet.`);
       return;
+    }
+
+    if (tradeType === "buy") {
+      if (!amountNum || amountNum <= 0) {
+        setError("Please enter a valid amount");
+        return;
+      }
+      if (isBelowMinimum) {
+        setError(`Minimum order: ${MIN_SHARES} shares ($${minAmount.toFixed(2)})`);
+        return;
+      }
+    } else {
+      // SELL: amountNum = количество шардов
+      if (!amountNum || amountNum <= 0) {
+        setError("Please enter number of shares to sell");
+        return;
+      }
+      if (amountNum < MIN_SHARES) {
+        setError(`Minimum sell order: ${MIN_SHARES} shares`);
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -93,24 +124,35 @@ export function TradingModal({
     try {
       const orderId = await placeOrder({
         tokenId,
-        side: Side.BUY,
+        side: tradeType === "buy" ? Side.BUY : Side.SELL,
         price,
-        size: shares,
+        size: tradeType === "buy" ? shares : amountNum, // BUY: shares from USDC, SELL: direct shares
       });
 
-      alert(`✅ Order placed successfully!\n\nOrder ID: ${orderId}\n\nYou bought ${shares.toFixed(2)} ${outcome} shares`);
+      const actionLabel = tradeType === "buy" ? "bought" : "sold";
+      const shareCount = tradeType === "buy" ? shares : amountNum;
+
+      alert(
+        `✅ Order placed successfully!\n\n` +
+        `Order ID: ${orderId}\n\n` +
+        `You ${actionLabel} ${shareCount.toFixed(2)} ${outcome} shares at ${displayPriceCents.toFixed(1)}¢`
+      );
+      
       onClose();
       setAmount("10");
-    } catch (error: any) {
-      let errorMessage = error.message || "Unknown error";
+      setError(null);
+    } catch (err: any) {
+      let errorMessage = err.message || "Unknown error";
       
-      if (error.message?.includes("Size") && error.message?.includes("minimum")) {
-        errorMessage = `❌ Order too small.\n\nMinimum order size: ${MIN_SHARES} shares ($${minAmount.toFixed(2)} at current price).`;
-      } else if (error.message?.includes("not enough balance")) {
-        errorMessage = "❌ Insufficient USDC balance.\n\nPlease deposit funds using the 'Deposit' button.";
+      if (err.message?.includes("Size") && err.message?.includes("minimum")) {
+        errorMessage = `Order too small. Minimum: ${MIN_SHARES} shares`;
+      } else if (err.message?.includes("not enough balance")) {
+        errorMessage = tradeType === "buy" 
+          ? "Insufficient USDC balance. Please deposit funds."
+          : "Insufficient shares to sell.";
       }
       
-      alert(`Failed to place order:\n\n${errorMessage}`);
+      setError(errorMessage);
     } finally {
       setIsProcessing(false);
     }
@@ -128,7 +170,7 @@ export function TradingModal({
 
       {/* Modal */}
       <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-none px-4">
-        <div className="w-full max-w-md bg-base-900 border border-white/10 rounded-2xl shadow-2xl pointer-events-auto">
+        <div className="w-full max-w-md bg-base-900 border border-white/10 rounded-2xl shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="relative p-5 border-b border-white/5">
             <button
@@ -139,9 +181,13 @@ export function TradingModal({
             </button>
 
             <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-5 h-5 text-blue-300" />
+              {tradeType === "buy" ? (
+                <TrendingUp className="w-5 h-5 text-teal-400" />
+              ) : (
+                <TrendingDown className="w-5 h-5 text-rose-400" />
+              )}
               <h2 className="font-display text-lg font-semibold tracking-tight text-slate-100">
-                Place Order
+                {tradeType === "buy" ? "Buy" : "Sell"} {outcome}
               </h2>
             </div>
             <p className="text-xs text-slate-400 line-clamp-2 pr-8">
@@ -151,15 +197,47 @@ export function TradingModal({
 
           {/* Content */}
           <div className="p-5 space-y-4">
+            {/* Buy/Sell Tabs */}
+            <div className="flex rounded-lg bg-base-850/50 border border-white/5 p-1">
+              <button
+                onClick={() => {
+                  setTradeType("buy");
+                  setAmount("10");
+                  setError(null);
+                }}
+                className={`flex-1 py-2.5 rounded-md text-sm font-semibold transition ${
+                  tradeType === "buy"
+                    ? "bg-teal-500 text-white shadow-md"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                Buy
+              </button>
+              <button
+                onClick={() => {
+                  setTradeType("sell");
+                  setAmount("");
+                  setError(null);
+                }}
+                className={`flex-1 py-2.5 rounded-md text-sm font-semibold transition ${
+                  tradeType === "sell"
+                    ? "bg-rose-500 text-white shadow-md"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                Sell
+              </button>
+            </div>
+
             {/* Trade Info */}
             <div className="bg-base-850/50 border border-white/5 rounded-xl p-4">
-              <p className="text-sm text-slate-400 mb-1">You're buying</p>
+              <p className="text-sm text-slate-400 mb-1">
+                {tradeType === "buy" ? "You're buying" : "You're selling"}
+              </p>
               <div className="flex items-baseline gap-2">
                 <span
                   className={`text-2xl font-display font-semibold ${
-                    side === "yes"
-                      ? "text-teal-300"
-                      : "text-rose-300"
+                    side === "yes" ? "text-teal-300" : "text-rose-300"
                   }`}
                 >
                   {outcome}
@@ -173,20 +251,26 @@ export function TradingModal({
             {/* Amount Input */}
             <div>
               <label className="text-sm font-medium text-slate-200 mb-2 block">
-                Amount (USDC)
+                {tradeType === "buy" ? "Amount (USDC)" : "Shares to Sell"}
               </label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                  $
-                </span>
+                {tradeType === "buy" && (
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                    $
+                  </span>
+                )}
                 <input
                   type="number"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full bg-base-850/50 border border-white/10 rounded-xl pl-8 pr-4 py-3.5 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-slate-500 text-slate-100"
+                  placeholder={tradeType === "buy" ? "0.00" : "0"}
+                  className={`w-full bg-base-850/50 border border-white/10 rounded-xl ${
+                    tradeType === "buy" ? "pl-8" : "pl-4"
+                  } pr-4 py-3.5 text-lg focus:outline-none focus:ring-2 ${
+                    tradeType === "buy" ? "focus:ring-teal-500/50" : "focus:ring-rose-500/50"
+                  } transition-all placeholder:text-slate-500 text-slate-100`}
                   min="0"
-                  step="0.01"
+                  step={tradeType === "buy" ? "0.01" : "1"}
                 />
               </div>
             </div>
@@ -194,60 +278,115 @@ export function TradingModal({
             {/* Calculations */}
             {amountNum > 0 && price > 0 && (
               <div className="bg-base-850/30 border border-white/5 rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-400">Shares</span>
-                  <span className="text-sm font-medium text-slate-200">
-                    {shares.toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-400">Potential win</span>
-                  <span className="text-sm font-medium text-slate-200">
-                    ${potentialWin.toFixed(2)}
-                  </span>
-                </div>
-                <div className="h-px bg-white/5" />
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-slate-200">Profit if correct</span>
-                  <span
-                    className={`text-base font-bold ${
-                      profit > 0 ? "text-teal-300" : "text-slate-400"
-                    }`}
-                  >
-                    ${profit.toFixed(2)}
-                  </span>
-                </div>
+                {tradeType === "buy" ? (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-slate-400">Shares</span>
+                      <span className="text-sm font-medium text-slate-200">
+                        {shares.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-slate-400">Potential win</span>
+                      <span className="text-sm font-medium text-slate-200">
+                        ${potentialWin.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="h-px bg-white/5" />
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-slate-200">Profit if correct</span>
+                      <span
+                        className={`text-base font-bold ${
+                          profit > 0 ? "text-teal-300" : "text-slate-400"
+                        }`}
+                      >
+                        ${profit.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-slate-400">Shares to sell</span>
+                      <span className="text-sm font-medium text-slate-200">
+                        {amountNum.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-slate-400">Price per share</span>
+                      <span className="text-sm font-medium text-slate-200">
+                        {displayPriceCents.toFixed(1)}¢
+                      </span>
+                    </div>
+                    <div className="h-px bg-white/5" />
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-slate-200">You'll receive</span>
+                      <span className="text-base font-bold text-teal-300">
+                        ${sellProceeds.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
             {/* Minimum warning */}
-            {isBelowMinimum && (
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+            {tradeType === "buy" && isBelowMinimum && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-amber-300">
-                  ⚠️ Minimum order: {MIN_SHARES} shares (${minAmount.toFixed(2)} at current price)
+                  Minimum order: {MIN_SHARES} shares (${minAmount.toFixed(2)} at current price)
                 </p>
               </div>
             )}
 
-            {/* Buy Button */}
+            {tradeType === "sell" && amountNum > 0 && amountNum < MIN_SHARES && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-amber-300">
+                  Minimum sell order: {MIN_SHARES} shares
+                </p>
+              </div>
+            )}
+
+            {/* Error */}
+            {error && (
+              <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-rose-300">{error}</p>
+              </div>
+            )}
+
+            {/* Action Button */}
             <button
               onClick={handleTrade}
-              disabled={!amountNum || amountNum <= 0 || isProcessing || price <= 0 || isBelowMinimum}
+              disabled={
+                !amountNum ||
+                amountNum <= 0 ||
+                isProcessing ||
+                price <= 0 ||
+                (tradeType === "buy" && isBelowMinimum) ||
+                (tradeType === "sell" && amountNum < MIN_SHARES)
+              }
               className={`w-full py-4 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                side === "yes"
+                tradeType === "buy"
                   ? "bg-teal-500 text-white hover:bg-teal-400 shadow-[0_0_20px_rgba(20,184,166,0.3)]"
                   : "bg-rose-500 text-white hover:bg-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.3)]"
               }`}
             >
               {isProcessing ? (
                 <span className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   Placing order...
                 </span>
-              ) : isBelowMinimum ? (
-                `Minimum ${MIN_SHARES} shares ($${minAmount.toFixed(2)})`
+              ) : tradeType === "buy" ? (
+                isBelowMinimum
+                  ? `Minimum ${MIN_SHARES} shares ($${minAmount.toFixed(2)})`
+                  : `Buy ${outcome} for $${amountNum.toFixed(2)}`
+              ) : amountNum < MIN_SHARES ? (
+                `Minimum ${MIN_SHARES} shares`
               ) : (
-                `Buy ${outcome} for $${amountNum.toFixed(2)}`
+                `Sell ${amountNum.toFixed(2)} shares for $${sellProceeds.toFixed(2)}`
               )}
             </button>
 
@@ -261,8 +400,9 @@ export function TradingModal({
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
               <p className="text-xs text-blue-300 leading-relaxed">
                 <Info className="w-3.5 h-3.5 inline mr-1" />
-                You're buying {outcome} shares at {displayPriceCents.toFixed(1)}¢ each. 
-                If correct, each share pays $1. Profit: ${profit.toFixed(2)}.
+                {tradeType === "buy"
+                  ? `You're buying ${outcome} shares at ${displayPriceCents.toFixed(1)}¢ each. If correct, each share pays $1.`
+                  : `Your sell order will be placed on the orderbook at ${displayPriceCents.toFixed(1)}¢. It executes when a buyer matches your price.`}
               </p>
             </div>
           </div>
