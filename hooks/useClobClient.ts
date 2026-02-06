@@ -8,10 +8,26 @@ import { useUserApiCredentials } from "./useUserApiCredentials";
 import { useSafeDeployment } from "./useSafeDeployment";
 import { useTokenApprovals } from "./useTokenApprovals";
 
-const BUILDER_SIGN_URL = typeof window !== 'undefined' 
-  ? `${window.location.origin}/api/polymarket/sign`
-  : process.env.NEXT_PUBLIC_BUILDER_SIGN_URL as string;
-
+/**
+ * Hook: useClobClient
+ *
+ * Reference: Section 7 — Authenticated ClobClient
+ *
+ * Creates the fully authenticated ClobClient with:
+ * - User API Credentials (from deriveApiKey/createApiKey)
+ * - Builder Config (remote signing for order attribution)
+ * - Safe address as funder
+ * - signatureType = 2 (EOA associated to a Gnosis Safe proxy wallet)
+ *
+ * This is the persistent client used for ALL trading operations.
+ *
+ * Parameters explained (from reference):
+ * - signer: EOA signer from Privy
+ * - userApiCredentials: obtained from useUserApiCredentials
+ * - signatureType = 2: type indicating EOA associated to a Gnosis Safe
+ * - safeAddress: the Safe proxy wallet that holds funds
+ * - builderConfig: enables order attribution
+ */
 export const useClobClient = () => {
   const { ethersSigner, eoaAddress } = useWallet();
   const { getOrCreateCreds } = useUserApiCredentials();
@@ -19,82 +35,57 @@ export const useClobClient = () => {
   const { ensureApprovals } = useTokenApprovals();
 
   /**
-   * Инициализирует полностью настроенный CLOB клиент
-   * 
-   * Согласно документации, порядок:
-   * 1. Получить/создать User API Credentials
-   * 2. Убедиться что Safe развёрнут
-   * 3. Убедиться что approvals установлены
-   * 4. Создать ClobClient с правильными параметрами
+   * Initialize the fully configured CLOB client.
+   *
+   * Order (matching reference flow):
+   * 1. Get/create User API Credentials
+   * 2. Ensure Safe is deployed
+   * 3. Ensure token approvals are set
+   * 4. Create BuilderConfig with remote signing
+   * 5. Create authenticated ClobClient
    */
   const initClobClient = useCallback(async () => {
     if (!ethersSigner || !eoaAddress) {
       throw new Error("Wallet not connected");
     }
 
-    console.log("🔧 Initializing CLOB client...");
-    console.log("  EOA (signer):", eoaAddress);
-
-    // Шаг 1: Получить User API Credentials
-    console.log("📡 Step 1: Getting User API Credentials...");
+    // Step 1: User API Credentials
     const creds = await getOrCreateCreds();
-    console.log("  ✅ Got credentials, API key:", creds.key.slice(0, 10) + '...');
 
-    // Шаг 2: Убедиться что Safe развёрнут
-    console.log("📡 Step 2: Ensuring Safe is deployed...");
+    // Step 2: Ensure Safe deployed
     const safeAddress = await ensureSafe();
-    console.log("  ✅ Safe address:", safeAddress);
 
-    // Шаг 3: Проверить и установить approvals
-    console.log("📡 Step 3: Checking token approvals...");
+    // Step 3: Check/set token approvals
     const approvalsOk = await ensureApprovals(safeAddress);
     if (!approvalsOk) {
-      console.warn("  ⚠️ Some approvals may be missing, trading might fail");
-    } else {
-      console.log("  ✅ All approvals in place");
+      console.warn("⚠️ Some approvals may be missing, trading might fail");
     }
 
-    // Шаг 4: Создать Builder Config
-    if (!BUILDER_SIGN_URL) {
-      throw new Error("BUILDER_SIGN_URL is not configured");
-    }
+    // Step 4: Builder Config (remote signing)
+    const builderSignUrl = `${window.location.origin}/api/polymarket/sign`;
 
-    console.log("📡 Step 4: Creating CLOB client with builder config...");
-    
     const builderConfig = new BuilderConfig({
       remoteBuilderConfig: {
-        url: BUILDER_SIGN_URL,
+        url: builderSignUrl,
       },
     });
 
-    // Шаг 5: Создать authenticated CLOB client
-    // Согласно документации:
-    // - signer: EOA от Privy
-    // - userApiCredentials: полученные на шаге 1
-    // - signatureType = 2: для EOA связанного с Gnosis Safe
-    // - funder = safeAddress: Safe который держит USDC и токены
-    // - builderConfig: для order attribution
+    // Step 5: Authenticated ClobClient (reference Section 7)
     const clobClient = new ClobClient(
       "https://clob.polymarket.com",
       137, // Polygon chain ID
-      ethersSigner as any,
-      creds,
-      2, // signatureType = 2 for EOA associated to a Gnosis Safe proxy wallet
+      ethersSigner as any, // signer: EOA from Privy
+      creds, // userApiCredentials: { key, secret, passphrase }
+      2, // signatureType = 2 for EOA associated to a Gnosis Safe
       safeAddress, // funder address (Safe holds the funds)
       undefined, // mandatory placeholder
-      false, // enableL2 mode (false for Polygon)
-      builderConfig
+      false, // enableL2 mode
+      builderConfig // builder order attribution
     );
 
-    console.log("✅ CLOB client initialized successfully!");
-    console.log("  - Signer (EOA):", eoaAddress);
-    console.log("  - Funder (Safe):", safeAddress);
-    console.log("  - Signature Type: 2 (Safe proxy)");
-    console.log("  - Builder Config: enabled");
-
-    return { 
-      clobClient, 
-      eoaAddress, 
+    return {
+      clobClient,
+      eoaAddress,
       safeAddress,
       userCreds: creds,
     };

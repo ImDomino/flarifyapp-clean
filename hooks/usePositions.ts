@@ -1,4 +1,3 @@
-// hooks/usePositions.ts
 "use client";
 
 import { useState, useCallback } from "react";
@@ -18,13 +17,20 @@ export interface UserPosition {
   question?: string;
 }
 
+/**
+ * Hook: usePositions
+ *
+ * Fetches user positions from Polymarket's data API.
+ * Uses the Safe address (funder) as the account identifier,
+ * since the Safe holds all tokens and USDC.
+ */
 export const usePositions = () => {
   const { initClobClient } = useClobClient();
   const [positions, setPositions] = useState<UserPosition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchPositions = useCallback(async (marketId?: string) => {
+  const fetchPositions = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -33,11 +39,8 @@ export const usePositions = () => {
       if (!safeAddress) throw new Error("Safe address is not defined");
 
       const account = safeAddress.toLowerCase();
-
       const params = new URLSearchParams({ user: account });
-      if (marketId) params.append("market", marketId);
-
-      const url = `https://data-api.polymarket.com/positions?${params.toString()}`; // [web:49][web:46]
+      const url = `https://data-api.polymarket.com/positions?${params.toString()}`;
       const res = await fetch(url);
 
       if (!res.ok) {
@@ -46,13 +49,13 @@ export const usePositions = () => {
       }
 
       const data = await res.json();
-      const raw = Array.isArray(data) ? data : (data.data || data.positions || []);
+      const raw = Array.isArray(data) ? data : data.data || data.positions || [];
 
       const mapped: UserPosition[] = raw.map((p: any) => ({
         asset_id: p.asset || p.asset_id || "",
         market: p.market ?? p.conditionId ?? "",
         size: Number(p.size ?? p.currentSize ?? 0),
-        avgPrice: Number(p.avgPrice ?? p.avg_price ?? 0) / 100,       // avgPrice в центах [web:49]
+        avgPrice: Number(p.avgPrice ?? p.avg_price ?? 0) / 100,
         initialValue: Number(p.initialValue ?? 0),
         currentValue: Number(p.currentValue ?? 0),
         cashPnl: Number(p.cashPnl ?? 0),
@@ -63,7 +66,6 @@ export const usePositions = () => {
       }));
 
       setPositions(mapped);
-      console.log("📊 Positions:", mapped.length);
       return mapped;
     } catch (err: any) {
       console.error("❌ Error fetching positions:", err);

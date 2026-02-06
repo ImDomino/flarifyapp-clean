@@ -11,29 +11,38 @@ const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
 };
 
 export async function POST(request: NextRequest) {
-  const { method, path, body } = await request.json();
-  const sigTimestamp = Date.now().toString();
-  console.log("SIGN INPUT", { method, path, body });
-  console.log("BUILDER_CREDS", {
-  key: BUILDER_CREDENTIALS.key,
-  hasSecret: !!BUILDER_CREDENTIALS.secret,
-  hasPassphrase: !!BUILDER_CREDENTIALS.passphrase,
-});
+  try {
+    const rawBody = await request.text();
 
-  const signature = buildHmacSignature(
-    BUILDER_CREDENTIALS.secret,
-    parseInt(sigTimestamp),
-    method,
-    path,
-    body
-  );
+    const parsed = JSON.parse(rawBody);
 
-  return NextResponse.json({
-    POLY_BUILDER_SIGNATURE: signature,
-    POLY_BUILDER_TIMESTAMP: sigTimestamp,
-    POLY_BUILDER_API_KEY: BUILDER_CREDENTIALS.key,
-    POLY_BUILDER_PASSPHRASE: BUILDER_CREDENTIALS.passphrase,
-  });
+    console.log("🔍 SIGN DEBUG:");
+    console.log("Raw body len:", rawBody.length);
+    console.log("Method:", parsed.method);
+    console.log("Path:", parsed.path);
+    console.log("Builder key:", BUILDER_CREDENTIALS.key.slice(0, 8));
 
+    const sigTimestamp = Date.now().toString();
 
+    const signature = buildHmacSignature(
+      BUILDER_CREDENTIALS.secret,
+      parseInt(sigTimestamp),
+      parsed.method?.toUpperCase() || "POST",
+      parsed.path || "/order",
+      rawBody
+    );
+
+    console.log("Builder sig:", signature);
+
+    return NextResponse.json({
+      POLY_BUILDER_SIGNATURE: signature,
+      POLY_BUILDER_TIMESTAMP: sigTimestamp,
+    });
+  } catch (error) {
+    console.error("❌ FULL ERROR:", error);
+    return NextResponse.json(
+      { error: "Signature failed" },
+      { status: 500 }
+    );
+  }
 }

@@ -18,7 +18,7 @@ type WalletContextValue = {
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
-export const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
+const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
   const { login, logout, ready, authenticated } = usePrivy();
   const { wallets } = useWallets();
 
@@ -37,34 +37,30 @@ export const WalletProviderInner = ({ children }: { children: React.ReactNode })
         return;
       }
 
-      // Ищем embedded Privy wallet
+      // Find Privy embedded wallet (not external browser wallets)
       const wallet = wallets.find((w) => w.walletClientType === "privy");
       if (!wallet) {
-        console.warn("⚠️ No Privy embedded wallet found");
-        setEthersSigner(null);
-        setEoaAddress(null);
-        setSafeAddress(null);
-        setIsReady(false);
+        console.warn("⚠️ No Privy embedded wallet found, waiting...");
         return;
       }
 
       try {
-        // Получаем provider и создаём signer
+        // Get provider and create ethers v5 signer
         const provider = await wallet.getEthereumProvider();
         const ethersProvider = new ethers.providers.Web3Provider(provider as any);
         const signer = ethersProvider.getSigner();
         const addr = await signer.getAddress();
 
-        // Вычисляем Safe address детерминистически
+        // Derive Safe address deterministically from EOA
         const config = getContractConfig(137); // Polygon
         const safe = deriveSafe(
           addr as `0x${string}`,
           config.SafeContracts.SafeFactory
         );
 
-        console.log('🔑 Wallet initialized:');
-        console.log('  EOA (signer):', addr);
-        console.log('  Safe (funder):', safe);
+        console.log("🔑 Wallet initialized:");
+        console.log("  EOA (signer):", addr);
+        console.log("  Safe (funder):", safe);
 
         setEthersSigner(signer);
         setEoaAddress(addr);
@@ -83,14 +79,7 @@ export const WalletProviderInner = ({ children }: { children: React.ReactNode })
   }, [ready, authenticated, wallets]);
 
   const value: WalletContextValue = useMemo(
-    () => ({
-      login,
-      logout,
-      eoaAddress,
-      safeAddress,
-      ethersSigner,
-      isReady,
-    }),
+    () => ({ login, logout, eoaAddress, safeAddress, ethersSigner, isReady }),
     [login, logout, eoaAddress, safeAddress, ethersSigner, isReady]
   );
 
@@ -99,16 +88,30 @@ export const WalletProviderInner = ({ children }: { children: React.ReactNode })
 
 export const useWallet = () => {
   const ctx = useContext(WalletContext);
-  if (!ctx) throw new Error("useWallet must be used within WalletProviderInner");
+  if (!ctx) throw new Error("useWallet must be used within WalletProvider");
   return ctx;
 };
 
+/**
+ * WalletProvider — wraps app with Privy authentication.
+ *
+ * KEY CHANGES vs previous version:
+ * - loginMethods restricted to ['google'] — no wallet/email login
+ * - This prevents users from connecting external wallets that could
+ *   conflict with the embedded wallet → Safe flow
+ */
 export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <PrivyProvider
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
       config={{
         defaultChain: polygon,
+        // ✅ ONLY Google login — no wallet connect, no email
+        loginMethods: ["google"],
+        appearance: {
+          theme: "dark",
+          accentColor: "#3b82f6",
+        },
         embeddedWallets: {
           ethereum: {
             createOnLogin: "users-without-wallets",

@@ -4,6 +4,20 @@ import { useCallback } from "react";
 import { OrderType, Side } from "@polymarket/clob-client";
 import { useClobClient } from "./useClobClient";
 
+/**
+ * Hook: usePlaceOrder
+ *
+ * Reference: Section 8 — Placing Orders
+ *
+ * With the authenticated ClobClient, place orders with builder attribution.
+ *
+ * Key points (from reference):
+ * - Orders are signed by the user's Privy EOA
+ * - Executed from the Safe address (funder)
+ * - Builder attribution is automatic via builderConfig
+ * - Gasless execution (no gas fees for users)
+ */
+
 export interface PlaceOrderParams {
   tokenId: string;
   side: Side;
@@ -15,32 +29,22 @@ export const usePlaceOrder = () => {
   const { initClobClient } = useClobClient();
 
   /**
-   * Универсальная функция для размещения ордера (BUY или SELL)
-   * 
-   * @param tokenId - ID токена (outcome token)
-   * @param side - Side.BUY или Side.SELL
-   * @param price - Цена за share (0.0 - 1.0)
-   * @param size - Количество shares
+   * Place a BUY or SELL order.
+   *
+   * @param tokenId - Outcome token ID
+   * @param side - Side.BUY or Side.SELL
+   * @param price - Price per share (0.0–1.0)
+   * @param size - Number of shares
+   * @returns Order ID
    */
   const placeOrder = useCallback(
     async (params: PlaceOrderParams): Promise<string> => {
       const { tokenId, side, price, size } = params;
 
-      const sideLabel = side === Side.BUY ? 'BUY' : 'SELL';
-      
-      console.log(`📝 Placing ${sideLabel} order:`, {
-        tokenId: tokenId.slice(0, 20) + '...',
-        side: sideLabel,
-        price: price.toFixed(4),
-        size: size.toFixed(4),
-      });
+      // Initialize CLOB client (includes Safe deploy + approvals check)
+      const { clobClient } = await initClobClient();
 
-      // Инициализируем CLOB клиент (включает проверку approvals)
-      const { clobClient, safeAddress } = await initClobClient();
-
-      console.log('💰 Trading from Safe:', safeAddress);
-
-      // Создаём ордер
+      // Create order (reference Section 8)
       const order = {
         tokenID: tokenId,
         price,
@@ -51,16 +55,13 @@ export const usePlaceOrder = () => {
         taker: "0x0000000000000000000000000000000000000000",
       };
 
-      // Размещаем ордер
-      // createAndPostOrder создаёт, подписывает и отправляет ордер
+      // Submit order (Privy handles signature)
+      // createAndPostOrder creates, signs, and posts in one call
       const res = await clobClient.createAndPostOrder(
         order,
-        { negRisk: false }, // Для обычных рынков
-        OrderType.GTC // Good-til-Cancel
+        { negRisk: false },
+        OrderType.GTC
       );
-
-      console.log(`✅ ${sideLabel} order placed successfully!`);
-      console.log('  Order ID:', res.orderID);
 
       return res.orderID;
     },
@@ -68,52 +69,24 @@ export const usePlaceOrder = () => {
   );
 
   /**
-   * Покупка шардов (BUY)
-   * 
-   * @param tokenId - Token ID outcome'а
-   * @param price - Цена за share (0.0 - 1.0)
-   * @param size - Количество shares для покупки
+   * Buy shares of an outcome token
    */
   const buyShares = useCallback(
     async (tokenId: string, price: number, size: number): Promise<string> => {
-      return placeOrder({
-        tokenId,
-        side: Side.BUY,
-        price,
-        size,
-      });
+      return placeOrder({ tokenId, side: Side.BUY, price, size });
     },
     [placeOrder]
   );
 
   /**
-   * Продажа шардов (SELL)
-   * 
-   * @param tokenId - Token ID outcome'а (тот же что у купленных shares)
-   * @param price - Цена продажи за share (0.0 - 1.0)
-   * @param size - Количество shares для продажи
+   * Sell shares of an outcome token
    */
   const sellShares = useCallback(
     async (tokenId: string, price: number, size: number): Promise<string> => {
-      console.log('📤 Selling shares:', {
-        tokenId: tokenId.slice(0, 20) + '...',
-        price: price.toFixed(4),
-        size: size.toFixed(4),
-      });
-      
-      return placeOrder({
-        tokenId,
-        side: Side.SELL,
-        price,
-        size,
-      });
+      return placeOrder({ tokenId, side: Side.SELL, price, size });
     },
     [placeOrder]
   );
 
-  return { 
-    placeOrder, 
-    buyShares, 
-    sellShares,
-  };
+  return { placeOrder, buyShares, sellShares };
 };

@@ -11,6 +11,8 @@ import { createClient } from '@/lib/supabase/client';
  * ВАЖНО: Сохраняем Safe address, а не EOA!
  * Safe - это адрес который держит USDC и позиции
  */
+
+
 function ProfileSync({ children }: { children: React.ReactNode }) {
   const { authenticated, user, ready } = usePrivy();
   const { safeAddress } = useWallet();
