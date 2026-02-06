@@ -9,13 +9,8 @@ import { useClobClient } from "./useClobClient";
  *
  * Reference: Section 8 — Placing Orders
  *
- * With the authenticated ClobClient, place orders with builder attribution.
- *
- * Key points (from reference):
- * - Orders are signed by the user's Privy EOA
- * - Executed from the Safe address (funder)
- * - Builder attribution is automatic via builderConfig
- * - Gasless execution (no gas fees for users)
+ * Key fix: negRisk is now a required parameter, not hardcoded to false.
+ * Each market has a neg_risk field from the Gamma API that must be passed through.
  */
 
 export interface PlaceOrderParams {
@@ -23,6 +18,7 @@ export interface PlaceOrderParams {
   side: Side;
   price: number;
   size: number;
+  negRisk: boolean; // REQUIRED — from market data (gamma API neg_risk field)
 }
 
 export const usePlaceOrder = () => {
@@ -35,31 +31,32 @@ export const usePlaceOrder = () => {
    * @param side - Side.BUY or Side.SELL
    * @param price - Price per share (0.0–1.0)
    * @param size - Number of shares
+   * @param negRisk - Whether market uses NegRisk exchange (from Gamma API)
    * @returns Order ID
    */
   const placeOrder = useCallback(
     async (params: PlaceOrderParams): Promise<string> => {
-      const { tokenId, side, price, size } = params;
+      const { tokenId, side, price, size, negRisk } = params;
 
-      // Initialize CLOB client (includes Safe deploy + approvals check)
       const { clobClient } = await initClobClient();
 
-      // Create order (reference Section 8)
       const order = {
         tokenID: tokenId,
         price,
         size,
         side,
         feeRateBps: 0,
-        expiration: 0, // 0 = Good-til-Cancel
+        expiration: 0,
         taker: "0x0000000000000000000000000000000000000000",
       };
 
-      // Submit order (Privy handles signature)
-      // createAndPostOrder creates, signs, and posts in one call
+      // CRITICAL: negRisk determines which exchange contract signs the order
+      //   false → CTF Exchange (0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e)
+      //   true  → NegRisk CTF Exchange (0xC5d563A36AE78145C45a50134d48A1215220f80a)
+      // Wrong value = "invalid signature" error
       const res = await clobClient.createAndPostOrder(
         order,
-        { negRisk: false },
+        { negRisk },
         OrderType.GTC
       );
 
@@ -68,22 +65,26 @@ export const usePlaceOrder = () => {
     [initClobClient]
   );
 
-  /**
-   * Buy shares of an outcome token
-   */
   const buyShares = useCallback(
-    async (tokenId: string, price: number, size: number): Promise<string> => {
-      return placeOrder({ tokenId, side: Side.BUY, price, size });
+    async (
+      tokenId: string,
+      price: number,
+      size: number,
+      negRisk: boolean
+    ): Promise<string> => {
+      return placeOrder({ tokenId, side: Side.BUY, price, size, negRisk });
     },
     [placeOrder]
   );
 
-  /**
-   * Sell shares of an outcome token
-   */
   const sellShares = useCallback(
-    async (tokenId: string, price: number, size: number): Promise<string> => {
-      return placeOrder({ tokenId, side: Side.SELL, price, size });
+    async (
+      tokenId: string,
+      price: number,
+      size: number,
+      negRisk: boolean
+    ): Promise<string> => {
+      return placeOrder({ tokenId, side: Side.SELL, price, size, negRisk });
     },
     [placeOrder]
   );
