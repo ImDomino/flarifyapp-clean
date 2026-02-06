@@ -1,21 +1,26 @@
 /**
  * Token Approvals для Polymarket Trading
- * 
+ *
  * Согласно документации, Safe должен одобрить следующие контракты:
- * 
+ *
  * USDC.e (ERC-20) Approvals:
  * - CTF Contract: 0x4d97dcd97ec945f40cf65f87097ace5ea0476045
  * - CTF Exchange: 0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E
  * - Neg Risk CTF Exchange: 0xC5d563A36AE78145C45a50134d48A1215220f80a
  * - Neg Risk Adapter: 0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296
- * 
+ *
  * Outcome Token (ERC-1155) Approvals:
  * - CTF Exchange: 0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E
  * - Neg Risk CTF Exchange: 0xC5d563A36AE78145C45a50134d48A1215220f80a
  * - Neg Risk Adapter: 0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296
  */
 
-import { createPublicClient, http, encodeFunctionData, maxUint256 } from "viem";
+import {
+  createPublicClient,
+  http,
+  encodeFunctionData,
+  maxUint256,
+} from "viem";
 import { polygon } from "viem/chains";
 
 // Contract Addresses (Polygon Mainnet)
@@ -23,11 +28,13 @@ export const CONTRACTS = {
   // Token contracts
   USDC_E: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174" as `0x${string}`,
   CTF_CONTRACT: "0x4d97dcd97ec945f40cf65f87097ace5ea0476045" as `0x${string}`,
-  
+
   // Exchange contracts (need approval)
   CTF_EXCHANGE: "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E" as `0x${string}`,
-  NEG_RISK_CTF_EXCHANGE: "0xC5d563A36AE78145C45a50134d48A1215220f80a" as `0x${string}`,
-  NEG_RISK_ADAPTER: "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296" as `0x${string}`,
+  NEG_RISK_CTF_EXCHANGE:
+    "0xC5d563A36AE78145C45a50134d48A1215220f80a" as `0x${string}`,
+  NEG_RISK_ADAPTER:
+    "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296" as `0x${string}`,
 };
 
 // ABIs
@@ -106,66 +113,78 @@ export interface ApprovalStatus {
 function getPublicClient() {
   return createPublicClient({
     chain: polygon,
-    transport: http(process.env.NEXT_PUBLIC_POLYGON_RPC_URL || "https://polygon-rpc.com"),
+    transport: http(
+      process.env.NEXT_PUBLIC_POLYGON_RPC_URL || "https://polygon-rpc.com"
+    ),
   });
 }
 
 /**
  * Проверяет все необходимые approvals для Safe
  */
-export async function checkAllApprovals(safeAddress: string): Promise<ApprovalStatus> {
+export async function checkAllApprovals(
+  safeAddress: string
+): Promise<ApprovalStatus> {
   const publicClient = getPublicClient();
   const safe = safeAddress as `0x${string}`;
 
-  // Check USDC.e allowances
-  const [ctfContractAllowance, ctfExchangeAllowance, negRiskExchangeAllowance, negRiskAdapterAllowance] =
-    await Promise.all([
-      publicClient.readContract({
-        address: CONTRACTS.USDC_E,
-        abi: ERC20_ABI,
-        functionName: "allowance",
-        args: [safe, CONTRACTS.CTF_CONTRACT],
-      }),
-      publicClient.readContract({
-        address: CONTRACTS.USDC_E,
-        abi: ERC20_ABI,
-        functionName: "allowance",
-        args: [safe, CONTRACTS.CTF_EXCHANGE],
-      }),
-      publicClient.readContract({
-        address: CONTRACTS.USDC_E,
-        abi: ERC20_ABI,
-        functionName: "allowance",
-        args: [safe, CONTRACTS.NEG_RISK_CTF_EXCHANGE],
-      }),
-      publicClient.readContract({
-        address: CONTRACTS.USDC_E,
-        abi: ERC20_ABI,
-        functionName: "allowance",
-        args: [safe, CONTRACTS.NEG_RISK_ADAPTER],
-      }),
-    ]);
+  // USDC.e allowances (явно типизируем как bigint)
+  const [
+    ctfContractAllowance,
+    ctfExchangeAllowance,
+    negRiskExchangeAllowance,
+    negRiskAdapterAllowance,
+  ] = await Promise.all([
+    publicClient.readContract({
+      address: CONTRACTS.USDC_E,
+      abi: ERC20_ABI,
+      functionName: "allowance",
+      args: [safe, CONTRACTS.CTF_CONTRACT],
+    }) as Promise<bigint>,
+    publicClient.readContract({
+      address: CONTRACTS.USDC_E,
+      abi: ERC20_ABI,
+      functionName: "allowance",
+      args: [safe, CONTRACTS.CTF_EXCHANGE],
+    }) as Promise<bigint>,
+    publicClient.readContract({
+      address: CONTRACTS.USDC_E,
+      abi: ERC20_ABI,
+      functionName: "allowance",
+      args: [safe, CONTRACTS.NEG_RISK_CTF_EXCHANGE],
+    }) as Promise<bigint>,
+    publicClient.readContract({
+      address: CONTRACTS.USDC_E,
+      abi: ERC20_ABI,
+      functionName: "allowance",
+      args: [safe, CONTRACTS.NEG_RISK_ADAPTER],
+    }) as Promise<bigint>,
+  ]);
 
-  // Check ERC-1155 approvals
-  const [ctfExchange1155, negRiskExchange1155, negRiskAdapter1155] = await Promise.all([
+  // ERC-1155 approvals (bool)
+  const [
+    ctfExchange1155,
+    negRiskExchange1155,
+    negRiskAdapter1155,
+  ] = await Promise.all([
     publicClient.readContract({
       address: CONTRACTS.CTF_CONTRACT,
       abi: ERC1155_ABI,
       functionName: "isApprovedForAll",
       args: [safe, CONTRACTS.CTF_EXCHANGE],
-    }),
+    }) as Promise<boolean>,
     publicClient.readContract({
       address: CONTRACTS.CTF_CONTRACT,
       abi: ERC1155_ABI,
       functionName: "isApprovedForAll",
       args: [safe, CONTRACTS.NEG_RISK_CTF_EXCHANGE],
-    }),
+    }) as Promise<boolean>,
     publicClient.readContract({
       address: CONTRACTS.CTF_CONTRACT,
       abi: ERC1155_ABI,
       functionName: "isApprovedForAll",
       args: [safe, CONTRACTS.NEG_RISK_ADAPTER],
-    }),
+    }) as Promise<boolean>,
   ]);
 
   const status: ApprovalStatus = {
@@ -248,9 +267,11 @@ export function createAllApprovalTxs(): SafeTransaction[] {
 /**
  * Создаёт только недостающие approval транзакции
  */
-export async function createMissingApprovalTxs(safeAddress: string): Promise<SafeTransaction[]> {
+export async function createMissingApprovalTxs(
+  safeAddress: string
+): Promise<SafeTransaction[]> {
   const status = await checkAllApprovals(safeAddress);
-  
+
   if (status.allApproved) {
     return [];
   }
