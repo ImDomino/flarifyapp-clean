@@ -15,6 +15,7 @@ interface MarketData {
   yesTokenId?: string;
   noTokenId?: string;
   tokens?: Array<{ token_id: string; outcome: string; price: string }>;
+  negRisk?: boolean;
 }
 
 interface TradingModalProps {
@@ -126,7 +127,8 @@ export function TradingModal({
         tokenId,
         side: tradeType === "buy" ? Side.BUY : Side.SELL,
         price,
-        size: tradeType === "buy" ? shares : amountNum, // BUY: shares from USDC, SELL: direct shares
+        size: tradeType === "buy" ? shares : amountNum,
+        negRisk: marketData.negRisk ?? false,
       });
 
       const actionLabel = tradeType === "buy" ? "bought" : "sold";

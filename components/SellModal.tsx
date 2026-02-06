@@ -15,6 +15,7 @@ interface SellModalProps {
     currentValue: number;
     outcome?: string;
     question?: string;
+    negRisk?: boolean;
   };
   currentPrice?: number;   // 0.0–1.0 (доллары)
   onSuccess?: () => void;
@@ -95,9 +96,10 @@ export function SellModal({
 
     try {
       const orderId = await sellShares(
-        position.asset_id,
-        sellPriceNum,   // уже 0.0–1.0
-        sellAmountNum
+         position.asset_id,
+        sellPriceNum,
+        sellAmountNum,
+        position.negRisk ?? false
       );
 
       console.log("✅ Sell order placed:", orderId);
