@@ -92,8 +92,17 @@ export function PostCard({ post }: PostCardProps) {
       <div className="flex items-center gap-3 mb-4">
         <motion.div
           whileHover={{ scale: 1.1, rotate: 5 }}
+          whileTap={{ scale: 0.95 }}
           transition={{ type: "spring", stiffness: 400, damping: 10 }}
-          className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2A56F2] to-[#9DFECB] flex items-center justify-center text-lg font-semibold text-white shadow-lg overflow-hidden flex-shrink-0"
+          className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2A56F2] to-[#9DFECB] flex items-center justify-center text-lg font-semibold text-white shadow-lg overflow-hidden flex-shrink-0 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isOwnPost) {
+              router.push(`/user/${post.user_id}`);
+            } else {
+              router.push(`/profile`);
+            }
+          }}
         >
           {avatarUrl ? (
             <img
@@ -107,7 +116,19 @@ export function PostCard({ post }: PostCardProps) {
         </motion.div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="font-semibold text-foreground truncate">{displayName}</p>
+            <p
+              className="font-semibold text-foreground truncate cursor-pointer hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isOwnPost) {
+                  router.push(`/user/${post.user_id}`);
+                } else {
+                  router.push(`/profile`);
+                }
+              }}
+            >
+              {displayName}
+            </p>
             {!isOwnPost && (
               <span
                 className="flex-shrink-0"
@@ -118,7 +139,20 @@ export function PostCard({ post }: PostCardProps) {
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            @{username} · {timeAgo}
+            <span
+              className="cursor-pointer hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isOwnPost) {
+                  router.push(`/user/${post.user_id}`);
+                } else {
+                  router.push(`/profile`);
+                }
+              }}
+            >
+              @{username}
+            </span>
+            {" "}· {timeAgo}
           </p>
         </div>
         {post.polymarket_market_id && (

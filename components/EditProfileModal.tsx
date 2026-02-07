@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { X, Camera, Loader2, Check, AlertCircle } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 
@@ -34,6 +34,19 @@ export function EditProfileModal({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // ✅ FIX: Sync local state whenever modal opens with fresh props
+  useEffect(() => {
+    if (isOpen) {
+      setUsername(currentUsername);
+      setDisplayName(currentDisplayName);
+      setBio(currentBio);
+      setAvatarPreview(currentAvatarUrl);
+      setAvatarFile(null);
+      setError(null);
+      setSuccess(false);
+    }
+  }, [isOpen, currentUsername, currentDisplayName, currentBio, currentAvatarUrl]);
 
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,6 +108,7 @@ export function EditProfileModal({
         throw new Error(data.error || "Failed to update profile");
       }
 
+      console.log("✅ Profile saved successfully:", data.profile);
       setSuccess(true);
       setTimeout(() => {
         onSaved();

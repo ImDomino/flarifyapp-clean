@@ -44,7 +44,9 @@ export default function ProfilePage() {
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const res = await fetch(`/api/profile?user_id=${encodeURIComponent(user.id)}`);
+      const res = await fetch(`/api/profile?user_id=${encodeURIComponent(user.id)}`, {
+        cache: 'no-store',
+      });
       const data = await res.json();
       if (data.profile) setProfileData(data.profile);
     } catch (err) {
@@ -122,7 +124,8 @@ export default function ProfilePage() {
     user?.email?.address?.split("@")[0] || "user";
   const email = user?.google?.email || user?.email?.address || "";
   const avatarUrl = profileData?.avatar_url || null;
-  const bioText = profileData?.bio || "Focused on prediction markets, clean risk sizing, and sharing trade rationale.";
+  const bioText = profileData?.bio || "";
+  const bioDisplay = bioText || "Focused on prediction markets, clean risk sizing, and sharing trade rationale.";
   const walletAddress = user?.wallet?.address || "0x01fc...815d";
   const shortWallet = walletAddress
     ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
@@ -259,7 +262,7 @@ export default function ProfilePage() {
               Active trader
             </span>
           </div>
-          <p className="mt-3 text-sm leading-6 text-slate-300">{bioText}</p>
+          <p className="mt-3 text-sm leading-6 text-slate-300">{bioDisplay}</p>
         </div>
 
         <div className="rounded-xl bg-base-900/60 border border-white/5 shadow-soft p-5">

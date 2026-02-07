@@ -10,28 +10,28 @@ export function useSupabaseAuth() {
 
   useEffect(() => {
     if (authenticated && user) {
-      // Создаём или обновляем профиль в Supabase
       const syncUser = async () => {
         try {
           const email = user.google?.email || user.email?.address;
           
           if (!email) return;
 
-          // Проверяем существует ли профиль
+          // Проверяем существует ли профиль по id
           const { data: existingProfile } = await supabase
             .from('profiles')
             .select('id')
-            .eq('email', email)
-            .single();
+            .eq('id', user.id)
+            .maybeSingle();
 
           if (!existingProfile) {
-            // Создаём профиль
+            // Создаём профиль только если его нет
             await supabase.from('profiles').insert({
               id: user.id,
               email: email,
               username: user.google?.name || email.split('@')[0],
             });
           }
+          // Если профиль уже есть — ничего не перезаписываем
         } catch (error) {
           console.error('Error syncing user:', error);
         }

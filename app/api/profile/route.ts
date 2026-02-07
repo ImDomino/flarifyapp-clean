@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/client';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 // PATCH /api/profile
 // Update user profile fields
 export async function PATCH(request: NextRequest) {
@@ -16,7 +18,7 @@ export async function PATCH(request: NextRequest) {
 
     // Build update object with only provided fields
     const updates: Record<string, any> = {};
-    if (username !== undefined) updates.username = username;
+    if (username !== undefined && username !== '') updates.username = username;
     if (display_name !== undefined) updates.display_name = display_name;
     if (avatar_url !== undefined) updates.avatar_url = avatar_url;
     if (bio !== undefined) updates.bio = bio;
@@ -26,28 +28,35 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
+    console.log('📝 Profile update request:', { user_id, updates: Object.keys(updates) });
+
     // Validate username if provided
-    if (username !== undefined) {
-      if (username.length < 2 || username.length > 30) {
+    if (updates.username) {
+      const uname = updates.username;
+      if (uname.length < 2 || uname.length > 30) {
         return NextResponse.json(
           { error: 'Username must be 2-30 characters' },
           { status: 400 }
         );
       }
-      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      if (!/^[a-zA-Z0-9_]+$/.test(uname)) {
         return NextResponse.json(
           { error: 'Username can only contain letters, numbers, and underscores' },
           { status: 400 }
         );
       }
 
-      // Check uniqueness
-      const { data: existing } = await supabase
+      // Check uniqueness (exclude current user)
+      const { data: existing, error: checkError } = await supabase
         .from('profiles')
         .select('id')
-        .eq('username', username)
+        .eq('username', uname)
         .neq('id', user_id)
-        .single();
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('❌ Username check error:', checkError);
+      }
 
       if (existing) {
         return NextResponse.json(
@@ -64,13 +73,18 @@ export async function PATCH(request: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Supabase update error:', error);
+      throw error;
+    }
+
+    console.log('✅ Profile updated:', data?.id, 'username:', data?.username);
 
     return NextResponse.json({ success: true, profile: data });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating profile:', error);
     return NextResponse.json(
-      { error: 'Failed to update profile' },
+      { error: error?.message || 'Failed to update profile' },
       { status: 500 }
     );
   }
@@ -93,9 +107,13 @@ export async function GET(request: NextRequest) {
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+
+    if (!data) {
+      return NextResponse.json({ profile: null, error: 'Profile not found' }, { status: 404 });
+    }
 
     return NextResponse.json({ profile: data });
   } catch (error) {
