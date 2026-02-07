@@ -77,10 +77,9 @@ export default function ProfilePage() {
     if (!user) return;
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/posts?page=1&limit=100`);
+      const response = await fetch(`/api/posts?user_id=${encodeURIComponent(user.id)}&page=1&limit=50`);
       const data = await response.json();
-      const userPosts = data.posts.filter((post: PostWithUser) => post.user_id === user.id);
-      setPosts(userPosts);
+      setPosts(data.posts || []);
     } catch (error) {
       console.error("Error loading posts:", error);
     } finally {

@@ -62,10 +62,9 @@ export default function UserProfilePage() {
 
   const loadUserPosts = useCallback(async () => {
     try {
-      const response = await fetch(`/api/posts?page=1&limit=100`);
+      const response = await fetch(`/api/posts?user_id=${userId}&page=1&limit=50`);
       const data = await response.json();
-      const userPosts = data.posts.filter((post: PostWithUser) => post.user_id === userId);
-      setPosts(userPosts);
+      setPosts(data.posts || []);
     } catch (error) {
       console.error("Error loading posts:", error);
     }

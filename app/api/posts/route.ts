@@ -5,15 +5,14 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
-    // Параметры пагинации
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
+    const userId = searchParams.get('user_id'); // NEW: filter by user
 
     const supabase = createClient();
 
-    // Получаем посты с профилями пользователей
-    const { data: posts, error, count } = await supabase
+    let query = supabase
       .from('posts')
       .select(`
         *,
@@ -21,24 +20,28 @@ export async function GET(request: NextRequest) {
           id,
           email,
           username,
-          avatar_url
+          avatar_url,
+          display_name
         )
       `, { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+      .order('created_at', { ascending: false });
+
+    // Server-side user filter (no more client-side filtering of 100 posts)
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data: posts, error, count } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    // Для каждого поста получаем количество лайков и комментариев
     const postsWithCounts = await Promise.all(
       (posts || []).map(async (post) => {
-        // Количество лайков
         const { count: likesCount } = await supabase
           .from('likes')
           .select('*', { count: 'exact', head: true })
           .eq('post_id', post.id);
 
-        // Количество комментариев
         const { count: commentsCount } = await supabase
           .from('comments')
           .select('*', { count: 'exact', head: true })
@@ -48,7 +51,7 @@ export async function GET(request: NextRequest) {
           ...post,
           likes_count: likesCount || 0,
           comments_count: commentsCount || 0,
-          user_has_liked: false, // Убираем проверку auth
+          user_has_liked: false,
         };
       })
     );

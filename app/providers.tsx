@@ -10,9 +10,9 @@ import { createClient } from '@/lib/supabase/client';
  * 
  * ВАЖНО: Сохраняем Safe address, а не EOA!
  * Safe - это адрес который держит USDC и позиции
+ * 
+ * ВАЖНО: НЕ перезаписываем username — пользователь мог его изменить!
  */
-
-
 function ProfileSync({ children }: { children: React.ReactNode }) {
   const { authenticated, user, ready } = usePrivy();
   const { safeAddress } = useWallet();
@@ -26,44 +26,66 @@ function ProfileSync({ children }: { children: React.ReactNode }) {
         const supabase = createClient();
         
         const email = user.google?.email || user.email?.address || '';
-        const username = user.google?.name || email.split('@')[0] || `User${user.id.slice(-6)}`;
 
         console.log('🔄 Syncing profile to Supabase:', { 
           userId: user.id, 
           email, 
-          safeAddress, // ← Safe address, не EOA!
+          safeAddress,
         });
 
-        // Upsert profile с Safe address
-        const { error } = await supabase
+        // Check if profile exists first
+        const { data: existing } = await supabase
           .from('profiles')
-          .upsert({
-            id: user.id,
-            email,
-            username,
-            wallet_address: safeAddress, // ← КРИТИЧНО: Safe address!
-            updated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'id'
-          });
+          .select('id, username')
+          .eq('id', user.id)
+          .maybeSingle();
 
-        if (error) {
-          console.error('❌ Profile sync error:', error);
+        if (!existing) {
+          // New user — create profile with default username
+          const username = user.google?.name || email.split('@')[0] || `User${user.id.slice(-6)}`;
+          const { error } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              email,
+              username,
+              wallet_address: safeAddress,
+              updated_at: new Date().toISOString(),
+            });
+
+          if (error) {
+            console.error('❌ Profile create error:', error);
+          } else {
+            console.log('✅ New profile created with Safe address:', safeAddress);
+          }
         } else {
-          console.log('✅ Profile synced with Safe address:', safeAddress);
-          setSynced(true);
+          // Existing user — only update wallet_address and email, NOT username
+          const { error } = await supabase
+            .from('profiles')
+            .update({
+              email,
+              wallet_address: safeAddress,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', user.id);
+
+          if (error) {
+            console.error('❌ Profile update error:', error);
+          } else {
+            console.log('✅ Profile synced (wallet only), preserved username:', existing.username);
+          }
         }
+
+        setSynced(true);
       } catch (error) {
         console.error('❌ Sync error:', error);
       }
     };
 
-    // Небольшая задержка для стабильности
     const timer = setTimeout(syncProfile, 1000);
     return () => clearTimeout(timer);
   }, [authenticated, user, ready, safeAddress, synced]);
 
-  // Сбрасываем synced при logout
   useEffect(() => {
     if (!authenticated) {
       setSynced(false);
