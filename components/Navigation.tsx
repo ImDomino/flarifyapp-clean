@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, PenSquare, User, Settings, Wallet, LogOut, ArrowRight } from "lucide-react";
+import { Home, PenSquare, User, Settings, Wallet, LogOut, ArrowRight, Bell } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { DepositModal } from "./DepositModal";
+import { NotificationsDropdown } from "./NotificationsDropdown";
 import { useWallet } from "@/providers/WalletProvider";
 import { useSafeDeployment } from "@/hooks/useSafeDeployment";
 import { useBalances } from "@/hooks/useBalances";
@@ -51,14 +52,18 @@ export function NavigationSidebar() {
         <div className="rounded-xl bg-base-900/70 backdrop-blur border border-white/5 shadow-soft overflow-hidden">
           {/* Logo */}
           <div className="px-5 pt-5 pb-4 border-b border-white/5">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500/20 to-teal-500/20 border border-white/10 flex items-center justify-center shadow-soft">
-                <span className="font-display font-bold tracking-tight text-lg text-blue-200">F</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500/20 to-teal-500/20 border border-white/10 flex items-center justify-center shadow-soft">
+                  <span className="font-display font-bold tracking-tight text-lg text-blue-200">F</span>
+                </div>
+                <div>
+                  <div className="font-display font-semibold tracking-tight text-lg">Flarify</div>
+                  <div className="text-xs text-slate-400">Prediction Market Social</div>
+                </div>
               </div>
-              <div>
-                <div className="font-display font-semibold tracking-tight text-lg">Flarify</div>
-                <div className="text-xs text-slate-400">Prediction Market Social</div>
-              </div>
+              {/* Notifications bell */}
+              {authenticated && <NotificationsDropdown />}
             </div>
           </div>
 
@@ -139,7 +144,7 @@ export function NavigationSidebar() {
             </div>
           )}
 
-          {/* Login prompt for non-authenticated users */}
+          {/* Login prompt */}
           {!authenticated && (
             <div className="p-4 border-t border-white/5">
               <button

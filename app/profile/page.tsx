@@ -404,8 +404,19 @@ function PostsContent({ posts, isLoading }: { posts: PostWithUser[]; isLoading: 
 function ActivityContent() {
   return (
     <div className="text-center py-12">
-      <Heart className="w-12 h-12 mx-auto mb-4 text-slate-500 opacity-50" />
-      <p className="text-slate-400">Activity feed coming soon...</p>
+      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500/15 to-teal-500/15 border border-white/10 flex items-center justify-center">
+        <Heart className="w-8 h-8 text-blue-300" />
+      </div>
+      <h3 className="font-display text-lg font-semibold tracking-tight text-slate-200 mb-2">
+        Activity Feed
+      </h3>
+      <p className="text-sm text-slate-500 max-w-xs mx-auto">
+        Your likes, comments, and interactions will appear here
+      </p>
+      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 px-3 py-1">
+        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+        <span className="text-xs font-medium text-blue-300">Coming Soon</span>
+      </div>
     </div>
   );
 }

@@ -74,12 +74,17 @@ export default function Home() {
       <div className="relative">
         <div className="rounded-xl bg-base-900/70 border border-white/5 shadow-soft overflow-hidden">
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
             <input
               type="text"
               placeholder="Search markets, users, or posts..."
-              className="w-full pl-12 pr-4 py-4 bg-transparent border-none focus:outline-none focus:ring-0 text-slate-200 placeholder:text-slate-500"
+              disabled
+              className="w-full pl-12 pr-28 py-4 bg-transparent border-none focus:outline-none focus:ring-0 text-slate-200 placeholder:text-slate-500 cursor-not-allowed"
             />
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 px-2.5 py-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              <span className="text-[10px] font-medium text-blue-300">Coming Soon</span>
+            </div>
           </div>
         </div>
       </div>

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createClient();
 
-    // Проверяем есть ли уже лайк
+    // Check if already liked
     const { data: existingLike } = await supabase
       .from('likes')
       .select()
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (existingLike) {
-      // Убираем лайк (unlike)
+      // Unlike
       const { error } = await supabase
         .from('likes')
         .delete()
@@ -31,18 +31,34 @@ export async function POST(request: NextRequest) {
         .eq('user_id', user_id);
 
       if (error) throw error;
-
       return NextResponse.json({ success: true, action: 'unliked' });
     } else {
-      // Добавляем лайк
+      // Like
       const { error } = await supabase
         .from('likes')
-        .insert({
-          post_id,
-          user_id,
-        });
+        .insert({ post_id, user_id });
 
       if (error) throw error;
+
+      // Create notification for post owner (don't notify yourself)
+      try {
+        const { data: post } = await supabase
+          .from('posts')
+          .select('user_id')
+          .eq('id', post_id)
+          .single();
+
+        if (post && post.user_id !== user_id) {
+          await supabase.from('notifications').insert({
+            user_id: post.user_id,
+            actor_id: user_id,
+            type: 'like',
+            post_id,
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to create like notification:', e);
+      }
 
       return NextResponse.json({ success: true, action: 'liked' });
     }
