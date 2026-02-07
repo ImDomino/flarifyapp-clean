@@ -15,6 +15,7 @@ interface Market {
   endDate?: string;
   yesTokenId?: string;
   noTokenId?: string;
+  negRisk?: boolean;
 }
 
 interface MarketSearchInputProps {

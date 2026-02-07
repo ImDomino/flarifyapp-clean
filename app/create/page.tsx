@@ -19,6 +19,7 @@ interface Market {
   endDate?: string;
   yesTokenId?: string;
   noTokenId?: string;
+  negRisk?: boolean;  // ← добавить
   tokens?: Array<{
     token_id: string;
     outcome: string;
@@ -118,6 +119,7 @@ export default function CreatePage() {
             url: selectedMarket.url,
             yesTokenId: yesTokenId || undefined,
             noTokenId: noTokenId || undefined,
+            negRisk: selectedMarket.negRisk, //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           };
         }
       }

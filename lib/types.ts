@@ -31,6 +31,7 @@ export interface MarketData {
   yesTokenId?: string;
   noTokenId?: string;
   tokens?: Array<{ token_id: string; outcome: string; price: string }>;
+  negRisk?: boolean;
 }
 
 export interface Comment {

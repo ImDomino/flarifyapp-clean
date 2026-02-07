@@ -292,6 +292,7 @@ export async function GET(request: NextRequest) {
           yesTokenId,
           noTokenId,
           tokens,
+          negRisk: market.neg_risk === "true" || market.neg_risk === true || market.negRisk === true,
         };
 
         console.log(

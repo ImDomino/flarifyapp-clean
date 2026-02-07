@@ -49,7 +49,14 @@ export const usePlaceOrder = () => {
         expiration: 0,
         taker: "0x0000000000000000000000000000000000000000",
       };
-
+      console.log("🔍 ORDER DEBUG:", {
+        tokenId: tokenId.slice(0, 20) + "...",
+        side,
+        price,
+        size,
+        negRisk,
+        negRiskType: typeof negRisk,
+      });
       // CRITICAL: negRisk determines which exchange contract signs the order
       //   false → CTF Exchange (0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e)
       //   true  → NegRisk CTF Exchange (0xC5d563A36AE78145C45a50134d48A1215220f80a)
