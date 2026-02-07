@@ -8,7 +8,9 @@ export interface OpenOrder {
   market: string;
   asset_id: string;
   price: string;
-  size: string;
+  original_size: string;
+  size_matched: string;
+  size_remaining: string;
   side: "BUY" | "SELL";
   status: string;
   created_at: number;
@@ -47,23 +49,41 @@ export const useOpenOrders = () => {
           ? res
           : res.data || res.orders || [];
 
+        // Log first order to debug field names
+        if (rawOrders.length > 0) {
+          console.log("📋 Raw order sample:", JSON.stringify(rawOrders[0], null, 2));
+        }
+
         // Filter to only our Safe's orders
         const yourOrders = rawOrders.filter(
           (o: any) => o.maker_address?.toLowerCase() === funder
         );
 
-        const mapped: OpenOrder[] = yourOrders.map((o: any) => ({
-          id: o.order_hash || o.id,
-          market: o.market,
-          asset_id: o.asset_id,
-          price: o.price,
-          size: o.size,
-          side: o.side,
-          status: o.status || "open",
-          created_at: parseInt(o.created_at || "0", 10),
-          outcome: o.outcome,
-          question: o.question,
-        }));
+        const mapped: OpenOrder[] = yourOrders.map((o: any) => {
+          // CLOB API returns: original_size, size_matched, price
+          // "size" field may not exist or may mean remaining
+          const originalSize = o.original_size || o.size || o.origSize || "0";
+          const sizeMatched = o.size_matched || o.matched || "0";
+          
+          const origNum = parseFloat(originalSize) || 0;
+          const matchedNum = parseFloat(sizeMatched) || 0;
+          const remaining = origNum - matchedNum;
+
+          return {
+            id: o.order_hash || o.id || o.orderID,
+            market: o.market,
+            asset_id: o.asset_id,
+            price: o.price || "0",
+            original_size: originalSize,
+            size_matched: sizeMatched,
+            size_remaining: remaining > 0 ? remaining.toString() : originalSize,
+            side: o.side,
+            status: o.status || "open",
+            created_at: parseInt(o.created_at || "0", 10),
+            outcome: o.outcome,
+            question: o.question,
+          };
+        });
 
         setOrders(mapped);
         return mapped;

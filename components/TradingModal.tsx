@@ -29,6 +29,9 @@ interface TradingModalProps {
 
 type TradeType = "buy" | "sell";
 
+const MIN_SHARES = 5;
+const MIN_BUY_AMOUNT_USD = 1; // Polymarket minimum for marketable BUY orders
+
 export function TradingModal({
   marketId,
   marketData,
@@ -53,8 +56,11 @@ export function TradingModal({
     [amountNum, price]
   );
 
-  const MIN_SHARES = 5;
-  const minAmount = useMemo(() => MIN_SHARES * price, [price]);
+  const minAmountByShares = useMemo(() => MIN_SHARES * price, [price]);
+  const minBuyAmount = useMemo(
+    () => Math.max(minAmountByShares, MIN_BUY_AMOUNT_USD),
+    [minAmountByShares]
+  );
 
   // Для BUY: потенциальный выигрыш
   const potentialWin = useMemo(
@@ -74,7 +80,13 @@ export function TradingModal({
 
   const side: "yes" | "no" = outcomeIndex === 0 ? "yes" : "no";
   const displayPriceCents = price * 100;
-  const isBelowMinimum = shares > 0 && shares < MIN_SHARES;
+
+  // Validation flags
+  const isBuyBelowMinShares = tradeType === "buy" && shares > 0 && shares < MIN_SHARES;
+  const isBuyBelowMinUsd = tradeType === "buy" && amountNum > 0 && amountNum < MIN_BUY_AMOUNT_USD;
+  const isBuyBelowMin = isBuyBelowMinShares || isBuyBelowMinUsd;
+
+  const isSellBelowMin = tradeType === "sell" && amountNum > 0 && amountNum < MIN_SHARES;
 
   const resolveTokenId = (): string | undefined => {
     if (outcomeIndex === 0 && marketData.yesTokenId) return marketData.yesTokenId;
@@ -104,8 +116,12 @@ export function TradingModal({
         setError("Please enter a valid amount");
         return;
       }
-      if (isBelowMinimum) {
-        setError(`Minimum order: ${MIN_SHARES} shares ($${minAmount.toFixed(2)})`);
+      if (amountNum < MIN_BUY_AMOUNT_USD) {
+        setError(`Polymarket requires minimum $${MIN_BUY_AMOUNT_USD.toFixed(2)} for BUY orders`);
+        return;
+      }
+      if (isBuyBelowMinShares) {
+        setError(`Minimum order: ${MIN_SHARES} shares ($${minAmountByShares.toFixed(2)})`);
         return;
       }
     } else {
@@ -148,6 +164,8 @@ export function TradingModal({
       
       if (err.message?.includes("Size") && err.message?.includes("minimum")) {
         errorMessage = `Order too small. Minimum: ${MIN_SHARES} shares`;
+      } else if (err.message?.includes("min size")) {
+        errorMessage = `Polymarket requires minimum $${MIN_BUY_AMOUNT_USD.toFixed(2)} for BUY orders`;
       } else if (err.message?.includes("not enough balance")) {
         errorMessage = tradeType === "buy" 
           ? "Insufficient USDC balance. Please deposit funds."
@@ -275,6 +293,11 @@ export function TradingModal({
                   step={tradeType === "buy" ? "0.01" : "1"}
                 />
               </div>
+              {tradeType === "buy" && (
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Min: ${minBuyAmount.toFixed(2)} ({MIN_SHARES} shares or $1, whichever is greater)
+                </p>
+              )}
             </div>
 
             {/* Calculations */}
@@ -332,17 +355,19 @@ export function TradingModal({
               </div>
             )}
 
-            {/* Minimum warning */}
-            {tradeType === "buy" && isBelowMinimum && (
+            {/* Minimum warnings */}
+            {tradeType === "buy" && isBuyBelowMin && (
               <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-amber-300">
-                  Minimum order: {MIN_SHARES} shares (${minAmount.toFixed(2)} at current price)
+                  {isBuyBelowMinUsd
+                    ? `Polymarket requires minimum $${MIN_BUY_AMOUNT_USD.toFixed(2)} for BUY orders`
+                    : `Minimum order: ${MIN_SHARES} shares ($${minAmountByShares.toFixed(2)} at current price)`}
                 </p>
               </div>
             )}
 
-            {tradeType === "sell" && amountNum > 0 && amountNum < MIN_SHARES && (
+            {isSellBelowMin && (
               <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-amber-300">
@@ -367,8 +392,8 @@ export function TradingModal({
                 amountNum <= 0 ||
                 isProcessing ||
                 price <= 0 ||
-                (tradeType === "buy" && isBelowMinimum) ||
-                (tradeType === "sell" && amountNum < MIN_SHARES)
+                isBuyBelowMin ||
+                isSellBelowMin
               }
               className={`w-full py-4 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                 tradeType === "buy"
@@ -382,10 +407,10 @@ export function TradingModal({
                   Placing order...
                 </span>
               ) : tradeType === "buy" ? (
-                isBelowMinimum
-                  ? `Minimum ${MIN_SHARES} shares ($${minAmount.toFixed(2)})`
+                isBuyBelowMin
+                  ? `Minimum $${minBuyAmount.toFixed(2)}`
                   : `Buy ${outcome} for $${amountNum.toFixed(2)}`
-              ) : amountNum < MIN_SHARES ? (
+              ) : isSellBelowMin ? (
                 `Minimum ${MIN_SHARES} shares`
               ) : (
                 `Sell ${amountNum.toFixed(2)} shares for $${sellProceeds.toFixed(2)}`
@@ -403,7 +428,7 @@ export function TradingModal({
               <p className="text-xs text-blue-300 leading-relaxed">
                 <Info className="w-3.5 h-3.5 inline mr-1" />
                 {tradeType === "buy"
-                  ? `You're buying ${outcome} shares at ${displayPriceCents.toFixed(1)}¢ each. If correct, each share pays $1.`
+                  ? `You're buying ${outcome} shares at ${displayPriceCents.toFixed(1)}¢ each. If correct, each share pays $1. Min order: $${MIN_BUY_AMOUNT_USD.toFixed(2)}.`
                   : `Your sell order will be placed on the orderbook at ${displayPriceCents.toFixed(1)}¢. It executes when a buyer matches your price.`}
               </p>
             </div>
