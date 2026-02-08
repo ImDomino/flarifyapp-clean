@@ -28,7 +28,12 @@ const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    const setup = async () => {
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout>;
+
+    const setup = async (attempt = 1) => {
+      if (cancelled) return;
+
       if (!ready || !authenticated) {
         setEthersSigner(null);
         setEoaAddress(null);
@@ -40,7 +45,13 @@ const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
       // Find Privy embedded wallet (not external browser wallets)
       const wallet = wallets.find((w) => w.walletClientType === "privy");
       if (!wallet) {
-        console.warn("⚠️ No Privy embedded wallet found, waiting...");
+        // Privy embedded wallet loads asynchronously — retry up to 10 times
+        if (attempt <= 10) {
+          console.warn(`⚠️ No Privy embedded wallet found, retry ${attempt}/10...`);
+          retryTimer = setTimeout(() => setup(attempt + 1), 500);
+        } else {
+          console.error("❌ Privy embedded wallet not found after 10 retries");
+        }
         return;
       }
 
@@ -58,6 +69,8 @@ const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
           config.SafeContracts.SafeFactory
         );
 
+        if (cancelled) return;
+
         console.log("🔑 Wallet initialized:");
         console.log("  EOA (signer):", addr);
         console.log("  Safe (funder):", safe);
@@ -68,14 +81,21 @@ const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
         setIsReady(true);
       } catch (e) {
         console.error("❌ Wallet setup error:", e);
-        setEthersSigner(null);
-        setEoaAddress(null);
-        setSafeAddress(null);
-        setIsReady(false);
+        if (!cancelled) {
+          setEthersSigner(null);
+          setEoaAddress(null);
+          setSafeAddress(null);
+          setIsReady(false);
+        }
       }
     };
 
     setup();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(retryTimer);
+    };
   }, [ready, authenticated, wallets]);
 
   const value: WalletContextValue = useMemo(

@@ -16,22 +16,18 @@ const ERC20_ABI = [
   },
 ] as const;
 
-// Multiple RPC endpoints for fallback
+// Multiple RPC endpoints for fallback — publicnode first (fastest/most reliable)
 const RPC_URLS = [
-  "https://polygon-bor-rpc.publicnode.com",      // Публичный RPC первым (быстрее на холодных запросах)
-  process.env.NEXT_PUBLIC_POLYGON_RPC_URL,       // Alchemy вторым
+  "https://polygon-bor-rpc.publicnode.com",
   "https://polygon-rpc.com",
   "https://rpc.ankr.com/polygon",
+  process.env.NEXT_PUBLIC_POLYGON_RPC_URL, // Alchemy (often times out)
 ].filter(Boolean) as string[];
 
 function createClient(rpcUrl: string) {
   return createPublicClient({
     chain: polygon,
-    transport: http(rpcUrl, { 
-      timeout: 30_000,  // 30s timeout (первый запрос часто медленный)
-      retryCount: 2,    // Retry 2 раза
-      retryDelay: 1000, // 1s между попытками
-    }),
+    transport: http(rpcUrl, { timeout: 8_000 }), // 8s timeout
   });
 }
 
@@ -39,68 +35,59 @@ export const useBalances = (
   eoaAddress: string | null,
   safeAddress: string | null
 ) => {
+  // Show loading while address hasn't resolved yet
   const [safeBalance, setSafeBalance] = useState<string>("0");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasFetched, setHasFetched] = useState(false);
   const fetchingRef = useRef(false);
-  const lastSuccessfulRpcRef = useRef<number>(0); // Запоминаем последний успешный RPC
 
   const fetchBalances = useCallback(async () => {
     if (!safeAddress || fetchingRef.current) return;
     fetchingRef.current = true;
-    setIsLoading(true);
+    if (!hasFetched) setIsLoading(true);
 
-    // Начинаем с последнего успешного RPC
-    const startIndex = lastSuccessfulRpcRef.current;
-    const orderedRpcs = [
-      ...RPC_URLS.slice(startIndex),
-      ...RPC_URLS.slice(0, startIndex)
-    ];
-
-    for (let i = 0; i < orderedRpcs.length; i++) {
-      const rpcUrl = orderedRpcs[i];
-      const originalIndex = RPC_URLS.indexOf(rpcUrl);
-      
+    for (let i = 0; i < RPC_URLS.length; i++) {
       try {
-        const client = createClient(rpcUrl);
+        const client = createClient(RPC_URLS[i]);
         const safeBalanceRaw = await client.readContract({
           address: USDC_E_ADDRESS,
           abi: ERC20_ABI,
           functionName: "balanceOf",
           args: [safeAddress as `0x${string}`],
         });
-        
         const formatted = formatUnits(safeBalanceRaw, USDC_E_DECIMALS);
         setSafeBalance(formatted);
-        lastSuccessfulRpcRef.current = originalIndex; // Запоминаем успешный RPC
-        
+        setHasFetched(true);
         console.log("💰 Safe balance fetched:", {
           safe: formatted,
-          rpc: rpcUrl.includes("alchemy") ? "alchemy" : rpcUrl.split("/")[2],
+          rpc: RPC_URLS[i].includes("alchemy") ? "alchemy" : RPC_URLS[i].split("/")[2],
         });
-        
-        break; // Успех, выходим
+        break; // success, stop trying
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message.slice(0, 80) : "unknown";
         console.warn(
-          `Balance fetch failed with RPC ${i + 1}/${orderedRpcs.length}:`,
-          rpcUrl.split("/")[2],
-          errorMsg
+          `Balance fetch failed with RPC ${i + 1}/${RPC_URLS.length}:`,
+          RPC_URLS[i].split("/")[2],
+          error instanceof Error ? error.message.slice(0, 80) : "unknown"
         );
-        
-        if (i === orderedRpcs.length - 1) {
-          console.error("❌ All RPCs failed for balance fetch");
-          // Не сбрасываем баланс в 0, оставляем последнее значение
+        if (i === RPC_URLS.length - 1) {
+          console.error("All RPCs failed for balance fetch");
         }
+        // continue to next RPC
       }
     }
 
     setIsLoading(false);
     fetchingRef.current = false;
-  }, [safeAddress]);
+  }, [safeAddress, hasFetched]);
 
+  // Fetch on mount and auto-refresh every 30s
   useEffect(() => {
+    if (!safeAddress) return;
+
     fetchBalances();
-  }, [fetchBalances]);
+    const interval = setInterval(fetchBalances, 30_000);
+    return () => clearInterval(interval);
+  }, [safeAddress, fetchBalances]);
 
   return {
     safeBalance,

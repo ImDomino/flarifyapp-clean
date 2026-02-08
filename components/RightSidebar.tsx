@@ -6,7 +6,6 @@ import { usePrivy } from "@privy-io/react-auth";
 import { DepositModal } from "./DepositModal";
 import { WithdrawModal } from "./WithdrawModal";
 import { useWallet } from "@/providers/WalletProvider";
-import { useSafeDeployment } from "@/hooks/useSafeDeployment";
 import { useBalances } from "@/hooks/useBalances";
 
 export function RightSidebar() {
@@ -14,22 +13,8 @@ export function RightSidebar() {
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
 
-  const { eoaAddress } = useWallet();
-  const [safeAddress, setSafeAddress] = useState<string | null>(null);
-  const { ensureSafe } = useSafeDeployment();
-
-  useEffect(() => {
-    if (eoaAddress) {
-      ensureSafe()
-        .then((addr) => {
-          console.log("RightSidebar: Safe address resolved:", addr);
-          setSafeAddress(addr);
-        })
-        .catch((err) => {
-          console.error("RightSidebar: ensureSafe failed:", err);
-        });
-    }
-  }, [eoaAddress, ensureSafe]);
+  // safeAddress is derived deterministically in WalletProvider — no network call needed
+  const { eoaAddress, safeAddress } = useWallet();
 
   const { safeBalance, isLoading, refresh } = useBalances(eoaAddress, safeAddress);
   const safeNum = parseFloat(safeBalance || "0");
@@ -64,7 +49,11 @@ export function RightSidebar() {
               <div>
                 <div className="text-xs text-slate-400">Trading Balance</div>
                 <div className="mt-1 font-display text-3xl font-semibold tracking-tight">
-                  ${isLoading ? "0.00" : safeNum.toFixed(2)}
+                  {isLoading ? (
+                    <span className="inline-block animate-pulse text-slate-500">$—.——</span>
+                  ) : (
+                    `$${safeNum.toFixed(2)}`
+                  )}
                 </div>
                 <div className="mt-1 text-xs text-slate-500">Available to trade instantly.</div>
               </div>
