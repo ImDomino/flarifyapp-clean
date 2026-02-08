@@ -15,6 +15,33 @@ export async function POST(request: NextRequest) {
 
     const supabase = createClient();
 
+    // Ensure profile exists (fallback if ProfileSync didn't run yet)
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user_id)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      console.log('⚡ Auto-creating profile for user:', user_id);
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: user_id,
+          email: '',
+          username: `user_${user_id.slice(-6)}`,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (profileError) {
+        console.error('❌ Failed to auto-create profile:', profileError);
+        return NextResponse.json(
+          { error: 'Failed to create user profile' },
+          { status: 500 }
+        );
+      }
+    }
+
     const postData: Record<string, any> = {
       content,
       user_id,
