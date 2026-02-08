@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { OrderType, Side } from "@polymarket/clob-client";
+import { Side } from "@polymarket/clob-client";
 import { useClobClient } from "./useClobClient";
 
 /**
@@ -51,7 +51,7 @@ export const usePlaceOrder = () => {
 
       const signedOrder = await clobClient.createOrder(
         orderPayload,
-        { negRisk, orderType: OrderType.GTC }
+        { negRisk }
       );
 
       console.log("Order signed, posting via proxy...");
