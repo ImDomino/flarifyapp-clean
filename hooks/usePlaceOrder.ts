@@ -11,6 +11,9 @@ import { useClobClient } from "./useClobClient";
  * So we split the flow:
  * 1. createOrder() — signs the order client-side (Privy handles signature)
  * 2. POST to /api/polymarket/order — our server proxies to clob.polymarket.com
+ *
+ * FIX: createOrder() returns a complex object structure, we need to extract
+ * the actual signed order from it before sending to server.
  */
 
 export interface PlaceOrderParams {
@@ -50,10 +53,35 @@ export const usePlaceOrder = () => {
         taker: "0x0000000000000000000000000000000000000000",
       };
 
-      const signedOrder = await clobClient.createOrder(
+      const rawOrderResponse = await clobClient.createOrder(
         orderPayload,
         { negRisk }
       );
+
+      console.log("📦 Raw order response structure:", {
+        hasOrder: !!rawOrderResponse.order,
+        hasDeferExec: "deferExec" in rawOrderResponse,
+        hasOwner: !!rawOrderResponse.owner,
+        orderType: rawOrderResponse.orderType,
+        keys: Object.keys(rawOrderResponse),
+      });
+
+      // ✅ FIX: createOrder() returns: { deferExec, order: {...signedOrder}, owner, orderType }
+      // We need to extract the actual order object
+      let signedOrder: any;
+
+      if (rawOrderResponse.order) {
+        // Структура с вложенным order
+        signedOrder = {
+          deferExec: rawOrderResponse.deferExec ?? false,
+          order: rawOrderResponse.order,
+          owner: rawOrderResponse.owner ?? "apiKey",
+          orderType: rawOrderResponse.orderType ?? "GTC",
+        };
+      } else {
+        // Fallback: если order уже на верхнем уровне
+        signedOrder = rawOrderResponse;
+      }
 
       console.log("Order signed, posting via proxy...");
 
@@ -76,12 +104,17 @@ export const usePlaceOrder = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(
-          data.details || data.error || "Order failed: " + res.status
-        );
+        // Более детальная ошибка
+        const errorMsg = data.details || data.error || `HTTP ${res.status}`;
+        console.error("❌ Order failed:", {
+          status: res.status,
+          error: errorMsg,
+          response: data,
+        });
+        throw new Error(errorMsg);
       }
 
-      console.log("Order placed:", data);
+      console.log("✅ Order placed:", data);
       return data.orderID || data.id || "success";
     },
     [initClobClient]
