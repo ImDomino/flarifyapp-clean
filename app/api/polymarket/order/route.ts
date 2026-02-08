@@ -10,12 +10,11 @@ import crypto from "crypto";
  *
  * Server-side proxy for posting signed orders to Polymarket CLOB.
  *
- * The client sends: { order: SignedOrder, orderType?: string, userCreds, eoaAddress }
- * The server:
- * 1. Wraps order in CLOB-expected format: { order: SignedOrder, orderType: "GTC" }
- * 2. Generates User HMAC signature
- * 3. Generates Builder HMAC signature
- * 4. Forwards to clob.polymarket.com/order with all 9 headers
+ * IMPORTANT: clobClient.createOrder() returns an ALREADY WRAPPED object:
+ * { deferExec: false, order: { salt, maker, signer, ... }, owner: "apiKey", orderType: "GTC" }
+ *
+ * We must send this object EXACTLY as-is to CLOB /order endpoint.
+ * Do NOT add any additional wrapping.
  */
 
 const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
@@ -41,7 +40,7 @@ function buildL2HmacSignature(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { order, orderType, userCreds, eoaAddress } = body;
+    const { order, userCreds, eoaAddress } = body;
 
     if (!order || !userCreds || !eoaAddress) {
       return NextResponse.json(
@@ -50,23 +49,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // CLOB /order expects: { "order": <SignedOrder>, "orderType": "GTC" }
-    // The signedOrder from createOrder() IS the order object
-    // We need to wrap it in the expected envelope
-    const clobPayload = {
-      order: order,
-      orderType: orderType || "GTC",
-    };
-
-    const clobBody = JSON.stringify(clobPayload);
+    // order from createOrder() is already the full CLOB payload:
+    // { deferExec, order: {...signedOrder}, owner, orderType }
+    // Send it exactly as-is
+    const clobBody = JSON.stringify(order);
     const now = Date.now();
-    const userTimestamp = Math.floor(now / 1000).toString(); // seconds for user
-    const builderTimestamp = now.toString(); // milliseconds for builder
+    const userTimestamp = Math.floor(now / 1000); // seconds for user
+    const builderTimestamp = now; // milliseconds for builder
 
     // Generate User L2 HMAC signature
     const userSignature = buildL2HmacSignature(
       userCreds.secret,
-      Math.floor(now / 1000),
+      userTimestamp,
       "POST",
       "/order",
       clobBody
@@ -75,7 +69,7 @@ export async function POST(request: NextRequest) {
     // Generate Builder HMAC signature
     const builderSignature = buildHmacSignature(
       BUILDER_CREDENTIALS.secret,
-      now,
+      builderTimestamp,
       "POST",
       "/order",
       clobBody
@@ -84,9 +78,11 @@ export async function POST(request: NextRequest) {
     console.log("ORDER PROXY:", {
       eoaAddress: eoaAddress.slice(0, 10) + "...",
       apiKey: userCreds.key.slice(0, 12) + "...",
-      orderType: clobPayload.orderType,
+      hasOrder: !!order.order,
+      hasDeferExec: "deferExec" in order,
+      hasOwner: !!order.owner,
+      orderType: order.orderType,
       bodyLength: clobBody.length,
-      bodyPreview: clobBody.slice(0, 200) + "...",
     });
 
     // Forward to CLOB with ALL required headers
@@ -94,15 +90,15 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // User API auth headers (underscore format, matching SDK)
+        // User API auth headers
         POLY_ADDRESS: eoaAddress,
         POLY_SIGNATURE: userSignature,
-        POLY_TIMESTAMP: userTimestamp,
+        POLY_TIMESTAMP: userTimestamp.toString(),
         POLY_API_KEY: userCreds.key,
         POLY_PASSPHRASE: userCreds.passphrase,
         // Builder auth headers
         POLY_BUILDER_SIGNATURE: builderSignature,
-        POLY_BUILDER_TIMESTAMP: builderTimestamp,
+        POLY_BUILDER_TIMESTAMP: builderTimestamp.toString(),
         POLY_BUILDER_API_KEY: BUILDER_CREDENTIALS.key,
         POLY_BUILDER_PASSPHRASE: BUILDER_CREDENTIALS.passphrase,
       },
