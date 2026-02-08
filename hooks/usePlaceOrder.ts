@@ -1,16 +1,23 @@
 "use client";
 
 import { useCallback } from "react";
-import { Side } from "@polymarket/clob-client";
+import { Side, OrderType } from "@polymarket/clob-client";
 import { useClobClient } from "./useClobClient";
 
 /**
  * Hook: usePlaceOrder
  *
- * IMPORTANT: Polymarket CLOB API blocks direct browser requests (CORS).
- * So we split the flow:
- * 1. createOrder() — signs the order client-side (Privy handles signature)
- * 2. POST to /api/polymarket/order — our server proxies to clob.polymarket.com
+ * Uses createAndPostOrder() — the official Polymarket pattern
+ * from privy-safe-builder-example.
+ *
+ * createAndPostOrder() handles everything internally:
+ * 1. Creates the order struct
+ * 2. Signs it with the user's EOA (Privy handles signature)
+ * 3. Generates proper HMAC headers (user + builder via builderConfig)
+ * 4. POSTs to clob.polymarket.com/order
+ *
+ * No need for a server-side proxy for order posting!
+ * The builder signing is handled by the remote sign endpoint.
  */
 
 export interface PlaceOrderParams {
@@ -28,7 +35,7 @@ export const usePlaceOrder = () => {
     async (params: PlaceOrderParams): Promise<string> => {
       const { tokenId, side, price, size, negRisk = false } = params;
 
-      const { clobClient, userCreds, eoaAddress } = await initClobClient();
+      const { clobClient, eoaAddress } = await initClobClient();
 
       console.log("ORDER DEBUG:", {
         tokenId: tokenId.slice(0, 20) + "...",
@@ -39,7 +46,8 @@ export const usePlaceOrder = () => {
         eoaAddress: eoaAddress.slice(0, 10) + "...",
       });
 
-      // Step 1: Create & sign order client-side (no CLOB network call)
+      // Use createAndPostOrder — handles signing, HMAC, and posting
+      // This is the pattern from Polymarket's official privy-safe-builder-example
       const orderPayload = {
         tokenID: tokenId,
         price,
@@ -50,89 +58,21 @@ export const usePlaceOrder = () => {
         taker: "0x0000000000000000000000000000000000000000",
       };
 
-      const rawOrderResponse = await clobClient.createOrder(
+      console.log("📦 Calling createAndPostOrder...");
+
+      const response = await clobClient.createAndPostOrder(
         orderPayload,
-        { negRisk }
+        { negRisk },
+        OrderType.GTC
       );
 
-      // Детальное логирование структуры
-      console.log("📦 Raw order response:", rawOrderResponse);
-      console.log("📦 Raw order response structure:", {
-        hasOrder: !!rawOrderResponse.order,
-        hasDeferExec: "deferExec" in rawOrderResponse,
-        hasOwner: !!rawOrderResponse.owner,
-        orderType: rawOrderResponse.orderType,
-        keys: Object.keys(rawOrderResponse),
-      });
+      console.log("✅ Order response:", response);
 
-      // ✅ FIX: Разные версии SDK возвращают разные структуры
-      // Нужно проверить все возможные варианты
-      let signedOrder: any;
-
-      if (rawOrderResponse.order) {
-        // Вариант 1: { order: {...}, deferExec, owner, orderType }
-        signedOrder = {
-          deferExec: rawOrderResponse.deferExec ?? false,
-          order: rawOrderResponse.order,
-          owner: rawOrderResponse.owner ?? "apiKey",
-          orderType: rawOrderResponse.orderType ?? "GTC",
-        };
-        console.log("✅ Using nested order structure");
-      } else if (rawOrderResponse.salt && rawOrderResponse.maker) {
-        // Вариант 2: Прямо signed order на верхнем уровне
-        // Нужно обернуть в правильную структуру для CLOB API
-        signedOrder = {
-          deferExec: false,
-          order: rawOrderResponse, // Весь rawOrderResponse это signed order
-          owner: "apiKey",
-          orderType: "GTC",
-        };
-        console.log("✅ Wrapping flat order structure");
-      } else {
-        // Вариант 3: Уже полная структура
-        signedOrder = rawOrderResponse;
-        console.log("✅ Using raw response as-is");
+      if (!response.success) {
+        throw new Error(response.errorMsg || "Order failed");
       }
 
-      console.log("📤 Final order structure:", {
-        hasDeferExec: "deferExec" in signedOrder,
-        hasOrder: !!signedOrder.order,
-        hasOwner: !!signedOrder.owner,
-        orderType: signedOrder.orderType,
-        orderKeys: signedOrder.order ? Object.keys(signedOrder.order) : "no order field",
-      });
-
-      console.log("Order signed, posting via proxy...");
-
-      // Step 2: Post via server proxy (bypasses CORS + geo-block)
-      const res = await fetch("/api/polymarket/order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          order: signedOrder,
-          userCreds: {
-            key: userCreds.key,
-            secret: userCreds.secret,
-            passphrase: userCreds.passphrase,
-          },
-          eoaAddress,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        const errorMsg = data.details || data.error || `HTTP ${res.status}`;
-        console.error("❌ Order failed:", {
-          status: res.status,
-          error: errorMsg,
-          response: data,
-        });
-        throw new Error(errorMsg);
-      }
-
-      console.log("✅ Order placed:", data);
-      return data.orderID || data.id || "success";
+      return response.orderID || "success";
     },
     [initClobClient]
   );

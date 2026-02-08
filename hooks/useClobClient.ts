@@ -71,6 +71,7 @@ export const useClobClient = () => {
     });
 
     // Step 5: Authenticated ClobClient (reference Section 7)
+    // Match the pattern from Polymarket's privy-safe-builder-example
     const clobClient = new ClobClient(
       "https://clob.polymarket.com",
       137, // Polygon chain ID
@@ -79,7 +80,7 @@ export const useClobClient = () => {
       2, // signatureType = 2 for EOA associated to a Gnosis Safe
       safeAddress, // funder address (Safe holds the funds)
       undefined, // mandatory placeholder
-      false, // enableL2 mode
+      undefined, // enableL2 — let SDK use its default
       builderConfig // builder order attribution
     );
 

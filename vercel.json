@@ -3,6 +3,5 @@
   "outputDirectory": ".next",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "framework": "nextjs",
-  "regions": ["hnd1"]
+  "framework": "nextjs"
 }
