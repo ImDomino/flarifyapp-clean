@@ -11,9 +11,6 @@ import { useClobClient } from "./useClobClient";
  * So we split the flow:
  * 1. createOrder() — signs the order client-side (Privy handles signature)
  * 2. POST to /api/polymarket/order — our server proxies to clob.polymarket.com
- *
- * FIX: createOrder() returns a complex object structure, we need to extract
- * the actual signed order from it before sending to server.
  */
 
 export interface PlaceOrderParams {
@@ -58,6 +55,8 @@ export const usePlaceOrder = () => {
         { negRisk }
       );
 
+      // Детальное логирование структуры
+      console.log("📦 Raw order response:", rawOrderResponse);
       console.log("📦 Raw order response structure:", {
         hasOrder: !!rawOrderResponse.order,
         hasDeferExec: "deferExec" in rawOrderResponse,
@@ -66,27 +65,46 @@ export const usePlaceOrder = () => {
         keys: Object.keys(rawOrderResponse),
       });
 
-      // ✅ FIX: createOrder() returns: { deferExec, order: {...signedOrder}, owner, orderType }
-      // We need to extract the actual order object
+      // ✅ FIX: Разные версии SDK возвращают разные структуры
+      // Нужно проверить все возможные варианты
       let signedOrder: any;
 
       if (rawOrderResponse.order) {
-        // Структура с вложенным order
+        // Вариант 1: { order: {...}, deferExec, owner, orderType }
         signedOrder = {
           deferExec: rawOrderResponse.deferExec ?? false,
           order: rawOrderResponse.order,
           owner: rawOrderResponse.owner ?? "apiKey",
           orderType: rawOrderResponse.orderType ?? "GTC",
         };
+        console.log("✅ Using nested order structure");
+      } else if (rawOrderResponse.salt && rawOrderResponse.maker) {
+        // Вариант 2: Прямо signed order на верхнем уровне
+        // Нужно обернуть в правильную структуру для CLOB API
+        signedOrder = {
+          deferExec: false,
+          order: rawOrderResponse, // Весь rawOrderResponse это signed order
+          owner: "apiKey",
+          orderType: "GTC",
+        };
+        console.log("✅ Wrapping flat order structure");
       } else {
-        // Fallback: если order уже на верхнем уровне
+        // Вариант 3: Уже полная структура
         signedOrder = rawOrderResponse;
+        console.log("✅ Using raw response as-is");
       }
+
+      console.log("📤 Final order structure:", {
+        hasDeferExec: "deferExec" in signedOrder,
+        hasOrder: !!signedOrder.order,
+        hasOwner: !!signedOrder.owner,
+        orderType: signedOrder.orderType,
+        orderKeys: signedOrder.order ? Object.keys(signedOrder.order) : "no order field",
+      });
 
       console.log("Order signed, posting via proxy...");
 
       // Step 2: Post via server proxy (bypasses CORS + geo-block)
-      // Server generates proper HMAC headers for both user and builder
       const res = await fetch("/api/polymarket/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -104,7 +122,6 @@ export const usePlaceOrder = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        // Более детальная ошибка
         const errorMsg = data.details || data.error || `HTTP ${res.status}`;
         console.error("❌ Order failed:", {
           status: res.status,

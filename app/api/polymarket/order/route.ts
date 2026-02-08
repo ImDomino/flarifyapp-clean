@@ -10,11 +10,11 @@ import crypto from "crypto";
  *
  * Server-side proxy for posting signed orders to Polymarket CLOB.
  *
- * IMPORTANT: clobClient.createOrder() returns an ALREADY WRAPPED object:
- * { deferExec: false, order: { salt, maker, signer, ... }, owner: "apiKey", orderType: "GTC" }
+ * IMPORTANT: clobClient.createOrder() returns different structures depending on SDK version:
+ * - Option 1: { deferExec, order: {...signedOrder}, owner, orderType }
+ * - Option 2: {...signedOrder} directly (flat structure)
  *
- * We must send this object EXACTLY as-is to CLOB /order endpoint.
- * Do NOT add any additional wrapping.
+ * We need to handle both and send the correct format to CLOB API.
  */
 
 const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
@@ -49,10 +49,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // order from createOrder() is already the full CLOB payload:
-    // { deferExec, order: {...signedOrder}, owner, orderType }
-    // Send it exactly as-is
-    const clobBody = JSON.stringify(order);
+    // Детальное логирование входящей структуры
+    console.log("📥 Incoming order structure:", {
+      hasDeferExec: "deferExec" in order,
+      hasOrder: !!order.order,
+      hasOwner: !!order.owner,
+      orderType: order.orderType,
+      topLevelKeys: Object.keys(order),
+      nestedOrderKeys: order.order ? Object.keys(order.order) : "no nested order",
+    });
+
+    // ✅ Normalize order structure
+    // CLOB API expects: { deferExec, order: {...}, owner, orderType }
+    let normalizedOrder: any;
+
+    if (order.order) {
+      // Already has nested structure
+      normalizedOrder = order;
+      console.log("✅ Order already has nested structure");
+    } else if (order.salt && order.maker && order.signer) {
+      // Flat signed order, need to wrap it
+      normalizedOrder = {
+        deferExec: false,
+        order: order,
+        owner: "apiKey",
+        orderType: "GTC",
+      };
+      console.log("✅ Wrapped flat order into nested structure");
+    } else {
+      // Unknown structure
+      console.error("❌ Unknown order structure:", order);
+      return NextResponse.json(
+        { error: "Invalid order payload - unknown structure" },
+        { status: 400 }
+      );
+    }
+
+    // Validate nested order has required fields
+    if (!normalizedOrder.order?.salt || !normalizedOrder.order?.maker) {
+      console.error("❌ Invalid signed order:", normalizedOrder.order);
+      return NextResponse.json(
+        { error: "Invalid order payload - missing required fields (salt, maker)" },
+        { status: 400 }
+      );
+    }
+
+    const clobBody = JSON.stringify(normalizedOrder);
     const now = Date.now();
     const userTimestamp = Math.floor(now / 1000); // seconds for user
     const builderTimestamp = now; // milliseconds for builder
@@ -75,13 +117,13 @@ export async function POST(request: NextRequest) {
       clobBody
     );
 
-    console.log("ORDER PROXY:", {
+    console.log("📤 Sending to CLOB:", {
       eoaAddress: eoaAddress.slice(0, 10) + "...",
       apiKey: userCreds.key.slice(0, 12) + "...",
-      hasOrder: !!order.order,
-      hasDeferExec: "deferExec" in order,
-      hasOwner: !!order.owner,
-      orderType: order.orderType,
+      hasDeferExec: "deferExec" in normalizedOrder,
+      hasOrder: !!normalizedOrder.order,
+      hasOwner: !!normalizedOrder.owner,
+      orderType: normalizedOrder.orderType,
       bodyLength: clobBody.length,
     });
 
@@ -108,7 +150,7 @@ export async function POST(request: NextRequest) {
     const responseText = await clobResponse.text();
 
     if (!clobResponse.ok) {
-      console.error("CLOB order error:", clobResponse.status, responseText);
+      console.error("❌ CLOB order error:", clobResponse.status, responseText);
       return NextResponse.json(
         {
           error: "CLOB order failed",
@@ -121,13 +163,14 @@ export async function POST(request: NextRequest) {
 
     try {
       const json = JSON.parse(responseText);
-      console.log("CLOB order success:", json);
+      console.log("✅ CLOB order success:", json);
       return NextResponse.json(json);
     } catch {
+      console.log("✅ CLOB order success (non-JSON):", responseText);
       return NextResponse.json({ result: responseText });
     }
   } catch (error: any) {
-    console.error("Order proxy error:", error);
+    console.error("❌ Order proxy error:", error);
     return NextResponse.json(
       { error: error.message || "Failed to proxy order" },
       { status: 500 }
