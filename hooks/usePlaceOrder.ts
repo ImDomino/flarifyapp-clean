@@ -7,10 +7,10 @@ import { useClobClient } from "./useClobClient";
 /**
  * Hook: usePlaceOrder
  *
- * Reference: Section 8 — Placing Orders
- *
- * Key fix: negRisk is now a required parameter, not hardcoded to false.
- * Each market has a neg_risk field from the Gamma API that must be passed through.
+ * IMPORTANT: Polymarket CLOB API blocks direct browser requests (CORS).
+ * So we split the flow:
+ * 1. createOrder() — signs the order client-side (Privy handles signature)
+ * 2. POST to /api/polymarket/order — our server proxies to clob.polymarket.com
  */
 
 export interface PlaceOrderParams {
@@ -18,29 +18,28 @@ export interface PlaceOrderParams {
   side: Side;
   price: number;
   size: number;
-  negRisk: boolean; // REQUIRED — from market data (gamma API neg_risk field)
+  negRisk?: boolean;
 }
 
 export const usePlaceOrder = () => {
   const { initClobClient } = useClobClient();
 
-  /**
-   * Place a BUY or SELL order.
-   *
-   * @param tokenId - Outcome token ID
-   * @param side - Side.BUY or Side.SELL
-   * @param price - Price per share (0.0–1.0)
-   * @param size - Number of shares
-   * @param negRisk - Whether market uses NegRisk exchange (from Gamma API)
-   * @returns Order ID
-   */
   const placeOrder = useCallback(
     async (params: PlaceOrderParams): Promise<string> => {
-      const { tokenId, side, price, size, negRisk } = params;
+      const { tokenId, side, price, size, negRisk = false } = params;
 
-      const { clobClient } = await initClobClient();
+      const { clobClient, userCreds } = await initClobClient();
 
-      const order = {
+      console.log("ORDER DEBUG:", {
+        tokenId: tokenId.slice(0, 20) + "...",
+        side,
+        price,
+        size,
+        negRisk,
+      });
+
+      // Step 1: Create & sign order client-side (no CLOB network call)
+      const orderPayload = {
         tokenID: tokenId,
         price,
         size,
@@ -49,25 +48,39 @@ export const usePlaceOrder = () => {
         expiration: 0,
         taker: "0x0000000000000000000000000000000000000000",
       };
-      console.log("🔍 ORDER DEBUG:", {
-        tokenId: tokenId.slice(0, 20) + "...",
-        side,
-        price,
-        size,
-        negRisk,
-        negRiskType: typeof negRisk,
-      });
-      // CRITICAL: negRisk determines which exchange contract signs the order
-      //   false → CTF Exchange (0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e)
-      //   true  → NegRisk CTF Exchange (0xC5d563A36AE78145C45a50134d48A1215220f80a)
-      // Wrong value = "invalid signature" error
-      const res = await clobClient.createAndPostOrder(
-        order,
+
+      const signedOrder = await clobClient.createOrder(
+        orderPayload,
         { negRisk },
         OrderType.GTC
       );
 
-      return res.orderID;
+      console.log("Order signed, posting via proxy...");
+
+      // Step 2: Post via server proxy (bypasses CORS)
+      const res = await fetch("/api/polymarket/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order: signedOrder,
+          headers: {
+            "POLY-ADDRESS": userCreds.key,
+            "POLY-SIGNATURE": userCreds.secret,
+            "POLY-PASSPHRASE": userCreds.passphrase,
+          },
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.details || data.error || "Order failed: " + res.status
+        );
+      }
+
+      console.log("Order placed:", data);
+      return data.orderID || data.id || "success";
     },
     [initClobClient]
   );
@@ -77,7 +90,7 @@ export const usePlaceOrder = () => {
       tokenId: string,
       price: number,
       size: number,
-      negRisk: boolean
+      negRisk?: boolean
     ): Promise<string> => {
       return placeOrder({ tokenId, side: Side.BUY, price, size, negRisk });
     },
@@ -89,7 +102,7 @@ export const usePlaceOrder = () => {
       tokenId: string,
       price: number,
       size: number,
-      negRisk: boolean
+      negRisk?: boolean
     ): Promise<string> => {
       return placeOrder({ tokenId, side: Side.SELL, price, size, negRisk });
     },
