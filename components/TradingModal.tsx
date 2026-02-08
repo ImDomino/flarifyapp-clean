@@ -30,7 +30,7 @@ interface TradingModalProps {
 type TradeType = "buy" | "sell";
 
 const MIN_SHARES = 5;
-const MIN_BUY_AMOUNT_USD = 1; // Polymarket minimum for marketable BUY orders
+const MIN_BUY_AMOUNT_USD = 1.01; // Polymarket minimum $1, add buffer for rounding
 
 export function TradingModal({
   marketId,
@@ -139,11 +139,25 @@ export function TradingModal({
     setIsProcessing(true);
 
     try {
+      // For BUY: size = shares (amount / price)
+      // Polymarket requires minimum $1 for marketable orders
+      // Round size up slightly to avoid rounding below $1
+      let orderSize = tradeType === "buy" ? shares : amountNum;
+      
+      if (tradeType === "buy") {
+        // Ensure dollar amount (size * price) >= $1.00
+        const dollarAmount = orderSize * price;
+        if (dollarAmount < 1.0 && dollarAmount > 0.95) {
+          // Bump size up to ensure we clear $1 minimum
+          orderSize = Math.ceil(1.0 / price * 100) / 100;
+        }
+      }
+
       const orderId = await placeOrder({
         tokenId,
         side: tradeType === "buy" ? Side.BUY : Side.SELL,
         price,
-        size: tradeType === "buy" ? shares : amountNum,
+        size: orderSize,
         negRisk: marketData.negRisk ?? false,
       });
 
