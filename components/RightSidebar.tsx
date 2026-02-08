@@ -20,12 +20,24 @@ export function RightSidebar() {
 
   useEffect(() => {
     if (eoaAddress) {
-      ensureSafe().then(setSafeAddress).catch(console.error);
+      ensureSafe()
+        .then((addr) => {
+          console.log("RightSidebar: Safe address resolved:", addr);
+          setSafeAddress(addr);
+        })
+        .catch((err) => {
+          console.error("RightSidebar: ensureSafe failed:", err);
+        });
     }
   }, [eoaAddress, ensureSafe]);
 
   const { safeBalance, isLoading, refresh } = useBalances(eoaAddress, safeAddress);
   const safeNum = parseFloat(safeBalance || "0");
+
+  // Debug: log balance state
+  useEffect(() => {
+    console.log("RightSidebar balance:", { eoaAddress: eoaAddress?.slice(0, 10), safeAddress: safeAddress?.slice(0, 10), safeBalance, isLoading });
+  }, [eoaAddress, safeAddress, safeBalance, isLoading]);
 
   if (!authenticated) {
     return (

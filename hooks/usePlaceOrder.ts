@@ -28,7 +28,7 @@ export const usePlaceOrder = () => {
     async (params: PlaceOrderParams): Promise<string> => {
       const { tokenId, side, price, size, negRisk = false } = params;
 
-      const { clobClient, userCreds } = await initClobClient();
+      const { clobClient, userCreds, eoaAddress } = await initClobClient();
 
       console.log("ORDER DEBUG:", {
         tokenId: tokenId.slice(0, 20) + "...",
@@ -36,6 +36,7 @@ export const usePlaceOrder = () => {
         price,
         size,
         negRisk,
+        eoaAddress: eoaAddress.slice(0, 10) + "...",
       });
 
       // Step 1: Create & sign order client-side (no CLOB network call)
@@ -56,17 +57,19 @@ export const usePlaceOrder = () => {
 
       console.log("Order signed, posting via proxy...");
 
-      // Step 2: Post via server proxy (bypasses CORS)
+      // Step 2: Post via server proxy (bypasses CORS + geo-block)
+      // Server generates proper HMAC headers for both user and builder
       const res = await fetch("/api/polymarket/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           order: signedOrder,
-          headers: {
-            "POLY-ADDRESS": userCreds.key,
-            "POLY-SIGNATURE": userCreds.secret,
-            "POLY-PASSPHRASE": userCreds.passphrase,
+          userCreds: {
+            key: userCreds.key,
+            secret: userCreds.secret,
+            passphrase: userCreds.passphrase,
           },
+          eoaAddress,
         }),
       });
 
