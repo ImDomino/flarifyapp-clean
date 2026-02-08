@@ -1,7 +1,6 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: ["class"],
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,19 +9,18 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        display: ['Clash Grotesk', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        body: ['Satoshi', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        body: ["'Clash Grotesk'", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        display: ["'Clash Grotesk'", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        sans: ["'Clash Grotesk'", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
       },
       colors: {
-        // Base palette
         base: {
-          950: '#0f0f12',
-          900: '#121318',
-          850: '#161821',
-          800: '#1b1e29',
-          700: '#24283a',
+          950: "hsl(var(--base-950))",
+          900: "hsl(var(--base-900))",
+          850: "hsl(var(--base-850))",
+          800: "hsl(var(--base-800))",
+          700: "hsl(var(--base-700))",
         },
-        // Semantic colors
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -68,33 +66,12 @@ const config: Config = {
         },
       },
       borderRadius: {
-        xl: '12px',
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-      },
-      boxShadow: {
-        glow: '0 0 0 1px rgba(59,130,246,.20), 0 18px 60px rgba(0,0,0,.55)',
-        card: '0 0 0 1px rgba(255,255,255,.06), 0 18px 50px rgba(0,0,0,.45)',
-        soft: '0 0 0 1px rgba(255,255,255,.07), 0 10px 24px rgba(0,0,0,.35)',
-      },
-      keyframes: {
-        floaty: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-6px)' },
-        },
-        sheen: {
-          '0%': { transform: 'translateX(-120%)' },
-          '100%': { transform: 'translateX(120%)' },
-        },
-      },
-      animation: {
-        floaty: 'floaty 7s ease-in-out infinite',
-        sheen: 'sheen 2.6s ease-in-out infinite',
       },
     },
   },
   plugins: [],
 };
-
 export default config;

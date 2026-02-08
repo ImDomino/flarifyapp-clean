@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, MessageCircle, TrendingUp } from "lucide-react";
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { motion } from "framer-motion";
 import type { PostWithUser } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
@@ -75,116 +74,99 @@ export function PostCard({ post }: PostCardProps) {
     "unknown";
   const avatarUrl = post.profiles?.avatar_url;
   const timeAgo = formatDistanceToNow(new Date(post.created_at), {
-    addSuffix: true,
+    addSuffix: false,
   });
   const isOwnPost = user?.id === post.user_id;
 
+  const navigateToProfile = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isOwnPost) {
+      router.push(`/user/${post.user_id}`);
+    } else {
+      router.push(`/profile`);
+    }
+  };
+
   return (
-    <motion.div
-      whileHover={{ y: -4 }}
-      transition={{ type: "spring", stiffness: 300, damping: 25 }}
-      className="relative overflow-hidden rounded-3xl bg-card backdrop-blur-xl border border-white/10 p-6 mb-6 cursor-pointer card-shadow card-hover"
+    <article
+      className="bg-base-900/60 border border-white/5 rounded-2xl p-5 hover:bg-base-900/80 transition-colors cursor-pointer group"
       onClick={() => router.push(`/post/${post.id}`)}
     >
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2A56F2] to-[#9DFECB] opacity-0 group-hover:opacity-100 transition-opacity" />
-
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <motion.div
-          whileHover={{ scale: 1.1, rotate: 5 }}
-          whileTap={{ scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 400, damping: 10 }}
-          className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2A56F2] to-[#9DFECB] flex items-center justify-center text-lg font-semibold text-white shadow-lg overflow-hidden flex-shrink-0 cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!isOwnPost) {
-              router.push(`/user/${post.user_id}`);
-            } else {
-              router.push(`/profile`);
-            }
-          }}
-        >
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={displayName}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            displayName[0].toUpperCase()
-          )}
-        </motion.div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p
-              className="font-semibold text-foreground truncate cursor-pointer hover:underline"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!isOwnPost) {
-                  router.push(`/user/${post.user_id}`);
-                } else {
-                  router.push(`/profile`);
-                }
-              }}
-            >
-              {displayName}
-            </p>
-            {!isOwnPost && (
-              <span
-                className="flex-shrink-0"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <FollowButton targetUserId={post.user_id} />
-              </span>
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex gap-3 min-w-0">
+          {/* Avatar */}
+          <div
+            className="w-11 h-11 rounded-full overflow-hidden flex-shrink-0 cursor-pointer ring-2 ring-transparent hover:ring-blue-500/30 transition-all"
+            onClick={navigateToProfile}
+          >
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center">
+                <span className="font-display font-bold text-white text-sm">
+                  {displayName[0].toUpperCase()}
+                </span>
+              </div>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">
-            <span
-              className="cursor-pointer hover:underline"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!isOwnPost) {
-                  router.push(`/user/${post.user_id}`);
-                } else {
-                  router.push(`/profile`);
-                }
-              }}
-            >
-              @{username}
-            </span>
-            {" "}· {timeAgo}
-          </p>
+
+          {/* Name & time */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h3
+                className="font-bold text-slate-100 text-sm truncate cursor-pointer hover:underline"
+                onClick={navigateToProfile}
+              >
+                {displayName}
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 font-medium tracking-tight">
+              <span
+                className="cursor-pointer hover:underline"
+                onClick={navigateToProfile}
+              >
+                @{username}
+              </span>
+              {" "}· {timeAgo}
+            </p>
+          </div>
         </div>
-        {post.polymarket_market_id && (
-          <div className="flex items-center gap-1 px-3 py-1 bg-[#2A56F2]/10 border border-[#2A56F2]/20 rounded-full flex-shrink-0">
-            <TrendingUp className="w-3 h-3 text-[#2A56F2]" />
-            <span className="text-xs font-medium text-[#2A56F2]">Market</span>
+
+        {/* Follow button */}
+        {!isOwnPost && (
+          <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <FollowButton
+              targetUserId={post.user_id}
+              className="px-4 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-bold hover:bg-blue-500 hover:text-white transition-all"
+            />
           </div>
         )}
       </div>
 
       {/* Content */}
-      <p className="text-foreground/90 mb-4 whitespace-pre-wrap leading-relaxed">
+      <p className="text-slate-100 mb-4 leading-relaxed whitespace-pre-wrap">
         {post.content}
       </p>
 
       {/* Image */}
       {post.image_url && (
-        <motion.div
-          whileHover={{ scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300, damping: 25 }}
-          className="relative w-full rounded-2xl overflow-hidden border border-white/10 mb-4 shadow-lg"
-          style={{ maxHeight: "500px" }}
+        <div
+          className="rounded-2xl overflow-hidden border border-white/10 mb-4 group-hover:[&_img]:scale-[1.02]"
         >
           <Image
             src={post.image_url}
             alt="Post image"
             width={690}
             height={500}
-            className="w-full h-auto object-cover"
+            className="w-full h-auto object-cover transition-transform duration-700"
             unoptimized
           />
-        </motion.div>
+        </div>
       )}
 
       {/* Market Card */}
@@ -203,65 +185,51 @@ export function PostCard({ post }: PostCardProps) {
 
       {/* Actions */}
       <div
-        className="flex items-center gap-6 pt-4 border-t border-white/5"
+        className="flex items-center justify-between text-slate-500 pt-4 border-t border-white/5"
         onClick={(e) => e.stopPropagation()}
       >
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
+        <button
+          onClick={() => router.push(`/post/${post.id}`)}
+          className="flex items-center gap-2 hover:text-blue-400 transition-all group/action"
+        >
+          <MessageCircle className="w-[18px] h-[18px] group-hover/action:scale-110 transition-transform" />
+          {(post.comments_count ?? 0) > 0 && (
+            <span className="text-xs">{post.comments_count}</span>
+          )}
+        </button>
+
+        <button
           onClick={handleLike}
           disabled={isLiking}
-          className={`flex items-center gap-2 transition-colors group ${
-            hasLiked
-              ? "text-[#FF375F]"
-              : "text-muted-foreground hover:text-[#FF375F]"
+          className={`flex items-center gap-2 transition-all group/action ${
+            hasLiked ? "text-rose-400" : "hover:text-rose-400"
           }`}
         >
           <Heart
-            className={`w-5 h-5 transition-all ${hasLiked && "fill-current scale-110"}`}
+            className={`w-[18px] h-[18px] group-hover/action:scale-110 transition-transform ${
+              hasLiked ? "fill-current" : ""
+            }`}
           />
-          {likes > 0 && <span className="text-sm font-medium">{likes}</span>}
-        </motion.button>
+          {likes > 0 && <span className="text-xs">{likes}</span>}
+        </button>
 
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => router.push(`/post/${post.id}`)}
-          className="flex items-center gap-2 text-muted-foreground hover:text-[#2A56F2] transition-colors group"
-        >
-          <MessageCircle className="w-5 h-5 transition-transform" />
-          {(post.comments_count ?? 0) > 0 && (
-            <span className="text-sm font-medium">{post.comments_count}</span>
-          )}
-        </motion.button>
-
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+        <button
           onClick={(e) => {
             e.stopPropagation();
             navigator.clipboard.writeText(
               `${window.location.origin}/post/${post.id}`
             );
-            alert("Link copied to clipboard!");
           }}
+          className="flex items-center gap-2 hover:text-teal-400 transition-all group/action"
         >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-            />
-          </svg>
-        </motion.button>
+          <Share2 className="w-[18px] h-[18px] group-hover/action:scale-110 transition-transform" />
+          <span className="text-xs">Share</span>
+        </button>
+
+        <button className="flex items-center gap-2 hover:text-blue-400 transition-all group/action">
+          <Bookmark className="w-[18px] h-[18px] group-hover/action:scale-110 transition-transform" />
+        </button>
       </div>
-    </motion.div>
+    </article>
   );
 }

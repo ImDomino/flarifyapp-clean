@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserPlus, UserCheck, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 
 interface FollowButtonProps {
@@ -16,7 +16,6 @@ export function FollowButton({ targetUserId, onToggle, className }: FollowButton
   const [isLoading, setIsLoading] = useState(false);
   const [checked, setChecked] = useState(false);
 
-  // Don't show follow button for own profile
   const isOwnProfile = user?.id === targetUserId;
 
   useEffect(() => {
@@ -78,7 +77,7 @@ export function FollowButton({ targetUserId, onToggle, className }: FollowButton
       disabled={isLoading || !checked}
       className={
         className ||
-        `inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition min-h-[40px] ${
+        `inline-flex items-center justify-center rounded-lg px-4 py-1.5 text-xs font-bold transition leading-none ${
           isFollowing
             ? "bg-white/5 hover:bg-rose-500/10 border border-white/10 text-slate-200 hover:text-rose-300 hover:border-rose-500/20"
             : "bg-gradient-to-r from-blue-500/90 to-teal-400/90 text-slate-950 hover:from-blue-500 hover:to-teal-400 shadow-glow"
@@ -86,17 +85,11 @@ export function FollowButton({ targetUserId, onToggle, className }: FollowButton
       }
     >
       {isLoading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
       ) : isFollowing ? (
-        <>
-          <UserCheck className="w-4 h-4" />
-          Following
-        </>
+        "Following"
       ) : (
-        <>
-          <UserPlus className="w-4 h-4" />
-          Follow
-        </>
+        "Follow"
       )}
     </button>
   );

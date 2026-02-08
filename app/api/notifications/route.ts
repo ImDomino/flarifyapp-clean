@@ -17,13 +17,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = createClient();
 
+    // Step 1: Fetch notifications (no FK join — actor_id is TEXT, not a FK to profiles)
     let query = supabase
       .from('notifications')
       .select(`
         *,
-        actor:profiles!notifications_actor_id_fkey (
-          id, username, display_name, avatar_url
-        ),
         post:posts (
           id, content
         )
@@ -36,11 +34,11 @@ export async function GET(request: NextRequest) {
       query = query.eq('read', false);
     }
 
-    const { data, error } = await query;
+    const { data: notifications, error } = await query;
 
     if (error) {
-      // If foreign key doesn't exist yet, fallback to simple query
       console.error('Notifications query error:', error);
+      // Ultimate fallback — no joins at all
       const { data: fallbackData, error: fallbackError } = await supabase
         .from('notifications')
         .select('*')
@@ -49,10 +47,45 @@ export async function GET(request: NextRequest) {
         .limit(limit);
 
       if (fallbackError) throw fallbackError;
-      return NextResponse.json({ notifications: fallbackData || [] });
+
+      // Count unread
+      const { count: unreadCount } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('read', false);
+
+      return NextResponse.json({
+        notifications: fallbackData || [],
+        unread_count: unreadCount || 0,
+      });
     }
 
-    // Count unread
+    // Step 2: Collect unique actor_ids and fetch their profiles separately
+    const actorIds = [...new Set((notifications || []).map((n) => n.actor_id).filter(Boolean))];
+
+    let actorMap: Record<string, any> = {};
+
+    if (actorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .in('id', actorIds);
+
+      if (profiles) {
+        for (const p of profiles) {
+          actorMap[p.id] = p;
+        }
+      }
+    }
+
+    // Step 3: Merge actor data into notifications
+    const enrichedNotifications = (notifications || []).map((n) => ({
+      ...n,
+      actor: actorMap[n.actor_id] || null,
+    }));
+
+    // Step 4: Count unread
     const { count: unreadCount } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
@@ -60,7 +93,7 @@ export async function GET(request: NextRequest) {
       .eq('read', false);
 
     return NextResponse.json({
-      notifications: data || [],
+      notifications: enrichedNotifications,
       unread_count: unreadCount || 0,
     });
   } catch (error) {

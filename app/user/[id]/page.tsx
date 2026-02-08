@@ -142,7 +142,7 @@ export default function UserProfilePage() {
           </div>
 
           {/* Follow button */}
-          <div className="absolute bottom-4 right-5 flex items-center gap-2">
+          <div className="">
             <FollowButton
               targetUserId={userId}
               onToggle={() => loadFollowCounts()}

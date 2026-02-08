@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { PostCard } from "@/components/PostCard";
-import { Search, Plus, RefreshCw, Flame, Users } from "lucide-react";
+import { Search, Plus, RefreshCw, Flame, Users, BarChart3, Image as ImageIcon, Smile, Calendar, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import type { PostWithUser } from "@/lib/types";
@@ -68,36 +68,34 @@ export default function Home() {
     setFeedTab(tab);
   };
 
+  const username = user?.google?.name || user?.email?.address?.split("@")[0] || "User";
+
   return (
     <div className="space-y-5">
       {/* Search Bar */}
-      <div className="relative">
-        <div className="rounded-xl bg-base-900/70 border border-white/5 shadow-soft overflow-hidden">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search markets, users, or posts..."
-              disabled
-              className="w-full pl-12 pr-28 py-4 bg-transparent border-none focus:outline-none focus:ring-0 text-slate-200 placeholder:text-slate-500 cursor-not-allowed"
-            />
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 px-2.5 py-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              <span className="text-[10px] font-medium text-blue-300">Coming Soon</span>
-            </div>
+      <div className="sticky top-0 z-30 bg-base-950/80 backdrop-blur-md pb-4 pt-2 -mx-2 px-2">
+        <div className="relative mb-4">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-slate-500" />
+          <input
+            type="text"
+            placeholder="Search markets, users, or posts..."
+            disabled
+            className="w-full bg-base-850/70 border border-white/5 rounded-2xl py-3 pl-12 pr-28 text-sm focus:outline-none focus:border-blue-500/50 transition-all cursor-not-allowed text-slate-200 placeholder:text-slate-500"
+          />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-md">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+            <span className="text-[9px] font-bold text-blue-400 uppercase tracking-tighter">Coming Soon</span>
           </div>
         </div>
-      </div>
 
-      {/* Feed Tabs */}
-      <div className="flex items-center gap-2">
-        <div className="inline-flex rounded-lg bg-base-900/70 border border-white/5 p-1">
+        {/* Feed Tabs */}
+        <div className="flex items-center gap-2 bg-base-900/70 p-1 rounded-xl border border-white/5 w-fit">
           <button
             onClick={() => handleTabSwitch("foryou")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold transition ${
+            className={`px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all ${
               feedTab === "foryou"
-                ? "text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow"
-                : "text-slate-300 hover:text-slate-100 hover:bg-white/5"
+                ? "bg-blue-500/10 text-blue-400"
+                : "text-slate-400 hover:text-white"
             }`}
           >
             <Flame className="w-4 h-4" />
@@ -105,46 +103,76 @@ export default function Home() {
           </button>
           <button
             onClick={() => handleTabSwitch("following")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold transition ${
+            className={`px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all ${
               feedTab === "following"
-                ? "text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow"
-                : "text-slate-300 hover:text-slate-100 hover:bg-white/5"
+                ? "bg-blue-500/10 text-blue-400"
+                : "text-slate-400 hover:text-white"
             } ${!authenticated ? "opacity-40 cursor-not-allowed" : ""}`}
             disabled={!authenticated}
           >
             <Users className="w-4 h-4" />
             Following
           </button>
+          <button
+            className="px-5 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white flex items-center gap-2 transition-all opacity-40 cursor-not-allowed"
+            disabled
+          >
+            <BarChart3 className="w-4 h-4" />
+            Live Markets
+          </button>
         </div>
       </div>
 
-      {/* Create Post Prompt */}
-      <div
-        onClick={() => router.push("/create")}
-        className="rounded-xl bg-base-900/60 border border-white/5 shadow-soft p-5 cursor-pointer hover:bg-base-900/80 hover:border-white/10 transition-all group"
-      >
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center shadow-soft group-hover:scale-105 transition-transform">
-            <Plus className="w-6 h-6 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <input
-              type="text"
-              placeholder="What's the latest?"
-              readOnly
-              className="w-full bg-transparent border-none focus:outline-none text-slate-400 cursor-pointer"
-            />
-          </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push("/create");
-            }}
-            className="relative inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow overflow-hidden"
+      {/* Compose Section */}
+      <div className="bg-base-900/60 border border-white/5 rounded-2xl p-5">
+        <div className="flex gap-4">
+          {/* User avatar */}
+          <div
+            className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 cursor-pointer"
+            onClick={() => router.push(authenticated ? "/profile" : "#")}
           >
-            <span className="relative z-10">Post</span>
-            <span className="absolute inset-0 opacity-30 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,.65),transparent)] -translate-x-[120%] animate-sheen"></span>
-          </button>
+            <div className="w-full h-full bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center">
+              <span className="font-display font-bold text-white">
+                {authenticated ? username[0].toUpperCase() : "?"}
+              </span>
+            </div>
+          </div>
+
+          {/* Input area */}
+          <div className="flex-1">
+            <div
+              onClick={() => router.push("/create")}
+              className="cursor-pointer"
+            >
+              <p className="text-slate-500 pt-3 pb-2 text-sm">What's the latest?</p>
+            </div>
+            <div className="flex items-center justify-between pt-4 border-t border-white/5">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => router.push("/create")}
+                  className="text-slate-500 hover:text-blue-400 transition-colors"
+                >
+                  <ImageIcon className="w-5 h-5" />
+                </button>
+                <button className="text-slate-500 hover:text-blue-400 transition-colors cursor-not-allowed opacity-50">
+                  <Smile className="w-5 h-5" />
+                </button>
+                <button className="text-slate-500 hover:text-blue-400 transition-colors cursor-not-allowed opacity-50">
+                  <Calendar className="w-5 h-5" />
+                </button>
+                <button className="text-slate-500 hover:text-blue-400 transition-colors cursor-not-allowed opacity-50">
+                  <MapPin className="w-5 h-5" />
+                </button>
+              </div>
+              <button
+                onClick={() => router.push("/create")}
+                className="relative px-6 py-2 rounded-xl text-sm font-bold text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow overflow-hidden"
+              >
+                <span className="relative z-10">Post</span>
+                <span className="absolute inset-0 opacity-30 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,.65),transparent)] -translate-x-[120%] animate-sheen"></span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -157,7 +185,7 @@ export default function Home() {
 
       {/* Posts List */}
       {!isLoading && posts.length === 0 ? (
-        <div className="rounded-xl bg-base-900/60 border border-white/5 shadow-card p-8 text-center">
+        <div className="rounded-2xl bg-base-900/60 border border-white/5 shadow-card p-8 text-center">
           <div className="h-20 w-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500/20 to-teal-500/20 flex items-center justify-center">
             {feedTab === "following" ? (
               <Users className="w-10 h-10 text-blue-300" />
