@@ -51,8 +51,7 @@ export const usePlaceOrder = () => {
 
       const signedOrder = await clobClient.createOrder(
         orderPayload,
-        { negRisk },
-        OrderType.GTC
+        { negRisk, orderType: OrderType.GTC }
       );
 
       console.log("Order signed, posting via proxy...");
