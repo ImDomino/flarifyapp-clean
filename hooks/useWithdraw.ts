@@ -29,7 +29,7 @@ function parseUSDC(amount: string): bigint {
   const parts = amount.split(".");
   const whole = parts[0] || "0";
   let frac = (parts[1] || "").slice(0, 6).padEnd(6, "0");
-  return BigInt(whole) * 1000000n + BigInt(frac);
+  return BigInt(whole) * BigInt(1000000) + BigInt(frac);
 }
 
 export interface WithdrawParams {
