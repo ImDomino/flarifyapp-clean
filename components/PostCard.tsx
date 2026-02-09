@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Share } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { PostWithUser } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -23,14 +23,8 @@ export function PostCard({ post }: PostCardProps) {
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
-
-    if (!user) {
-      alert("Please sign in to like posts");
-      return;
-    }
-
+    if (!user) { alert("Please sign in to like posts"); return; }
     if (isLiking) return;
-
     setIsLiking(true);
 
     const newLiked = !hasLiked;
@@ -42,25 +36,13 @@ export function PostCard({ post }: PostCardProps) {
       const response = await fetch("/api/likes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          post_id: post.id,
-          user_id: user.id,
-        }),
+        body: JSON.stringify({ post_id: post.id, user_id: user.id }),
       });
-
       const data = await response.json();
-
-      if (!data.success) {
-        setHasLiked(!newLiked);
-        setLikes(likes);
-      }
-    } catch (error) {
-      console.error("Error toggling like:", error);
-      setHasLiked(!newLiked);
-      setLikes(likes);
-    } finally {
-      setIsLiking(false);
-    }
+      if (!data.success) { setHasLiked(!newLiked); setLikes(likes); }
+    } catch {
+      setHasLiked(!newLiked); setLikes(likes);
+    } finally { setIsLiking(false); }
   };
 
   const displayName =
@@ -73,162 +55,139 @@ export function PostCard({ post }: PostCardProps) {
     post.profiles?.email?.split("@")[0] ||
     "unknown";
   const avatarUrl = post.profiles?.avatar_url;
-  const timeAgo = formatDistanceToNow(new Date(post.created_at), {
-    addSuffix: false,
-  });
+  const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: false });
   const isOwnPost = user?.id === post.user_id;
 
   const navigateToProfile = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isOwnPost) {
-      router.push(`/user/${post.user_id}`);
-    } else {
-      router.push(`/profile`);
-    }
+    router.push(isOwnPost ? "/profile" : `/user/${post.user_id}`);
   };
 
   return (
     <article
-      className="bg-base-900/60 border border-white/5 rounded-2xl p-5 hover:bg-base-900/80 transition-colors cursor-pointer group"
+      className="bg-[#0a0a0a] border border-zinc-800 p-5 sm:p-6 interact-border group cursor-pointer"
       onClick={() => router.push(`/post/${post.id}`)}
     >
-      {/* Header */}
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex gap-3 min-w-0">
-          {/* Avatar */}
-          <div
-            className="w-11 h-11 rounded-full overflow-hidden flex-shrink-0 cursor-pointer ring-2 ring-transparent hover:ring-blue-500/30 transition-all"
-            onClick={navigateToProfile}
-          >
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center">
-                <span className="font-display font-bold text-white text-sm">
-                  {displayName[0].toUpperCase()}
-                </span>
-              </div>
-            )}
-          </div>
+      <div className="flex gap-4">
+        {/* Square avatar */}
+        <div
+          className="w-12 h-12 flex-shrink-0 border border-zinc-700 group-hover:border-white transition-colors overflow-hidden cursor-pointer"
+          onClick={navigateToProfile}
+        >
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={displayName}
+              className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all"
+            />
+          ) : (
+            <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
+              <span className="text-sm font-black text-white uppercase">
+                {displayName[0]}
+              </span>
+            </div>
+          )}
+        </div>
 
-          {/* Name & time */}
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
+        <div className="flex-1 min-w-0">
+          {/* Header */}
+          <div className="flex items-baseline justify-between mb-3">
+            <div className="flex items-center gap-2 min-w-0">
               <h3
-                className="font-bold text-slate-100 text-sm truncate cursor-pointer hover:underline"
+                className="font-black text-white uppercase text-sm tracking-wide truncate cursor-pointer hover:underline"
                 onClick={navigateToProfile}
               >
                 {displayName}
               </h3>
-            </div>
-            <p className="text-xs text-slate-500 font-medium tracking-tight">
-              <span
-                className="cursor-pointer hover:underline"
-                onClick={navigateToProfile}
-              >
+              <span className="text-zinc-600 text-xs font-bold uppercase flex-shrink-0">
                 @{username}
               </span>
-              {" "}· {timeAgo}
-            </p>
+            </div>
+            <span className="text-zinc-600 text-xs font-mono flex-shrink-0 ml-2">
+              {timeAgo.toUpperCase()}
+            </span>
           </div>
-        </div>
 
-        {/* Follow button */}
-        {!isOwnPost && (
-          <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-            <FollowButton
-              targetUserId={post.user_id}
-              className="px-4 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-bold hover:bg-blue-500 hover:text-white transition-all"
-            />
-          </div>
-        )}
-      </div>
+          {/* Content */}
+          <p className="text-zinc-300 text-sm leading-7 font-medium mb-4 whitespace-pre-wrap">
+            {post.content}
+          </p>
 
-      {/* Content */}
-      <p className="text-slate-100 mb-4 leading-relaxed whitespace-pre-wrap">
-        {post.content}
-      </p>
-
-      {/* Image */}
-      {post.image_url && (
-        <div
-          className="rounded-2xl overflow-hidden border border-white/10 mb-4 group-hover:[&_img]:scale-[1.02]"
-        >
-          <Image
-            src={post.image_url}
-            alt="Post image"
-            width={690}
-            height={500}
-            className="w-full h-auto object-cover transition-transform duration-700"
-            unoptimized
-          />
-        </div>
-      )}
-
-      {/* Market Card */}
-      {post.polymarket_market_id && post.market_data && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <MarketCard
-            marketData={{
-              ...post.market_data,
-              yesTokenId: post.yes_token_id || post.market_data.yesTokenId,
-              noTokenId: post.no_token_id || post.market_data.noTokenId,
-            }}
-            marketId={post.polymarket_market_id}
-          />
-        </div>
-      )}
-
-      {/* Actions */}
-      <div
-        className="flex items-center justify-between text-slate-500 pt-4 border-t border-white/5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={() => router.push(`/post/${post.id}`)}
-          className="flex items-center gap-2 hover:text-blue-400 transition-all group/action"
-        >
-          <MessageCircle className="w-[18px] h-[18px] group-hover/action:scale-110 transition-transform" />
-          {(post.comments_count ?? 0) > 0 && (
-            <span className="text-xs">{post.comments_count}</span>
+          {/* Image */}
+          {post.image_url && (
+            <div className="border border-zinc-800 mb-4 group-hover:border-zinc-600 transition-colors overflow-hidden">
+              <Image
+                src={post.image_url}
+                alt="Post image"
+                width={690}
+                height={400}
+                className="w-full h-auto object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                unoptimized
+              />
+            </div>
           )}
-        </button>
 
-        <button
-          onClick={handleLike}
-          disabled={isLiking}
-          className={`flex items-center gap-2 transition-all group/action ${
-            hasLiked ? "text-rose-400" : "hover:text-rose-400"
-          }`}
-        >
-          <Heart
-            className={`w-[18px] h-[18px] group-hover/action:scale-110 transition-transform ${
-              hasLiked ? "fill-current" : ""
-            }`}
-          />
-          {likes > 0 && <span className="text-xs">{likes}</span>}
-        </button>
+          {/* Market Card */}
+          {post.polymarket_market_id && post.market_data && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <MarketCard
+                marketData={{
+                  ...post.market_data,
+                  yesTokenId: post.yes_token_id || post.market_data.yesTokenId,
+                  noTokenId: post.no_token_id || post.market_data.noTokenId,
+                }}
+                marketId={post.polymarket_market_id}
+              />
+            </div>
+          )}
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            navigator.clipboard.writeText(
-              `${window.location.origin}/post/${post.id}`
-            );
-          }}
-          className="flex items-center gap-2 hover:text-teal-400 transition-all group/action"
-        >
-          <Share2 className="w-[18px] h-[18px] group-hover/action:scale-110 transition-transform" />
-          <span className="text-xs">Share</span>
-        </button>
+          {/* Actions */}
+          <div
+            className="flex items-center gap-6 pt-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handleLike}
+              disabled={isLiking}
+              className={`flex items-center gap-3 group/btn transition-colors ${
+                hasLiked ? "text-white" : "text-zinc-500 hover:text-white"
+              }`}
+            >
+              <div className="p-2 border border-transparent group-hover/btn:border-zinc-700 transition-colors">
+                <Heart className={`w-[18px] h-[18px] ${hasLiked ? "fill-current" : ""}`} />
+              </div>
+              {likes > 0 && <span className="text-xs font-mono font-bold">{likes}</span>}
+            </button>
 
-        <button className="flex items-center gap-2 hover:text-blue-400 transition-all group/action">
-          <Bookmark className="w-[18px] h-[18px] group-hover/action:scale-110 transition-transform" />
-        </button>
+            <button
+              onClick={() => router.push(`/post/${post.id}`)}
+              className="flex items-center gap-3 text-zinc-500 hover:text-white group/btn transition-colors"
+            >
+              <div className="p-2 border border-transparent group-hover/btn:border-zinc-700 transition-colors">
+                <MessageCircle className="w-[18px] h-[18px]" />
+              </div>
+              {(post.comments_count ?? 0) > 0 && (
+                <span className="text-xs font-mono font-bold">{post.comments_count}</span>
+              )}
+            </button>
+
+            <button className="flex items-center gap-3 text-zinc-500 hover:text-white group/btn transition-colors">
+              <div className="p-2 border border-transparent group-hover/btn:border-zinc-700 transition-colors">
+                <Repeat className="w-[18px] h-[18px]" />
+              </div>
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+              }}
+              className="ml-auto text-zinc-500 hover:text-white transition-colors"
+            >
+              <Share className="w-[18px] h-[18px]" />
+            </button>
+          </div>
+        </div>
       </div>
     </article>
   );

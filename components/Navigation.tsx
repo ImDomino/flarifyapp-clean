@@ -2,20 +2,38 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, PenSquare, User, Settings, LogOut } from "lucide-react";
+import { Home, Hash, Bookmark, List, User, LogOut } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { NotificationsPanel } from "./NotificationsPanel";
+import { useState, useEffect, useCallback } from "react";
 
 export function NavigationSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { authenticated, user, logout, login } = usePrivy();
 
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+
+  const loadFollowCounts = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`/api/follows?user_id=${encodeURIComponent(user.id)}`);
+      const data = await res.json();
+      setFollowersCount(data.followers || 0);
+      setFollowingCount(data.following || 0);
+    } catch { /* silent */ }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (authenticated) loadFollowCounts();
+  }, [authenticated, loadFollowCounts]);
+
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
-    { href: "/create", icon: PenSquare, label: "Post" },
+    { href: "/create", icon: Hash, label: "Explore", disabled: false },
+    { href: "#", icon: Bookmark, label: "Saved", disabled: true },
+    { href: "#", icon: List, label: "Lists", disabled: true },
     { href: "/profile", icon: User, label: "Profile" },
-    { href: "/settings", icon: Settings, label: "Settings" },
   ];
 
   const handleLogout = async () => {
@@ -25,75 +43,79 @@ export function NavigationSidebar() {
     }
   };
 
-  const username = user?.google?.name || user?.email?.address?.split("@")[0] || "User";
-
   return (
-    <>
-      <aside className="hidden lg:flex lg:flex-col gap-4">
-        <div className="rounded-xl bg-base-900/70 backdrop-blur border border-white/5 shadow-soft overflow-hidden">
-          {/* Logo */}
-          <div className="px-5 pt-5 pb-4 border-b border-white/5">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500/20 to-teal-500/20 border border-white/10 flex items-center justify-center shadow-soft">
-                <span className="font-display font-bold tracking-tight text-lg text-blue-200">F</span>
-              </div>
-              <div>
-                <div className="font-display font-semibold tracking-tight text-lg">Flarify</div>
-                <div className="text-xs text-slate-400">Prediction Market Social</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <nav className="p-3">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href;
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
-                    isActive
-                      ? "text-slate-200 bg-white/5 border border-white/5"
-                      : "text-slate-200 hover:bg-white/5"
-                  }`}
-                >
-                  <Icon className={`text-lg ${isActive ? "text-blue-300" : "text-slate-400 group-hover:text-blue-300"} transition`} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Logout */}
-          {authenticated && (
-            <div className="p-4 border-t border-white/5">
-              <button
-                onClick={handleLogout}
-                className="inline-flex items-center gap-2 text-sm text-rose-300 hover:text-rose-200 transition"
+    <aside className="col-span-3 lg:col-span-2 hidden md:block pt-6 lg:pt-8">
+      <div className="sticky top-28">
+        <nav className="flex flex-col gap-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.label}
+                href={item.disabled ? "#" : item.href}
+                className={`flex items-center gap-4 px-4 py-4 font-bold uppercase tracking-wider text-sm transition-all border ${
+                  isActive
+                    ? "bg-white text-black border-white"
+                    : "text-zinc-500 hover:text-white border-transparent hover:border-zinc-800 hover:bg-[#111]"
+                } ${item.disabled ? "opacity-30 cursor-not-allowed" : ""}`}
+                onClick={(e) => item.disabled && e.preventDefault()}
               >
-                <LogOut className="text-lg" />
-                Logout
-              </button>
-            </div>
-          )}
+                <Icon className="w-5 h-5" />
+                <span className="hidden lg:inline">{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
 
-          {!authenticated && (
-            <div className="p-4 border-t border-white/5">
-              <button
-                onClick={login}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow"
-              >
-                Sign in with Google
-              </button>
-            </div>
+        {/* Create Post Button */}
+        <div className="mt-8 lg:mt-12 pt-6 lg:pt-8 border-t border-zinc-900">
+          {authenticated ? (
+            <Link
+              href="/create"
+              className="flex w-full items-center justify-center py-4 bg-transparent border-2 border-zinc-700 text-white font-black uppercase tracking-widest text-sm hover:bg-white hover:text-black hover:border-white transition-all duration-300"
+            >
+              Create Post
+            </Link>
+          ) : (
+            <button
+              onClick={login}
+              className="flex w-full items-center justify-center py-4 bg-white text-black border-2 border-white font-black uppercase tracking-widest text-sm hover:bg-black hover:text-white transition-all duration-300"
+            >
+              Sign In
+            </button>
           )}
         </div>
 
-        {authenticated && <NotificationsPanel />}
-      </aside>
+        {/* Mini Stats */}
+        {authenticated && (
+          <div className="mt-8 lg:mt-12 grid grid-cols-2 gap-px bg-zinc-900 border border-zinc-900">
+            <div className="bg-[#050505] p-4 text-center group cursor-pointer hover:bg-[#0a0a0a] transition-colors">
+              <div className="text-xl font-black text-white">{followingCount}</div>
+              <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold group-hover:text-zinc-400">
+                Following
+              </div>
+            </div>
+            <div className="bg-[#050505] p-4 text-center group cursor-pointer hover:bg-[#0a0a0a] transition-colors">
+              <div className="text-xl font-black text-white">{followersCount}</div>
+              <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold group-hover:text-zinc-400">
+                Followers
+              </div>
+            </div>
+          </div>
+        )}
 
-    </>
+        {/* Logout */}
+        {authenticated && (
+          <button
+            onClick={handleLogout}
+            className="mt-6 flex items-center gap-3 px-4 py-3 text-zinc-600 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden lg:inline">Logout</span>
+          </button>
+        )}
+      </div>
+    </aside>
   );
 }

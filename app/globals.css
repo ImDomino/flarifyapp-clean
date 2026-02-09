@@ -1,43 +1,35 @@
-/* ===== Clash Grotesk — Variable Font ===== */
+/* ===== Satoshi Font ===== */
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/fonts/Satoshi-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/fonts/Satoshi-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/fonts/Satoshi-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/fonts/Satoshi-Black.otf') format('opentype');
+  font-weight: 900;
+  font-display: swap;
+}
+
+/* Clash Grotesk fallback */
 @font-face {
   font-family: 'Clash Grotesk';
   src: url('/fonts/ClashGrotesk-Variable.woff2') format('woff2-variations');
   font-weight: 200 700;
   font-display: swap;
-  font-style: normal;
-}
-
-/* Static fallbacks (if variable not supported) */
-@font-face {
-  font-family: 'Clash Grotesk';
-  src: url('/fonts/ClashGrotesk-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Clash Grotesk';
-  src: url('/fonts/ClashGrotesk-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-display: swap;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Clash Grotesk';
-  src: url('/fonts/ClashGrotesk-Semibold.woff2') format('woff2');
-  font-weight: 600;
-  font-display: swap;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Clash Grotesk';
-  src: url('/fonts/ClashGrotesk-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-display: swap;
-  font-style: normal;
 }
 
 @tailwind base;
@@ -46,198 +38,100 @@
 
 @layer base {
   :root {
-    /* Flarify Design System - Dark Theme */
-    --background: 240 9% 6%;
-    --foreground: 210 40% 98%;
-    
-    --card: 228 9% 8%;
-    --card-foreground: 210 40% 98%;
-    
-    --popover: 228 9% 8%;
-    --popover-foreground: 210 40% 98%;
-    
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-    
-    --secondary: 228 14% 13%;
-    --secondary-foreground: 210 40% 98%;
-    
-    --muted: 228 14% 13%;
-    --muted-foreground: 215 16% 57%;
-    
-    --accent: 168 76% 42%;
-    --accent-foreground: 222 47% 11%;
-    
-    --destructive: 347 77% 50%;
-    --destructive-foreground: 210 40% 98%;
-    
-    --border: 0 0% 100% / 0.05;
-    --input: 0 0% 100% / 0.08;
-    --ring: 217 91% 60%;
-    
-    --base-950: 240 9% 6%;
-    --base-900: 228 9% 8%;
-    --base-850: 225 13% 11%;
-    --base-800: 228 14% 13%;
-    --base-700: 229 22% 18%;
-    
-    --blue-primary: 217 91% 60%;
-    --teal-accent: 168 76% 42%;
-    --rose-error: 347 77% 50%;
-    
-    --radius: 0.875rem;
-    
-    --sidebar-background: 228 9% 7%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 228 14% 11%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 0 0% 100% / 0.05;
-    --sidebar-ring: 217 91% 60%;
+    --background: 0 0% 2%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 7%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 7%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 0 0% 100%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 15%;
+    --input: 0 0% 10%;
+    --ring: 0 0% 100%;
+    --base-950: 0 0% 2%;
+    --base-900: 0 0% 4%;
+    --base-850: 0 0% 6%;
+    --base-800: 0 0% 8%;
+    --base-700: 0 0% 13%;
+    --radius: 0px;
+    --sidebar-background: 0 0% 3%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 0 0% 7%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 0 0% 100%;
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-  
+  * { @apply border-border; }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Clash Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+    font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    background-color: #050505;
+    color: #ffffff;
   }
-  
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Clash Grotesk', sans-serif;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
 }
 
 @layer utilities {
-  .card-shadow {
-    box-shadow: 
-      0 0 0 1px rgba(255, 255, 255, 0.06),
-      0 18px 50px rgba(0, 0, 0, 0.45);
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
   }
-  
-  .shadow-glow {
-    box-shadow: 
-      0 0 0 1px rgba(59, 130, 246, 0.20),
-      0 18px 60px rgba(0, 0, 0, 0.55);
-  }
-  
-  .shadow-soft {
-    box-shadow: 
-      0 0 0 1px rgba(255, 255, 255, 0.07),
-      0 10px 24px rgba(0, 0, 0, 0.35);
-  }
-  
-  .gradient-blue-teal {
-    background: linear-gradient(to right, #3b82f6, #14b8a6);
-  }
-  
+  .interact-hover { transition: all 0.2s ease-out; }
+  .interact-hover:hover { background-color: #fff; color: #000; border-color: #fff; }
+  .interact-border { transition: border-color 0.2s ease-out, background-color 0.2s ease-out; }
+  .interact-border:hover { border-color: #fff; background-color: #111; }
+
+  .card-shadow { box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 18px 50px rgba(0,0,0,0.45); }
+  .shadow-glow { box-shadow: 0 0 0 1px rgba(255,255,255,0.15), 0 18px 60px rgba(0,0,0,0.55); }
+  .shadow-soft { box-shadow: 0 0 0 1px rgba(255,255,255,0.07), 0 10px 24px rgba(0,0,0,0.35); }
+
+  .gradient-blue-teal { background: linear-gradient(to right, #3b82f6, #14b8a6); }
   .text-gradient-blue-teal {
     background: linear-gradient(to right, #3b82f6, #14b8a6);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
-  
-  .bg-atmosphere {
-    background: 
-      radial-gradient(circle at 25% 20%, rgba(59, 130, 246, 0.10), transparent 45%),
-      radial-gradient(circle at 80% 70%, rgba(20, 184, 166, 0.10), transparent 45%);
-  }
-  
-  .bg-grid {
-    background-image: 
-      linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-    background-size: 48px 48px;
-  }
-  
-  @keyframes sheen {
-    0% { transform: translateX(-120%); }
-    100% { transform: translateX(120%); }
-  }
-  
-  .animate-sheen {
-    animation: sheen 2.6s ease-in-out infinite;
-  }
-  
-  @keyframes floaty {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-6px); }
-  }
-  
-  .animate-floaty {
-    animation: floaty 7s ease-in-out infinite;
-  }
-  
-  .card-hover {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  
-  .card-hover:hover {
-    transform: translateY(-4px);
-    box-shadow: 
-      0 0 0 1px rgba(255, 255, 255, 0.1),
-      0 24px 60px rgba(0, 0, 0, 0.5);
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 3px;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 3px;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.15);
-  }
+
+  @keyframes sheen { 0% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+  .animate-sheen { animation: sheen 2.6s ease-in-out infinite; }
+
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #0a0a0a; border-left: 1px solid #222; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border: 1px solid #0a0a0a; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
 }
 
-* {
-  -webkit-tap-highlight-color: transparent;
-}
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #0a0a0a; border-left: 1px solid #222; }
+::-webkit-scrollbar-thumb { background: #333; border: 1px solid #0a0a0a; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
 
-:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
-}
-
-::selection {
-  background-color: rgba(59, 130, 246, 0.3);
-  color: hsl(var(--foreground));
-}
+* { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+::selection { background-color: #fff; color: #000; }
 
 input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-input[type="number"] {
-  -moz-appearance: textfield;
-}
-
-/* 
- * Z-index layering:
- * Background atmosphere: z-0
- * Layout content: z-10
- * Sticky header: z-30
- * Mobile bottom nav: z-50
- * Modal backdrops: z-[9999]  
- * Modal content: z-[10000]
- */
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }

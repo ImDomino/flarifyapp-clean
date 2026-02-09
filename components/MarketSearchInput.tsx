@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Search, X, TrendingUp, Loader2 } from "lucide-react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { Search, TrendingUp, X } from "lucide-react";
 
 interface Market {
   id: string;
@@ -16,171 +16,122 @@ interface Market {
   yesTokenId?: string;
   noTokenId?: string;
   negRisk?: boolean;
+  tokens?: Array<{ token_id: string; outcome: string }>;
 }
 
 interface MarketSearchInputProps {
-  onSelectMarket: (market: Market | null) => void;
-  selectedMarket: Market | null;
+  onSelectMarket: (market: Market) => void;
 }
 
-export function MarketSearchInput({ onSelectMarket, selectedMarket }: MarketSearchInputProps) {
+export function MarketSearchInput({ onSelectMarket }: MarketSearchInputProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Market[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Debounced search
-  useEffect(() => {
-    if (query.length < 2) {
+  const searchMarkets = useCallback(async (searchQuery: string) => {
+    if (!searchQuery.trim()) { setResults([]); return; }
+    setIsSearching(true);
+    try {
+      const response = await fetch(`/api/polymarket/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = await response.json();
+      setResults(data.markets || []);
+      setShowResults(true);
+    } catch (err) {
+      console.error("Search error:", err);
       setResults([]);
-      setShowResults(false);
-      return;
+    } finally {
+      setIsSearching(false);
     }
+  }, []);
 
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const response = await fetch(`/api/polymarket/search?query=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        setResults(data.markets || []);
-        setShowResults(true);
-      } catch (error) {
-        console.error('Error searching markets:', error);
-        setResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 500);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => searchMarkets(value), 300);
+  };
 
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  const handleSelectMarket = (market: Market) => {
+  const handleSelect = (market: Market) => {
     onSelectMarket(market);
     setQuery("");
-    setShowResults(false);
     setResults([]);
+    setShowResults(false);
   };
 
-  const handleClearSelection = () => {
-    onSelectMarket(null);
-  };
-
-  // Если рынок уже выбран - показываем preview
-  if (selectedMarket) {
-    return (
-      <div className="rounded-xl bg-base-850/50 border border-white/10 p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <p className="text-xs font-semibold text-slate-400 mb-1">Selected Market:</p>
-            <p className="font-semibold text-sm text-slate-200">{selectedMarket.question}</p>
-          </div>
-          <button
-            onClick={handleClearSelection}
-            className="p-1.5 hover:bg-rose-500/10 rounded-lg transition-colors"
-          >
-            <X className="w-4 h-4 text-rose-400" />
-          </button>
-        </div>
-
-        {/* Preview prices */}
-        {selectedMarket.outcomePrices && (
-          <div className="flex gap-2 mt-3">
-            {selectedMarket.outcomes.map((outcome, i) => (
-              <div
-                key={i}
-                className={`flex-1 p-2.5 rounded-lg text-center ${
-                  i === 0 
-                    ? 'bg-teal-500/10 border border-teal-500/20' 
-                    : 'bg-rose-500/10 border border-rose-500/20'
-                }`}
-              >
-                <p className="text-xs text-slate-400 mb-1">{outcome}</p>
-                <p className={`font-bold text-lg ${i === 0 ? 'text-teal-300' : 'text-rose-300'}`}>
-                  {Math.round((selectedMarket.outcomePrices?.[i] ?? 0) * 100)}%
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <p className="text-xs text-slate-500 mt-3">
-          Volume: ${parseFloat(selectedMarket.volume) >= 1000000 
-            ? (parseFloat(selectedMarket.volume) / 1000000).toFixed(1) + 'M' 
-            : (parseFloat(selectedMarket.volume) / 1000).toFixed(0) + 'K'}
-        </p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowResults(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
-    <div className="relative">
-      {/* Search Input */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+    <div ref={containerRef} className="relative">
+      <div className="relative group">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 group-focus-within:text-white transition-colors" />
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search Polymarket markets..."
-          className="w-full pl-12 pr-4 py-3.5 bg-base-850/50 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent text-slate-200 placeholder:text-slate-500"
+          onChange={handleInputChange}
+          onFocus={() => results.length > 0 && setShowResults(true)}
+          placeholder="SEARCH POLYMARKET..."
+          className="w-full bg-[#0a0a0a] border border-zinc-800 py-3 pl-12 pr-10 text-sm font-bold uppercase tracking-wider text-white placeholder-zinc-700 focus:outline-none focus:border-white transition-all"
         />
-        {isSearching && (
-          <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 animate-spin text-blue-400" />
+        {query && (
+          <button
+            onClick={() => { setQuery(""); setResults([]); setShowResults(false); }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
         )}
       </div>
 
-      {/* Search Results */}
-      {showResults && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-base-900 border border-white/10 rounded-xl shadow-lg max-h-[400px] overflow-y-auto z-50">
-          {results.map((market) => (
-            <button
-              key={market.id}
-              onClick={() => handleSelectMarket(market)}
-              className="w-full p-4 text-left hover:bg-base-850/70 transition-colors border-b border-white/5 last:border-b-0"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm mb-1.5 text-slate-200 line-clamp-2">
-                    {market.question}
-                  </p>
-                  
-                  {/* Prices */}
-                  {market.outcomePrices && (
-                    <div className="flex gap-2 mb-1.5">
-                      {market.outcomes.map((outcome, i) => (
-                        <span
-                          key={i}
-                          className={`text-xs font-semibold ${
-                            i === 0 ? 'text-teal-300' : 'text-rose-300'
-                          }`}
-                        >
-                          {outcome} {Math.round((market.outcomePrices?.[i] ?? 0.5) * 100)}¢
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Volume */}
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>
-                      ${parseFloat(market.volume) >= 1000000 
-                        ? (parseFloat(market.volume) / 1000000).toFixed(1) + 'M' 
-                        : (parseFloat(market.volume) / 1000).toFixed(0) + 'K'} Vol
+      {/* Results dropdown */}
+      {showResults && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-[#0a0a0a] border border-zinc-800 max-h-80 overflow-y-auto z-50">
+          {isSearching && (
+            <div className="p-4 text-center">
+              <div className="w-4 h-4 border-2 border-zinc-700 border-t-white animate-spin mx-auto" />
+            </div>
+          )}
+          {!isSearching && results.length === 0 && query.trim() && (
+            <div className="p-4 text-center text-xs text-zinc-600 uppercase tracking-wider font-bold">
+              No markets found
+            </div>
+          )}
+          {results.map((market) => {
+            const yesPrice = market.outcomePrices?.[0];
+            const yesPercent = yesPrice != null ? Math.round(yesPrice * 100) : null;
+            return (
+              <button
+                key={market.id}
+                onClick={() => handleSelect(market)}
+                className="w-full text-left p-4 border-b border-zinc-900 last:border-b-0 hover:bg-[#111] transition-colors group"
+              >
+                <p className="text-sm font-bold text-white mb-2 group-hover:text-zinc-200">
+                  {market.question}
+                </p>
+                <div className="flex items-center gap-4">
+                  {yesPercent != null && (
+                    <span className="text-xs font-mono font-bold text-zinc-400">
+                      YES {yesPercent}¢
                     </span>
-                  </div>
+                  )}
+                  <span className="text-xs font-mono text-zinc-600 flex items-center gap-1">
+                    <TrendingUp className="w-3 h-3" />
+                    {market.volume ? `$${(parseFloat(market.volume) / 1000).toFixed(0)}K` : "$0"}
+                  </span>
                 </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* No results */}
-      {showResults && results.length === 0 && !isSearching && query.length >= 2 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-base-900 border border-white/10 rounded-xl shadow-lg p-4 text-center">
-          <p className="text-slate-400 text-sm">No markets found for "{query}"</p>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

@@ -1,139 +1,121 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp, Volume2 } from "lucide-react";
+import { ExternalLink, TrendingUp } from "lucide-react";
 import { TradingModal } from "./TradingModal";
 
-interface MarketData {
-  question: string;
-  outcomes: string[];
-  prices: number[];
-  volume: string;
-  url: string;
-  yesTokenId?: string;
-  noTokenId?: string;
-  tokens?: Array<{ token_id: string; outcome: string; price: string }>;
-}
-
 interface MarketCardProps {
+  marketData: {
+    question: string;
+    outcomes?: string[];
+    prices?: number[] | null;
+    volume?: string;
+    url?: string;
+    yesTokenId?: string;
+    noTokenId?: string;
+    negRisk?: boolean;
+  };
   marketId: string;
-  marketData: MarketData;
-  builderId?: string;
 }
 
-export function MarketCard({ marketId, marketData, builderId = 'FLARIFYAPP' }: MarketCardProps) {
-  const [showTradingModal, setShowTradingModal] = useState(false);
-  const [selectedOutcome, setSelectedOutcome] = useState<{ index: number; name: string } | null>(null);
+export function MarketCard({ marketData, marketId }: MarketCardProps) {
+  const [tradingModal, setTradingModal] = useState<{
+    isOpen: boolean;
+    side: "yes" | "no";
+  }>({ isOpen: false, side: "yes" });
 
-  const handleOutcomeClick = (index: number, name: string) => {
-    setSelectedOutcome({ index, name });
-    setShowTradingModal(true);
+  const yesPrice = marketData.prices?.[0];
+  const noPrice = marketData.prices?.[1];
+  const yesPercent = yesPrice != null ? Math.round(yesPrice * 100) : null;
+  const noPercent = noPrice != null ? Math.round(noPrice * 100) : null;
+
+  const formatVolume = (vol?: string) => {
+    if (!vol) return "$0";
+    const n = parseFloat(vol);
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+    return `$${n.toFixed(0)}`;
   };
-
-  const formatVolume = (volume: string) => {
-    const vol = parseFloat(volume);
-    if (vol >= 1000000) {
-      return `$${(vol / 1000000).toFixed(1)}M`;
-    }
-    return `$${(vol / 1000).toFixed(0)}K`;
-  };
-
-  const isBinaryMarket = marketData.outcomes.length === 2;
-  const yesPercentage = Math.round(marketData.prices[0] * 100);
-  const noPercentage = isBinaryMarket ? Math.round(marketData.prices[1] * 100) : 0;
 
   return (
     <>
-      <div className="mt-3 bg-secondary/30 rounded-2xl overflow-hidden border border-white/10 backdrop-blur-xl card-shadow">
+      <div className="bg-[#111] border border-zinc-800 hover:border-zinc-600 transition-colors">
         {/* Header */}
-        <div className="p-4 flex items-start gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-[#2A56F2] to-[#9DFECB] rounded-xl flex items-center justify-center flex-shrink-0">
-            <TrendingUp className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm leading-tight mb-1 text-foreground">
-              {marketData.question}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Volume2 className="w-3 h-3" />
-              <span>{formatVolume(marketData.volume)} Vol</span>
+        <div className="p-4 sm:p-5 border-b border-zinc-800">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2 block">
+                Prediction Market
+              </span>
+              <h3 className="text-sm font-bold text-white leading-relaxed">
+                {marketData.question}
+              </h3>
             </div>
-          </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold bg-gradient-to-r from-[#9DFECB] to-[#2A56F2] bg-clip-text text-transparent">
-              {yesPercentage}%
-            </div>
-            <div className="text-xs text-muted-foreground">chance</div>
+            {marketData.url && (
+              <a
+                href={marketData.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 text-zinc-600 hover:text-white border border-transparent hover:border-zinc-700 transition-all flex-shrink-0"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            )}
           </div>
         </div>
 
-        {/* Betting Buttons */}
-        {isBinaryMarket ? (
-          <div className="p-4 pt-0 flex gap-3">
-            <button
-              onClick={() => handleOutcomeClick(0, marketData.outcomes[0])}
-              className="flex-1 py-4 bg-gradient-to-r from-[#9DFECB]/20 to-[#9DFECB]/10 hover:from-[#9DFECB]/30 hover:to-[#9DFECB]/20 border border-[#9DFECB]/20 rounded-xl font-bold text-[#9DFECB] transition-all text-lg backdrop-blur-sm"
-            >
-              <div className="flex flex-col items-center">
-                <span>{marketData.outcomes[0]}</span>
-                <span className="text-xs opacity-70">{yesPercentage}¢</span>
-              </div>
-            </button>
-            <button
-              onClick={() => handleOutcomeClick(1, marketData.outcomes[1])}
-              className="flex-1 py-4 bg-gradient-to-r from-destructive/20 to-destructive/10 hover:from-destructive/30 hover:to-destructive/20 border border-destructive/20 rounded-xl font-bold text-destructive transition-all text-lg backdrop-blur-sm"
-            >
-              <div className="flex flex-col items-center">
-                <span>{marketData.outcomes[1]}</span>
-                <span className="text-xs opacity-70">{noPercentage}¢</span>
-              </div>
-            </button>
-          </div>
-        ) : (
-          <div className="p-4 pt-0 space-y-2">
-            {marketData.outcomes.map((outcome, index) => (
-              <button
-                key={index}
-                onClick={() => handleOutcomeClick(index, outcome)}
-                className="w-full flex items-center justify-between p-3 bg-secondary/50 rounded-xl hover:bg-secondary/70 transition-all border border-white/5"
-              >
-                <div className="flex-1">
-                  <p className="font-semibold text-sm text-foreground">
-                    {outcome}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold text-foreground">
-                    {Math.round(marketData.prices[index] * 100)}%
-                  </span>
-                  <div className="flex gap-2">
-                    <span className="px-3 py-1 bg-[#9DFECB]/20 text-[#9DFECB] rounded text-xs font-bold">
-                      Yes
-                    </span>
-                    <span className="px-3 py-1 bg-destructive/20 text-destructive rounded text-xs font-bold">
-                      No
-                    </span>
-                  </div>
-                </div>
-              </button>
-            ))}
+        {/* Price bar */}
+        {yesPercent != null && (
+          <div className="px-4 sm:px-5 py-3 border-b border-zinc-800">
+            <div className="h-2 w-full bg-zinc-800 relative overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0 bg-white transition-all duration-500"
+                style={{ width: `${yesPercent}%` }}
+              />
+            </div>
           </div>
         )}
+
+        {/* Actions */}
+        <div className="p-4 sm:p-5">
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <button
+              onClick={() => setTradingModal({ isOpen: true, side: "yes" })}
+              className="py-3 text-center border-2 border-white bg-white text-black font-black uppercase tracking-wider text-xs hover:bg-black hover:text-white transition-colors"
+            >
+              Yes {yesPercent != null ? `${yesPercent}¢` : ""}
+            </button>
+            <button
+              onClick={() => setTradingModal({ isOpen: true, side: "no" })}
+              className="py-3 text-center border-2 border-zinc-700 text-zinc-300 font-black uppercase tracking-wider text-xs hover:border-white hover:text-white hover:bg-[#1a1a1a] transition-colors"
+            >
+              No {noPercent != null ? `${noPercent}¢` : ""}
+            </button>
+          </div>
+
+          {/* Volume */}
+          <div className="flex items-center gap-2 text-zinc-600">
+            <TrendingUp className="w-3 h-3" />
+            <span className="text-xs font-mono font-bold">
+              {formatVolume(marketData.volume)} VOL
+            </span>
+          </div>
+        </div>
       </div>
 
-      {selectedOutcome && (
-        <TradingModal
-          isOpen={showTradingModal}
-          marketId={marketId}
-          marketData={marketData}
-          outcome={selectedOutcome.name}
-          outcomeIndex={selectedOutcome.index}
-          onClose={() => {
-            setShowTradingModal(false);
-            setSelectedOutcome(null);
-          }}
-        />
-      )}
+      {/* Trading Modal */}
+      <TradingModal
+        isOpen={tradingModal.isOpen}
+        onClose={() => setTradingModal({ isOpen: false, side: "yes" })}
+        marketId={marketId}
+        question={marketData.question}
+        initialSide={tradingModal.side}
+        yesPrice={yesPrice || 0.5}
+        noPrice={noPrice || 0.5}
+        yesTokenId={marketData.yesTokenId}
+        noTokenId={marketData.noTokenId}
+        negRisk={marketData.negRisk}
+      />
     </>
   );
 }

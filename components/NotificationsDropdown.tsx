@@ -1,250 +1,139 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, Heart, MessageCircle, UserPlus, Check, Loader2 } from "lucide-react";
+import { Bell, Heart, MessageCircle, UserPlus, X } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
 
 interface Notification {
   id: string;
-  user_id: string;
-  actor_id: string;
   type: "like" | "comment" | "follow";
-  post_id: string | null;
-  read: boolean;
+  message: string;
+  is_read: boolean;
   created_at: string;
-  actor?: {
-    id: string;
-    username: string | null;
-    display_name: string | null;
-    avatar_url: string | null;
-  };
-  post?: {
-    id: string;
-    content: string;
-  };
+  actor_id?: string;
+  post_id?: string;
 }
 
 export function NotificationsDropdown() {
-  const { user, authenticated } = usePrivy();
+  const { user } = usePrivy();
   const router = useRouter();
+  const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const res = await fetch(
-        `/api/notifications?user_id=${encodeURIComponent(user.id)}&limit=20`,
-        { cache: "no-store" }
-      );
+      const res = await fetch(`/api/notifications?user_id=${encodeURIComponent(user.id)}&limit=20`, { cache: "no-store" });
       const data = await res.json();
       setNotifications(data.notifications || []);
       setUnreadCount(data.unread_count || 0);
-    } catch (err) {
-      console.error("Error fetching notifications:", err);
-    }
+    } catch { /* silent */ }
   }, [user?.id]);
 
-  // Poll every 30s
   useEffect(() => {
-    if (!authenticated) return;
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
-  }, [authenticated, fetchNotifications]);
+  }, [fetchNotifications]);
 
-  // Close on outside click
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const markAllRead = async () => {
     if (!user?.id) return;
-    setIsLoading(true);
     try {
-      await fetch("/api/notifications", {
-        method: "PATCH",
+      await fetch("/api/notifications/read", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user.id, mark_all: true }),
+        body: JSON.stringify({ user_id: user.id }),
       });
       setUnreadCount(0);
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch (err) {
-      console.error("Error marking notifications read:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleNotificationClick = (n: Notification) => {
-    if (n.type === "follow") {
-      router.push(`/user/${n.actor_id}`);
-    } else if (n.post_id) {
-      router.push(`/post/${n.post_id}`);
-    }
-    setIsOpen(false);
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch { /* silent */ }
   };
 
   const getIcon = (type: string) => {
     switch (type) {
-      case "like":
-        return <Heart className="w-4 h-4 text-rose-400 fill-rose-400" />;
-      case "comment":
-        return <MessageCircle className="w-4 h-4 text-blue-400" />;
-      case "follow":
-        return <UserPlus className="w-4 h-4 text-teal-400" />;
-      default:
-        return <Bell className="w-4 h-4 text-slate-400" />;
+      case "like": return <Heart className="w-4 h-4" />;
+      case "comment": return <MessageCircle className="w-4 h-4" />;
+      case "follow": return <UserPlus className="w-4 h-4" />;
+      default: return <Bell className="w-4 h-4" />;
     }
   };
 
-  const getMessage = (n: Notification) => {
-    const name =
-      n.actor?.display_name || n.actor?.username || "Someone";
-    const postPreview = n.post?.content
-      ? n.post.content.length > 40
-        ? n.post.content.slice(0, 40) + "..."
-        : n.post.content
-      : "";
-
-    switch (n.type) {
-      case "like":
-        return (
-          <>
-            <strong>{name}</strong> liked your post
-            {postPreview && (
-              <span className="text-slate-500"> "{postPreview}"</span>
-            )}
-          </>
-        );
-      case "comment":
-        return (
-          <>
-            <strong>{name}</strong> commented on your post
-            {postPreview && (
-              <span className="text-slate-500"> "{postPreview}"</span>
-            )}
-          </>
-        );
-      case "follow":
-        return (
-          <>
-            <strong>{name}</strong> started following you
-          </>
-        );
-      default:
-        return <strong>{name}</strong>;
-    }
+  const handleNotifClick = (notif: Notification) => {
+    if (notif.post_id) router.push(`/post/${notif.post_id}`);
+    else if (notif.actor_id) router.push(`/user/${notif.actor_id}`);
+    setIsOpen(false);
   };
-
-  if (!authenticated) return null;
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Bell Button */}
+    <div ref={dropdownRef} className="relative">
       <button
-        onClick={() => {
-          setIsOpen(!isOpen);
-          if (!isOpen) fetchNotifications();
-        }}
-        className="relative p-2 rounded-lg hover:bg-white/5 transition"
+        onClick={() => { setIsOpen(!isOpen); if (!isOpen) fetchNotifications(); }}
+        className="relative p-2 text-zinc-400 hover:text-white transition-colors"
       >
-        <Bell className="w-5 h-5 text-slate-300" />
+        <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white px-1">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
+          <span className="absolute top-1 right-1 w-2 h-2 bg-white border border-black" />
         )}
       </button>
 
-      {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-base-900 border border-white/10 rounded-xl shadow-2xl z-50 max-h-[70vh] flex flex-col overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-80 bg-[#0a0a0a] border-2 border-white z-50 max-h-96 overflow-hidden">
+          <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white" />
+
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-            <h3 className="font-display text-sm font-semibold text-slate-200">
-              Notifications
-            </h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                disabled={isLoading}
-                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-medium transition"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Check className="w-3 h-3" />
-                )}
-                Mark all read
+          <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+            <h3 className="font-black text-sm uppercase tracking-wider">Notifications</h3>
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button onClick={markAllRead} className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-white">
+                  Mark all read
+                </button>
+              )}
+              <button onClick={() => setIsOpen(false)} className="text-zinc-500 hover:text-white">
+                <X className="w-4 h-4" />
               </button>
-            )}
+            </div>
           </div>
 
           {/* List */}
-          <div className="overflow-y-auto custom-scrollbar flex-1">
+          <div className="overflow-y-auto max-h-72 custom-scrollbar">
             {notifications.length === 0 ? (
-              <div className="text-center py-10 px-4">
-                <Bell className="w-8 h-8 mx-auto mb-3 text-slate-600" />
-                <p className="text-sm text-slate-500">No notifications yet</p>
-                <p className="text-xs text-slate-600 mt-1">
-                  When someone likes, comments, or follows you, it'll show up here
-                </p>
+              <div className="p-6 text-center">
+                <p className="text-xs text-zinc-600 uppercase tracking-wider font-bold">No notifications</p>
               </div>
             ) : (
-              notifications.map((n) => (
+              notifications.map((notif) => (
                 <button
-                  key={n.id}
-                  onClick={() => handleNotificationClick(n)}
-                  className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-white/5 transition border-b border-white/5 last:border-b-0 ${
-                    !n.read ? "bg-blue-500/5" : ""
+                  key={notif.id}
+                  onClick={() => handleNotifClick(notif)}
+                  className={`w-full text-left p-4 border-b border-zinc-900 hover:bg-[#111] transition-colors flex items-start gap-3 ${
+                    !notif.is_read ? "bg-[#0d0d0d]" : ""
                   }`}
                 >
-                  {/* Avatar */}
-                  <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-blue-500/30 to-teal-400/25 flex items-center justify-center overflow-hidden">
-                    {n.actor?.avatar_url ? (
-                      <img
-                        src={n.actor.avatar_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-xs font-bold text-blue-200">
-                        {(n.actor?.display_name || n.actor?.username || "?")[0].toUpperCase()}
-                      </span>
-                    )}
+                  <div className={`mt-0.5 ${!notif.is_read ? "text-white" : "text-zinc-600"}`}>
+                    {getIcon(notif.type)}
                   </div>
-
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2">
-                      <div className="mt-0.5">{getIcon(n.type)}</div>
-                      <p className="text-xs text-slate-300 leading-relaxed line-clamp-2">
-                        {getMessage(n)}
-                      </p>
-                    </div>
-                    <p className="text-[10px] text-slate-600 mt-1">
-                      {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                    <p className="text-xs text-zinc-300 font-medium leading-relaxed">{notif.message}</p>
+                    <p className="text-[10px] text-zinc-600 font-mono mt-1">
+                      {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true }).toUpperCase()}
                     </p>
                   </div>
-
-                  {/* Unread dot */}
-                  {!n.read && (
-                    <div className="flex-shrink-0 mt-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-400" />
-                    </div>
-                  )}
+                  {!notif.is_read && <div className="w-2 h-2 bg-white flex-shrink-0 mt-1" />}
                 </button>
               ))
             )}

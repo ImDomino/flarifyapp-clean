@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Wallet, ArrowDownToLine, ArrowUpRight, Sparkles } from "lucide-react";
+import { Wallet, TrendingUp, Plus } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { DepositModal } from "./DepositModal";
 import { WithdrawModal } from "./WithdrawModal";
@@ -13,27 +13,20 @@ export function RightSidebar() {
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
 
-  // safeAddress is derived deterministically in WalletProvider — no network call needed
   const { eoaAddress, safeAddress } = useWallet();
-
   const { safeBalance, isLoading, refresh } = useBalances(eoaAddress, safeAddress);
   const safeNum = parseFloat(safeBalance || "0");
 
-  // Debug: log balance state
-  useEffect(() => {
-    console.log("RightSidebar balance:", { eoaAddress: eoaAddress?.slice(0, 10), safeAddress: safeAddress?.slice(0, 10), safeBalance, isLoading });
-  }, [eoaAddress, safeAddress, safeBalance, isLoading]);
-
   if (!authenticated) {
     return (
-      <aside className="hidden lg:block">
-        <div className="sticky top-6 space-y-4">
-          <section className="rounded-xl bg-base-900/65 border border-white/5 shadow-card p-5">
-            <div className="text-center py-8">
-              <Wallet className="w-12 h-12 mx-auto mb-4 text-slate-500" />
-              <p className="text-sm text-slate-400 mb-4">Sign in to view your balance</p>
-            </div>
-          </section>
+      <aside className="col-span-3 hidden lg:block pt-6 lg:pt-8">
+        <div className="sticky top-28 space-y-6">
+          <div className="bg-[#0a0a0a] border border-zinc-800 p-6 text-center">
+            <Wallet className="w-10 h-10 mx-auto mb-3 text-zinc-600" />
+            <p className="text-sm text-zinc-500 font-bold uppercase tracking-wider">
+              Sign in to trade
+            </p>
+          </div>
         </div>
       </aside>
     );
@@ -41,79 +34,95 @@ export function RightSidebar() {
 
   return (
     <>
-      <aside className="hidden lg:block">
-        <div className="sticky top-6 space-y-4">
-          {/* Trading Balance Card */}
-          <section className="rounded-xl bg-base-900/65 border border-white/5 shadow-card p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-xs text-slate-400">Trading Balance</div>
-                <div className="mt-1 font-display text-3xl font-semibold tracking-tight">
-                  {isLoading ? (
-                    <span className="inline-block animate-pulse text-slate-500">$—.——</span>
-                  ) : (
-                    `$${safeNum.toFixed(2)}`
-                  )}
-                </div>
-                <div className="mt-1 text-xs text-slate-500">Available to trade instantly.</div>
-              </div>
-              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500/15 to-teal-500/15 border border-white/10 flex items-center justify-center">
-                <Wallet className="text-lg text-teal-200" />
-              </div>
-            </div>
+      <aside className="col-span-3 hidden lg:block pt-6 lg:pt-8 space-y-6">
+        <div className="sticky top-28 space-y-6">
+          {/* Balance Card */}
+          <div className="bg-[#0a0a0a] border-2 border-white p-6 relative">
+            <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white" />
+            <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white" />
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="flex justify-between items-start mb-6">
+              <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                Trading Balance
+              </span>
+              <Wallet className="w-5 h-5 text-white" />
+            </div>
+            <div className="mb-6">
+              {isLoading ? (
+                <span className="text-4xl font-black text-zinc-500 animate-pulse">$—.——</span>
+              ) : (
+                <span className="text-4xl font-black text-white tracking-tight">
+                  ${safeNum.toFixed(2)}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setIsDepositOpen(true)}
-                className="relative inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-950 bg-gradient-to-r from-blue-500 to-teal-400 shadow-glow overflow-hidden min-h-[44px]"
+                className="py-3 text-xs font-black uppercase tracking-wider bg-white text-black border-2 border-white hover:bg-black hover:text-white transition-colors"
               >
-                <span className="relative z-10">Deposit</span>
-                <ArrowDownToLine className="relative z-10 w-4 h-4" />
-                <span className="absolute inset-0 opacity-25 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,.7),transparent)] -translate-x-[120%] animate-sheen"></span>
+                Deposit
               </button>
               <button
                 onClick={() => setIsWithdrawOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-200 bg-white/5 border border-white/10 hover:bg-white/10 transition min-h-[44px]"
+                className="py-3 text-xs font-black uppercase tracking-wider bg-black text-white border-2 border-white hover:bg-white hover:text-black transition-colors"
               >
                 Withdraw
-                <ArrowUpRight className="w-4 h-4" />
               </button>
             </div>
+          </div>
 
-            <div className="mt-4 rounded-lg border border-white/10 bg-base-850/45 p-3">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>Bridge status</span>
-                <span className="text-teal-200">Ready</span>
-              </div>
-              <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
-                <span className="h-2 w-2 rounded-full bg-teal-400"></span>
-                Deposits settle to balance automatically.
-              </div>
+          {/* Watchlist */}
+          <div className="bg-[#0a0a0a] border border-zinc-800">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+              <h3 className="font-black text-white uppercase tracking-wider text-sm">
+                Watchlist
+              </h3>
+              <button className="text-zinc-500 hover:text-white">
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
-          </section>
-
-          {/* Watchlist - Coming Soon */}
-          <section className="rounded-xl bg-base-900/55 border border-white/5 shadow-soft p-5">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display text-base font-semibold tracking-tight">Watchlist</h3>
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5">
-                <Sparkles className="w-3 h-3 text-blue-400" />
-                <span className="text-[10px] font-medium text-blue-300">Soon</span>
-              </span>
-            </div>
-            <div className="mt-4 text-center py-6">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-blue-500/10 to-teal-500/10 border border-white/5 flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-slate-500" />
-              </div>
-              <p className="text-xs text-slate-500">
-                Save your favorite markets to track them here
+            <div className="p-6 text-center">
+              <p className="text-xs text-zinc-600 uppercase tracking-wider font-bold">
+                Coming Soon
               </p>
-              <div className="mt-2 flex items-center gap-1.5 justify-center">
-                <div className="w-1 h-1 rounded-full bg-blue-400 animate-pulse" />
-                <span className="text-[10px] text-slate-500">Coming soon</span>
-              </div>
+              <p className="text-[10px] text-zinc-700 mt-2">
+                Track your favorite markets here
+              </p>
             </div>
-          </section>
+          </div>
+
+          {/* Trending */}
+          <div className="bg-[#0a0a0a] border border-zinc-800 p-5">
+            <h3 className="font-black text-white uppercase tracking-wider text-sm mb-4">
+              Trending Now
+            </h3>
+            <div className="space-y-4">
+              {[
+                { tag: "#Polymarket", posts: "Live" },
+                { tag: "#Predictions", posts: "Active" },
+                { tag: "#Markets", posts: "Trending" },
+              ].map((t) => (
+                <div key={t.tag} className="block group cursor-pointer">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold text-sm text-white group-hover:text-zinc-300">
+                      {t.tag}
+                    </span>
+                    <TrendingUp className="w-3 h-3 text-zinc-600" />
+                  </div>
+                  <span className="text-xs text-zinc-600">{t.posts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex flex-wrap gap-4 text-xs font-bold text-zinc-700 uppercase">
+            <span>About</span>
+            <span>Terms</span>
+            <span>Privacy</span>
+            <span>© 2025 Flarify</span>
+          </div>
         </div>
       </aside>
 

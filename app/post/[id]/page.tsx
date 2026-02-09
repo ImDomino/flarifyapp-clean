@@ -1,427 +1,194 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import {
-  Heart,
-  MessageCircle,
-  ArrowLeft,
-  Trash2,
-  Loader2,
-  Send,
-} from "lucide-react";
+import { ArrowLeft, Send, Trash2 } from "lucide-react";
+import { PostCard } from "@/components/PostCard";
 import { formatDistanceToNow } from "date-fns";
 import type { PostWithUser } from "@/lib/types";
-import { MarketCard } from "@/components/MarketCard"; // путь подправь под свой проект
 
 interface Comment {
   id: string;
-  post_id: string;
-  user_id: string;
   content: string;
+  user_id: string;
   created_at: string;
-  profiles: {
-    id: string;
-    email: string;
-    username: string | null;
-    avatar_url: string | null;
+  profiles?: {
+    username?: string;
+    email?: string;
+    avatar_url?: string;
+    display_name?: string;
   };
 }
 
 export default function PostDetailPage() {
-  const params = useParams();
+  const { id } = useParams();
   const router = useRouter();
-  const { authenticated, user, login } = usePrivy();
-
+  const { user } = usePrivy();
   const [post, setPost] = useState<PostWithUser | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [likes, setLikes] = useState(0);
-  const [hasLiked, setHasLiked] = useState(false);
 
-  const postId = params.id as string;
-
-  useEffect(() => {
-    loadPost();
-    loadComments();
-  }, [postId]);
-
-  const loadPost = async () => {
+  const loadPost = useCallback(async () => {
     try {
-      const response = await fetch(`/api/posts?page=1&limit=100`);
-      const data = await response.json();
-      const foundPost = data.posts.find(
-        (p: PostWithUser) => p.id === postId,
-      );
+      setIsLoading(true);
+      const res = await fetch(`/api/posts?post_id=${id}`);
+      const data = await res.json();
+      if (data.posts?.[0]) setPost(data.posts[0]);
+    } catch (err) { console.error("Error:", err); }
+    finally { setIsLoading(false); }
+  }, [id]);
 
-      if (foundPost) {
-        setPost(foundPost);
-        setLikes(foundPost.likes_count || 0);
-        setHasLiked(foundPost.user_has_liked || false);
-      }
-    } catch (error) {
-      console.error("Error loading post:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadComments = async () => {
+  const loadComments = useCallback(async () => {
     try {
-      const response = await fetch(`/api/comments?post_id=${postId}`);
-      const data = await response.json();
+      const res = await fetch(`/api/comments?post_id=${id}`);
+      const data = await res.json();
       setComments(data.comments || []);
-    } catch (error) {
-      console.error("Error loading comments:", error);
-    }
-  };
+    } catch (err) { console.error("Error:", err); }
+  }, [id]);
 
-  const handleLike = async () => {
-    if (!user) {
-      alert("Please sign in to like posts");
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/likes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          post_id: postId,
-          user_id: user.id,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        if (data.action === "liked") {
-          setLikes((prev) => prev + 1);
-          setHasLiked(true);
-        } else {
-          setLikes((prev) => prev - 1);
-          setHasLiked(false);
-        }
-      }
-    } catch (error) {
-      console.error("Error toggling like:", error);
-    }
-  };
+  useEffect(() => { loadPost(); loadComments(); }, [loadPost, loadComments]);
 
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!user) {
-      login();
-      return;
-    }
-
-    if (!newComment.trim()) return;
-
+    if (!user || !newComment.trim()) return;
     setIsSubmitting(true);
-
     try {
-      const response = await fetch("/api/comments", {
+      const res = await fetch("/api/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          post_id: postId,
-          user_id: user.id,
-          content: newComment,
-        }),
+        body: JSON.stringify({ post_id: id, user_id: user.id, content: newComment.trim() }),
       });
-
-      const data = await response.json();
-
-      if (data.success) {
+      if (res.ok) {
         setNewComment("");
         loadComments();
+        loadPost();
       }
-    } catch (error) {
-      console.error("Error posting comment:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeletePost = async () => {
-    if (!confirm("Are you sure you want to delete this post?")) return;
-
-    try {
-      const response = await fetch(`/api/posts/delete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          post_id: postId,
-          user_id: user?.id,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        router.push("/");
-      } else {
-        alert(data.error || "Failed to delete post");
-      }
-    } catch (error) {
-      console.error("Error deleting post:", error);
-      alert("Failed to delete post");
-    }
+    } catch (err) { console.error("Error:", err); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!confirm("Are you sure you want to delete this comment?")) return;
-
+    if (!user || !confirm("Delete this comment?")) return;
     try {
-      const response = await fetch(`/api/comments/delete`, {
+      await fetch(`/api/comments/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          comment_id: commentId,
-          user_id: user?.id,
-        }),
+        body: JSON.stringify({ comment_id: commentId, user_id: user.id }),
       });
-
-      const data = await response.json();
-
-      if (data.success) {
-        loadComments();
-      } else {
-        alert(data.error || "Failed to delete comment");
-      }
-    } catch (error) {
-      console.error("Error deleting comment:", error);
-      alert("Failed to delete comment");
-    }
+      loadComments();
+      loadPost();
+    } catch (err) { console.error("Error:", err); }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center py-20">
+        <div className="w-6 h-6 border-2 border-zinc-700 border-t-white animate-spin" />
       </div>
     );
   }
 
   if (!post) {
     return (
-      <div className="max-w-2xl mx-auto text-center py-12">
-        <div className="bg-card rounded-lg border border-border p-8">
-          <h1 className="text-2xl font-bold mb-4">Post Not Found</h1>
-          <button
-            onClick={() => router.push("/")}
-            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
-          >
-            Go Home
-          </button>
-        </div>
+      <div className="text-center py-20">
+        <h2 className="text-xl font-black uppercase tracking-wider mb-2">Post Not Found</h2>
+        <button onClick={() => router.push("/")} className="text-sm text-zinc-400 hover:text-white font-bold uppercase tracking-wider">
+          Back to Feed
+        </button>
       </div>
     );
   }
 
-  const username =
-    post.profiles?.username ||
-    post.profiles?.email?.split("@")[0] ||
-    "Unknown";
-  const isOwnPost = user?.id === post.user_id;
-
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Back Button */}
-      <button
-        onClick={() => router.back()}
-        className="flex items-center space-x-2 text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="h-5 w-5" />
-        <span>Back</span>
+    <div className="space-y-6">
+      <button onClick={() => router.back()} className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors">
+        <ArrowLeft className="w-5 h-5" />
+        <span className="font-bold uppercase tracking-wider text-sm">Back</span>
       </button>
 
-      {/* Post */}
-      <div className="bg-card rounded-lg border border-border p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-primary font-semibold">
-                {username[0].toUpperCase()}
+      <PostCard post={post} />
+
+      {/* Comment Form */}
+      {user && (
+        <form onSubmit={handleSubmitComment} className="bg-[#0a0a0a] border border-zinc-800 p-5">
+          <div className="flex gap-4">
+            <div className="w-10 h-10 flex-shrink-0 border border-zinc-700 bg-white flex items-center justify-center">
+              <span className="text-sm font-black text-black uppercase">
+                {(user.google?.name || user.email?.address || "U")[0]}
               </span>
             </div>
-            <div>
-              <p className="font-semibold text-foreground">{username}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(post.created_at), {
-                  addSuffix: true,
-                })}
-              </p>
+            <div className="flex-1">
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="WRITE A COMMENT..."
+                rows={3}
+                className="w-full bg-transparent text-sm font-medium text-white placeholder-zinc-700 placeholder:uppercase placeholder:tracking-wider focus:outline-none resize-none mb-3"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !newComment.trim()}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-black font-black uppercase tracking-wider text-xs border-2 border-white hover:bg-black hover:text-white transition-colors disabled:opacity-30"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Reply
+                </button>
+              </div>
             </div>
           </div>
+        </form>
+      )}
 
-          {/* Delete Button */}
-          {isOwnPost && (
-            <button
-              onClick={handleDeletePost}
-              className="text-red-500 hover:text-red-600 transition-colors"
-              title="Delete post"
-            >
-              <Trash2 className="h-5 w-5" />
-            </button>
-          )}
-        </div>
-
-        {/* Content */}
-        <p className="text-foreground mb-4 whitespace-pre-wrap text-lg">
-          {post.content}
-        </p>
-
-        {/* Image */}
-        {post.image_url && (
-          <div className="mt-2 mb-4 overflow-hidden rounded-lg border border-border bg-background">
-            <img
-              src={post.image_url}
-              alt="Post image"
-              className="w-full h-auto object-cover"
-            />
-          </div>
-        )}
-
-        {/* Polymarket card */}
-        {post.market_data && post.polymarket_market_id && (
-          <MarketCard
-            marketId={post.polymarket_market_id}
-            marketData={post.market_data}
-          />
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center space-x-4 pt-4 border-t border-border">
-          <button
-            onClick={handleLike}
-            className={`flex items-center space-x-2 transition-colors ${
-              hasLiked
-                ? "text-red-500"
-                : "text-muted-foreground hover:text-red-500"
-            }`}
-          >
-            <Heart className={`h-5 w-5 ${hasLiked && "fill-current"}`} />
-            <span className="text-sm font-medium">{likes}</span>
-          </button>
-
-          <div className="flex items-center space-x-2 text-muted-foreground">
-            <MessageCircle className="h-5 w-5" />
-            <span className="text-sm font-medium">{comments.length}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Comments Section */}
-      <div className="bg-card rounded-lg border border-border p-6">
-        <h2 className="text-xl font-bold mb-4">
+      {/* Comments */}
+      <div>
+        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-4 pb-3 border-b border-zinc-800">
           Comments ({comments.length})
-        </h2>
+        </h3>
 
-        {/* Comment Form */}
-        {authenticated ? (
-          <form onSubmit={handleSubmitComment} className="mb-6">
-            <textarea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Write a comment..."
-              rows={3}
-              className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-foreground mb-3"
-            />
-            <button
-              type="submit"
-              disabled={isSubmitting || !newComment.trim()}
-              className="flex items-center space-x-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Posting...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  <span>Post Comment</span>
-                </>
-              )}
-            </button>
-          </form>
-        ) : (
-          <div className="mb-6 p-4 bg-secondary/50 rounded-lg border border-border">
-            <p className="text-muted-foreground mb-3">
-              Sign in to comment
-            </p>
-            <button
-              onClick={login}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
-            >
-              Sign in with Google
-            </button>
+        {comments.length === 0 ? (
+          <div className="bg-[#0a0a0a] border border-zinc-800 p-8 text-center">
+            <p className="text-xs text-zinc-600 uppercase tracking-wider font-bold">No comments yet</p>
           </div>
-        )}
-
-        {/* Comments List */}
-        <div className="space-y-4">
-          {comments.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              No comments yet. Be the first to comment!
-            </p>
-          ) : (
-            comments.map((comment) => {
-              const commentUsername =
-                comment.profiles?.username ||
-                comment.profiles?.email?.split("@")[0] ||
-                "Unknown";
-              const isOwnComment = user?.id === comment.user_id;
-
+        ) : (
+          <div className="space-y-3">
+            {comments.map((comment) => {
+              const name = (comment.profiles as any)?.display_name || comment.profiles?.username || comment.profiles?.email?.split("@")[0] || "User";
+              const isOwn = user?.id === comment.user_id;
               return (
-                <div
-                  key={comment.id}
-                  className="bg-secondary/30 rounded-lg p-4 border border-border"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center space-x-3">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-primary font-semibold text-sm">
-                          {commentUsername[0].toUpperCase()}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-sm text-foreground">
-                          {commentUsername}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(
-                            new Date(comment.created_at),
-                            { addSuffix: true },
-                          )}
-                        </p>
-                      </div>
+                <div key={comment.id} className="bg-[#0a0a0a] border border-zinc-800 p-4 interact-border group">
+                  <div className="flex gap-3">
+                    <div className="w-8 h-8 flex-shrink-0 border border-zinc-700 bg-zinc-900 flex items-center justify-center">
+                      <span className="text-xs font-black text-white uppercase">{name[0]}</span>
                     </div>
-
-                    {isOwnComment && (
-                      <button
-                        onClick={() => handleDeleteComment(comment.id)}
-                        className="text-red-500 hover:text-red-600 transition-colors"
-                        title="Delete comment"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-white uppercase">{name}</span>
+                          <span className="text-[10px] text-zinc-600 font-mono">
+                            {formatDistanceToNow(new Date(comment.created_at), { addSuffix: false }).toUpperCase()}
+                          </span>
+                        </div>
+                        {isOwn && (
+                          <button
+                            onClick={() => handleDeleteComment(comment.id)}
+                            className="text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-sm text-zinc-300 font-medium leading-relaxed">{comment.content}</p>
+                    </div>
                   </div>
-                  <p className="text-foreground whitespace-pre-wrap">
-                    {comment.content}
-                  </p>
                 </div>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
