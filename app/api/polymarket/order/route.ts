@@ -3,23 +3,28 @@ import {
   BuilderApiKeyCreds,
   buildHmacSignature,
 } from "@polymarket/builder-signing-sdk";
+import crypto from "crypto";
 
 // Force US region — Polymarket blocks certain geos via Cloudflare
 export const runtime = "nodejs";
 export const preferredRegion = "iad1"; // US East (Washington DC)
-import crypto from "crypto";
 
 /**
  * POST /api/polymarket/order
  *
- * Server-side proxy for posting signed orders to Polymarket CLOB.
+ * Fallback proxy for when createAndPostOrder() is blocked by CORS/geo.
  *
- * STRATEGY: Server always controls wrapping.
- * - Client sends raw signedOrder (flat: {salt, maker, signer, ...})
- * - If client accidentally wrapped it, server unwraps first
- * - Server wraps as: { order: flatOrder, owner: apiKey, orderType: "GTC" }
- * - Server generates HMAC from this exact body
- * - This guarantees HMAC always matches the body sent to CLOB
+ * Reproduces the EXACT payload format the SDK uses (from observed logs):
+ * {
+ *   "deferExec": false,
+ *   "order": { salt, maker, signer, taker, tokenId, makerAmount, takerAmount, ... },
+ *   "owner": "apiKey-uuid",
+ *   "orderType": "GTC"
+ * }
+ *
+ * And the EXACT headers:
+ * POLY_ADDRESS, POLY_SIGNATURE, POLY_TIMESTAMP, POLY_API_KEY, POLY_PASSPHRASE
+ * POLY_BUILDER_SIGNATURE, POLY_BUILDER_TIMESTAMP, POLY_BUILDER_API_KEY, POLY_BUILDER_PASSPHRASE
  */
 
 const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
@@ -28,7 +33,7 @@ const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
   passphrase: process.env.POLY_BUILDER_PASSPHRASE!,
 };
 
-// Generate L2 HMAC signature (same algo as @polymarket/clob-client uses internally)
+// L2 HMAC — matches SDK's internal implementation
 function buildL2HmacSignature(
   secret: string,
   timestamp: number,
@@ -45,68 +50,52 @@ function buildL2HmacSignature(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { order, userCreds, eoaAddress } = body;
+    const { signedOrder, userCreds, eoaAddress } = body;
 
-    if (!order || !userCreds || !eoaAddress) {
+    if (!signedOrder || !userCreds || !eoaAddress) {
       return NextResponse.json(
-        { error: "Missing order, userCreds, or eoaAddress" },
+        { error: "Missing signedOrder, userCreds, or eoaAddress" },
         { status: 400 }
       );
     }
 
-    // STRATEGY: Server ALWAYS controls the wrapping.
-    // Extract the flat signed order regardless of how client sent it,
-    // then wrap it ourselves with the correct owner (API key).
-    
-    console.log("📥 INCOMING ORDER:", {
-      topLevelKeys: Object.keys(order),
-      hasSalt: !!order.salt,
-      hasMaker: !!order.maker,
-      hasNestedOrder: !!order.order,
-      hasOwner: !!order.owner,
-      hasOrderType: !!order.orderType,
-    });
-    
-    // Extract the flat signed order (the raw EIP-712 signed struct)
+    // Extract flat signed order — handle both flat and pre-wrapped
     let flatOrder: any;
-    
-    if (order.order && order.order.salt && order.order.maker) {
-      // Client already wrapped — unwrap to get flat order
-      flatOrder = order.order;
-      console.log("📦 Unwrapped client-wrapped order");
-    } else if (order.salt && order.maker && order.signature) {
-      // Client sent flat order — use directly
-      flatOrder = order;
-      console.log("📦 Received flat signed order");
+    if (signedOrder.salt && signedOrder.maker && signedOrder.signature) {
+      flatOrder = signedOrder;
+    } else if (signedOrder.order?.salt && signedOrder.order?.maker) {
+      flatOrder = signedOrder.order;
     } else {
-      console.error("❌ Cannot find signed order. Keys:", Object.keys(order));
       return NextResponse.json(
-        { error: "Invalid order: no signed order found", keys: Object.keys(order) },
+        { error: "Invalid signed order structure", keys: Object.keys(signedOrder) },
         { status: 400 }
       );
     }
-    
-    // Always wrap it ourselves with correct owner
+
+    // Build EXACT payload format matching SDK's createAndPostOrder output:
+    // {"deferExec":false,"order":{...},"owner":"apiKey","orderType":"GTC"}
     const clobPayload = {
+      deferExec: false,
       order: flatOrder,
-      owner: userCreds.key,  // API key = owner
+      owner: userCreds.key,
       orderType: "GTC",
     };
-    
-    console.log("📤 CLOB payload:", {
+
+    const clobBody = JSON.stringify(clobPayload);
+
+    console.log("📤 PROXY ORDER:", {
       owner: userCreds.key.slice(0, 12) + "...",
-      orderType: "GTC",
-      orderKeys: Object.keys(flatOrder),
       maker: flatOrder.maker?.slice(0, 10) + "...",
       signer: flatOrder.signer?.slice(0, 10) + "...",
+      bodyLength: clobBody.length,
     });
-    
-    const clobBody = JSON.stringify(clobPayload);
-    const now = Date.now();
-    const userTimestamp = Math.floor(now / 1000); // seconds for user
-    const builderTimestamp = now; // milliseconds for builder
 
-    // Generate User L2 HMAC signature
+    // Timestamps — SDK uses seconds for user, milliseconds for builder
+    const now = Date.now();
+    const userTimestamp = Math.floor(now / 1000);
+    const builderTimestamp = now;
+
+    // User L2 HMAC
     const userSignature = buildL2HmacSignature(
       userCreds.secret,
       userTimestamp,
@@ -115,7 +104,7 @@ export async function POST(request: NextRequest) {
       clobBody
     );
 
-    // Generate Builder HMAC signature
+    // Builder HMAC
     const builderSignature = buildHmacSignature(
       BUILDER_CREDENTIALS.secret,
       builderTimestamp,
@@ -124,20 +113,16 @@ export async function POST(request: NextRequest) {
       clobBody
     );
 
-    console.log("🔐 HMAC signed, sending to CLOB. Body length:", clobBody.length);
-
-    // Forward to CLOB with ALL required headers
+    // Forward to CLOB with exact same headers SDK uses
     const clobResponse = await fetch("https://clob.polymarket.com/order", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // User API auth headers
         POLY_ADDRESS: eoaAddress,
         POLY_SIGNATURE: userSignature,
         POLY_TIMESTAMP: userTimestamp.toString(),
         POLY_API_KEY: userCreds.key,
         POLY_PASSPHRASE: userCreds.passphrase,
-        // Builder auth headers
         POLY_BUILDER_SIGNATURE: builderSignature,
         POLY_BUILDER_TIMESTAMP: builderTimestamp.toString(),
         POLY_BUILDER_API_KEY: BUILDER_CREDENTIALS.key,
@@ -149,24 +134,21 @@ export async function POST(request: NextRequest) {
     const responseText = await clobResponse.text();
 
     if (!clobResponse.ok) {
-      const isCloudflareBlock = responseText.includes("Cloudflare") || responseText.includes("blocked");
-      const errorDetail = isCloudflareBlock
+      const isBlock =
+        responseText.includes("Cloudflare") || responseText.includes("blocked");
+      const detail = isBlock
         ? "Blocked by Cloudflare geo-restriction on clob.polymarket.com"
         : responseText.slice(0, 500);
-      console.error("CLOB order error:", clobResponse.status, errorDetail);
+      console.error("❌ CLOB error:", clobResponse.status, detail);
       return NextResponse.json(
-        {
-          error: "CLOB order failed",
-          status: clobResponse.status,
-          details: errorDetail,
-        },
+        { error: "CLOB order failed", status: clobResponse.status, details: detail },
         { status: clobResponse.status }
       );
     }
 
     try {
       const json = JSON.parse(responseText);
-      console.log("CLOB order success:", json);
+      console.log("✅ CLOB success:", json);
       return NextResponse.json(json);
     } catch {
       return NextResponse.json({ result: responseText });

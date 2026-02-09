@@ -7,17 +7,12 @@ import { useClobClient } from "./useClobClient";
 /**
  * Hook: usePlaceOrder
  *
- * Uses createAndPostOrder() — the official Polymarket pattern
- * from privy-safe-builder-example.
+ * Hybrid approach:
+ * 1. Try createAndPostOrder() directly (works when no CORS/geo block)
+ * 2. On network error, fallback to createOrder() + proxy POST
  *
- * createAndPostOrder() handles everything internally:
- * 1. Creates the order struct
- * 2. Signs it with the user's EOA (Privy handles signature)
- * 3. Generates proper HMAC headers (user + builder via builderConfig)
- * 4. POSTs to clob.polymarket.com/order
- *
- * No need for a server-side proxy for order posting!
- * The builder signing is handled by the remote sign endpoint.
+ * The proxy reproduces the exact payload format the SDK uses:
+ * { deferExec: false, order: {...signedOrder}, owner: apiKey, orderType: "GTC" }
  */
 
 export interface PlaceOrderParams {
@@ -35,7 +30,7 @@ export const usePlaceOrder = () => {
     async (params: PlaceOrderParams): Promise<string> => {
       const { tokenId, side, price, size, negRisk = false } = params;
 
-      const { clobClient, eoaAddress } = await initClobClient();
+      const { clobClient, userCreds, eoaAddress } = await initClobClient();
 
       console.log("ORDER DEBUG:", {
         tokenId: tokenId.slice(0, 20) + "...",
@@ -46,8 +41,6 @@ export const usePlaceOrder = () => {
         eoaAddress: eoaAddress.slice(0, 10) + "...",
       });
 
-      // Use createAndPostOrder — handles signing, HMAC, and posting
-      // This is the pattern from Polymarket's official privy-safe-builder-example
       const orderPayload = {
         tokenID: tokenId,
         price,
@@ -58,21 +51,102 @@ export const usePlaceOrder = () => {
         taker: "0x0000000000000000000000000000000000000000",
       };
 
-      console.log("📦 Calling createAndPostOrder...");
+      // Strategy 1: Try direct createAndPostOrder (no CORS issues in some regions)
+      try {
+        console.log("📦 Trying createAndPostOrder (direct)...");
 
-      const response = await clobClient.createAndPostOrder(
-        orderPayload,
-        { negRisk },
-        OrderType.GTC
-      );
+        const response = await clobClient.createAndPostOrder(
+          orderPayload,
+          { negRisk },
+          OrderType.GTC
+        );
 
-      console.log("✅ Order response:", response);
+        console.log("✅ Direct order response:", response);
 
-      if (!response.success) {
-        throw new Error(response.errorMsg || "Order failed");
+        // Check for network/CORS errors disguised as response
+        if (response?.error === "Network Error" || response?.status === 0) {
+          throw new Error("CORS_BLOCKED");
+        }
+
+        if (response.success === false) {
+          throw new Error(response.errorMsg || "Order failed");
+        }
+
+        return response.orderID || "success";
+      } catch (directError: any) {
+        const isCorsOrNetwork =
+          directError.message === "CORS_BLOCKED" ||
+          directError.message?.includes("Network Error") ||
+          directError.message?.includes("ERR_FAILED") ||
+          directError.message?.includes("CORS") ||
+          directError.response?.status === 0 ||
+          directError.status === 0;
+
+        if (!isCorsOrNetwork) {
+          // Real API error (like "min size: $1") — rethrow
+          const msg =
+            directError.response?.data?.error ||
+            directError.message ||
+            "Order failed";
+          throw new Error(msg);
+        }
+
+        console.log("🔄 CORS/geo blocked, falling back to proxy...");
       }
 
-      return response.orderID || "success";
+      // Strategy 2: Fallback — createOrder on client, POST via server proxy
+      const signedOrder = await clobClient.createOrder(orderPayload, {
+        negRisk,
+      });
+
+      console.log("📦 Order signed, posting via proxy...");
+
+      const res = await fetch("/api/polymarket/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signedOrder,
+          userCreds: {
+            key: userCreds.key,
+            secret: userCreds.secret,
+            passphrase: userCreds.passphrase,
+          },
+          eoaAddress,
+        }),
+      });
+
+      let data: any;
+      const contentType = res.headers.get("content-type") || "";
+      const rawText = await res.text();
+
+      if (contentType.includes("application/json") && rawText) {
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          data = { error: rawText.slice(0, 300) };
+        }
+      } else {
+        const isCloudflareBlock =
+          rawText.includes("Cloudflare") || rawText.includes("blocked");
+        data = {
+          error: isCloudflareBlock
+            ? "Request blocked by Cloudflare geo-restriction"
+            : rawText.slice(0, 300) || `HTTP ${res.status}`,
+        };
+      }
+
+      if (!res.ok) {
+        const errorMsg =
+          data.details || data.error || `Order failed: HTTP ${res.status}`;
+        console.error("❌ Proxy order failed:", {
+          status: res.status,
+          error: errorMsg,
+        });
+        throw new Error(errorMsg);
+      }
+
+      console.log("✅ Proxy order response:", data);
+      return data.orderID || data.id || "success";
     },
     [initClobClient]
   );
