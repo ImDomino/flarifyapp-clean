@@ -118,10 +118,7 @@ export function RightSidebar() {
 
           {/* Footer */}
           <div className="flex flex-wrap gap-4 text-xs font-bold text-zinc-700 uppercase">
-            <span>About</span>
-            <span>Terms</span>
-            <span>Privacy</span>
-            <span>© 2025 Flarify</span>
+            don't give up
           </div>
         </div>
       </aside>

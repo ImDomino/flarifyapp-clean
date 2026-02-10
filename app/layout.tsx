@@ -7,8 +7,8 @@ import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Flarify — Prediction Market Social",
-  description: "The social network for Polymarket predictors",
+  title: "Flarify — Social Network for Prediction Market Traders",
+  description: "The first social network for Polymarket predictors",
 };
 
 export default function RootLayout({

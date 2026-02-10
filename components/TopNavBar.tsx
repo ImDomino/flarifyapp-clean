@@ -9,27 +9,55 @@ export function TopNavBar() {
   const { authenticated, user, login } = usePrivy();
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [profileData, setProfileData] = useState<any>(null);
 
   const fetchUnread = useCallback(async () => {
     if (!user?.id) return;
     try {
       const res = await fetch(
-        `/api/notifications?user_id=${encodeURIComponent(user.id)}&unread_only=true&limit=1`,
+        `/api/notifications?user_id=${encodeURIComponent(
+          user.id
+        )}&unread_only=true&limit=1`,
         { cache: "no-store" }
       );
       const data = await res.json();
       setUnreadCount(data.unread_count || 0);
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
+  }, [user?.id]);
+
+  const loadProfile = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(
+        `/api/profile?user_id=${encodeURIComponent(user.id)}`,
+        { cache: "no-store" }
+      );
+      const data = await res.json();
+      if (data.profile) setProfileData(data.profile);
+    } catch (err) {
+      console.error("Error loading profile:", err);
+    }
   }, [user?.id]);
 
   useEffect(() => {
     if (!authenticated) return;
     fetchUnread();
+    loadProfile();
     const interval = setInterval(fetchUnread, 30000);
     return () => clearInterval(interval);
-  }, [authenticated, fetchUnread]);
+  }, [authenticated, fetchUnread, loadProfile]);
 
-  const displayName = user?.google?.name || user?.email?.address?.split("@")[0] || "User";
+  const fallbackDisplayName =
+    user?.google?.name || user?.email?.address?.split("@")[0] || "User";
+
+  const displayName =
+    profileData?.display_name ||
+    profileData?.username ||
+    fallbackDisplayName;
+
+  const avatarUrl = profileData?.avatar_url || null;
 
   return (
     <nav className="fixed top-0 left-0 right-0 h-20 bg-[#050505]/95 backdrop-blur-sm border-b border-zinc-800 z-50">
@@ -40,7 +68,13 @@ export function TopNavBar() {
           onClick={() => router.push("/")}
         >
           <div className="w-10 h-10 border-2 border-white flex items-center justify-center bg-black">
-            <span className="text-xl font-black text-white">F</span>
+            <img
+              src="/logo/twitter.PNG"   
+              alt="Flarify logo"
+              width={32}
+              height={32}
+              className="object-contain"
+            />
           </div>
           <span className="text-2xl font-black text-white uppercase tracking-tight hidden sm:block">
             Flarify
@@ -86,9 +120,17 @@ export function TopNavBar() {
                 className="flex items-center gap-3 group"
               >
                 <div className="w-10 h-10 border border-zinc-700 group-hover:border-white transition-colors overflow-hidden bg-white flex items-center justify-center">
-                  <span className="text-sm font-black text-black uppercase">
-                    {displayName[0]}
-                  </span>
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={displayName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-sm font-black text-black uppercase">
+                      {displayName[0]}
+                    </span>
+                  )}
                 </div>
                 <div className="text-left hidden lg:block">
                   <div className="text-sm font-bold text-white uppercase leading-none mb-1">
