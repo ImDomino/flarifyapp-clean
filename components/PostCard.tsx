@@ -78,7 +78,7 @@ export function PostCard({ post }: PostCardProps) {
             <img
               src={avatarUrl}
               alt={displayName}
-              className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all"
+              className="w-full h-full object-cover"
             />
           ) : (
             <div className="w-full h-full bg-zinc-900 flex items-center justify-center">

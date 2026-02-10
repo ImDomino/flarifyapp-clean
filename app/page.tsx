@@ -16,8 +16,24 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [feedTab, setFeedTab] = useState<FeedTab>("foryou");
+  const [profileData, setProfileData] = useState<any>(null);
+
   const router = useRouter();
   const { user, authenticated } = usePrivy();
+
+  const loadProfile = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(
+        `/api/profile?user_id=${encodeURIComponent(user.id)}`,
+        { cache: "no-store" }
+      );
+      const data = await res.json();
+      if (data.profile) setProfileData(data.profile);
+    } catch (err) {
+      console.error("Error loading profile:", err);
+    }
+  }, [user?.id]);
 
   const loadPosts = useCallback(
     async (pageNum: number, append = false, tab?: FeedTab) => {
@@ -28,7 +44,9 @@ export default function Home() {
 
         let url = `/api/posts?page=${pageNum}&limit=20`;
         if (activeTab === "following" && user?.id) {
-          url = `/api/posts/following?user_id=${encodeURIComponent(user.id)}&page=${pageNum}&limit=20`;
+          url = `/api/posts/following?user_id=${encodeURIComponent(
+            user.id
+          )}&page=${pageNum}&limit=20`;
         }
 
         const response = await fetch(url);
@@ -51,7 +69,10 @@ export default function Home() {
   useEffect(() => {
     setPage(1);
     loadPosts(1, false, feedTab);
-  }, [feedTab]);
+    if (authenticated) {
+      loadProfile();
+    }
+  }, [feedTab, authenticated, loadPosts, loadProfile]);
 
   const handleLoadMore = () => {
     const nextPage = page + 1;
@@ -65,7 +86,15 @@ export default function Home() {
     setFeedTab(tab);
   };
 
-  const username = user?.google?.name || user?.email?.address?.split("@")[0] || "User";
+  const fallbackUsername =
+    user?.google?.name || user?.email?.address?.split("@")[0] || "User";
+
+  const displayName =
+    profileData?.display_name ||
+    profileData?.username ||
+    fallbackUsername;
+
+  const avatarUrl = profileData?.avatar_url || null;
 
   return (
     <div className="space-y-6">
@@ -74,8 +103,10 @@ export default function Home() {
         <div className="absolute top-0 right-0 w-32 h-32 border-r-2 border-t-2 border-zinc-800 opacity-50" />
         <div className="relative z-10">
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white uppercase tracking-tighter leading-[0.9] mb-4">
-            Connect<br />
-            <span className="text-zinc-600">Through</span><br />
+            Connect
+            <br />
+            <span className="text-zinc-600">Through</span>
+            <br />
             Flarify
           </h1>
           <p className="text-zinc-500 uppercase tracking-widest text-xs sm:text-sm font-bold border-l-2 border-white pl-4 py-1 max-w-md">
@@ -91,10 +122,22 @@ export default function Home() {
             className="w-12 h-12 flex-shrink-0 border border-white p-0.5 cursor-pointer"
             onClick={() => router.push(authenticated ? "/profile" : "#")}
           >
-            <div className="w-full h-full bg-white flex items-center justify-center">
-              <span className="text-sm font-black text-black uppercase">
-                {authenticated ? username[0] : "?"}
-              </span>
+            <div className="w-full h-full bg-white flex items-center justify-center overflow-hidden">
+              {authenticated ? (
+                avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-sm font-black text-black uppercase">
+                    {displayName[0]}
+                  </span>
+                )
+              ) : (
+                <span className="text-sm font-black text-black uppercase">?</span>
+              )}
             </div>
           </div>
           <div className="flex-1">
