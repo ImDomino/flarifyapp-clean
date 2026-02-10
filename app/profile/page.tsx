@@ -97,10 +97,11 @@ export default function ProfilePage() {
     user?.email?.address?.split("@")[0] || "user";
   const avatarUrl = profileData?.avatar_url || null;
   const bioText = profileData?.bio || "";
-  const walletAddress = user?.wallet?.address || "0x01fc...815d";
+  const walletAddress = profileData?.wallet_address || user?.wallet?.address || "not found";
+
   const shortWallet = walletAddress
     ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-    : "0x01fc...815d";
+    : "not found";
 
   return (
     <div className="space-y-6">
