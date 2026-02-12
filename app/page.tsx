@@ -178,6 +178,7 @@ export default function Home() {
           const labels: Record<FeedTab, string> = {
             foryou: "For You",
             following: "Following",
+            trading: "Trading",
           };
           const isActive = feedTab === tab;
           const isDisabled = (tab === "following" && !authenticated);
