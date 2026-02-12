@@ -30,7 +30,7 @@ export function NavigationSidebar() {
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
-    { href: "/create", icon: Hash, label: "Explore", disabled: false },
+    { href: "/create", icon: Hash, label: "Create", disabled: false },
     { href: "#", icon: Bookmark, label: "Saved", disabled: true },
     { href: "#", icon: List, label: "Lists", disabled: true },
     { href: "/profile", icon: User, label: "Profile" },
