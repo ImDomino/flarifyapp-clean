@@ -85,7 +85,8 @@ export function SellModal({
 
   const handleBestPrice = () => {
     if (bestBid != null) {
-      setSellPrice(bestBid.toFixed(2));
+      setSellPrice(bestBid.toFixed(4));
+      setSellAmount(maxShares.toFixed(2));
     }
   };
 
