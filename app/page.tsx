@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import type { PostWithUser } from "@/lib/types";
 
-type FeedTab = "foryou" | "following" ;
+type FeedTab = "foryou" | "following" | "trading";
 
 export default function Home() {
   const [posts, setPosts] = useState<PostWithUser[]>([]);
