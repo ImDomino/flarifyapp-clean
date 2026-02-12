@@ -1,166 +1,153 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Force US region — Polymarket CLOB blocks certain geos
+// Force US region — Polymarket APIs may geo-block
 export const runtime = "nodejs";
 export const preferredRegion = "iad1";
 
 /**
- * GET /api/polymarket/price?token_id=XXX
+ * GET /api/polymarket/price?token_id=XXX&market_id=YYY
  *
- * Returns live prices or resolution status for a Polymarket token.
- * Tries CLOB orderbook first (live), then Gamma API (fallback + resolution info).
+ * Returns: { midPrice, bestBid, bestAsk }
+ * bestBid = highest bid (best price for sellers)
+ * bestAsk = lowest ask (best price for buyers)
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tokenId = searchParams.get("token_id");
+    const marketId = searchParams.get("market_id");
 
-    if (!tokenId) {
-      return NextResponse.json({ error: "Missing token_id" }, { status: 400 });
+    if (!tokenId && !marketId) {
+      return NextResponse.json({ error: "Missing token_id or market_id" }, { status: 400 });
     }
 
     let midPrice: number | null = null;
     let bestBid: number | null = null;
     let bestAsk: number | null = null;
-    let resolved = false;
-    let outcome: string | null = null; // "YES" or "NO"
-    let winningPrice: number | null = null;
 
-    // Strategy 1: CLOB orderbook (live markets only)
-    try {
-      const clobRes = await fetch(
-        `https://clob.polymarket.com/book?token_id=${tokenId}`,
-        {
-          headers: { Accept: "application/json" },
-          signal: AbortSignal.timeout(5000),
+    // Strategy 1: CLOB orderbook
+    if (tokenId) {
+      try {
+        const clobRes = await fetch(
+          `https://clob.polymarket.com/book?token_id=${tokenId}`,
+          { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(5000) }
+        );
+
+        if (clobRes.ok) {
+          const data = await clobRes.json();
+          const bids: Array<{ price: string; size: string }> = data.bids || [];
+          const asks: Array<{ price: string; size: string }> = data.asks || [];
+
+          // CLOB may return bids/asks in any order — find actual best
+          // Best bid = HIGHEST price someone is willing to buy at
+          // Best ask = LOWEST price someone is willing to sell at
+          if (bids.length > 0) {
+            bestBid = Math.max(...bids.map((b) => parseFloat(b.price)));
+          }
+          if (asks.length > 0) {
+            bestAsk = Math.min(...asks.map((a) => parseFloat(a.price)));
+          }
+
+          if (bestBid !== null && bestAsk !== null) {
+            midPrice = (bestBid + bestAsk) / 2;
+          } else if (bestBid !== null) {
+            midPrice = bestBid;
+          } else if (bestAsk !== null) {
+            midPrice = bestAsk;
+          }
+
+          console.log(`📊 CLOB [${tokenId.slice(0,8)}...]: bids=${bids.length} asks=${asks.length} bestBid=${bestBid} bestAsk=${bestAsk} mid=${midPrice}`);
+        } else {
+          console.warn(`⚠️ CLOB ${clobRes.status} for ${tokenId.slice(0,8)}...`);
         }
-      );
-
-      if (clobRes.ok) {
-        const data = await clobRes.json();
-        const bids = data.bids || [];
-        const asks = data.asks || [];
-
-        bestBid = bids.length > 0 ? parseFloat(bids[0].price) : null;
-        bestAsk = asks.length > 0 ? parseFloat(asks[0].price) : null;
-
-        if (bestBid !== null && bestAsk !== null) {
-          midPrice = (bestBid + bestAsk) / 2;
-        } else if (bestBid !== null) {
-          midPrice = bestBid;
-        } else if (bestAsk !== null) {
-          midPrice = bestAsk;
-        }
-      } else if (clobRes.status === 404) {
-        // Orderbook doesn't exist — market likely resolved
-        // Fall through to Gamma to confirm
+      } catch (e: any) {
+        console.warn(`⚠️ CLOB error: ${e.message?.slice(0, 80)}`);
       }
-    } catch (e: any) {
-      console.warn("CLOB fetch failed:", e.message?.slice(0, 100));
     }
 
-    // Strategy 2: Gamma API — get price OR resolution status
-    if (midPrice === null) {
+    // Strategy 2: Gamma API by clob_token_ids
+    if (midPrice === null && tokenId) {
       try {
         const gammaRes = await fetch(
           `https://gamma-api.polymarket.com/markets?clob_token_ids=${tokenId}&limit=1`,
-          {
-            headers: { Accept: "application/json" },
-            signal: AbortSignal.timeout(5000),
-          }
+          { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(5000) }
         );
-
         if (gammaRes.ok) {
           const markets = await gammaRes.json();
           if (Array.isArray(markets) && markets.length > 0) {
-            const market = markets[0];
-
-            // Check if market is resolved/closed
-            if (market.closed || market.resolved) {
-              resolved = true;
-
-              // Determine winning outcome
-              // resolutionSource or winner field varies
-              if (market.winner != null) {
-                // winner is the outcome name e.g. "Yes" or "No"
-                outcome = String(market.winner).toUpperCase();
-              } else if (market.resolution != null) {
-                outcome = String(market.resolution).toUpperCase();
-              }
-
-              // For resolved markets, prices are 1.0 for winner and 0.0 for loser
-              // Parse to find which token won
-              let clobTokenIds: string[] = [];
-              if (Array.isArray(market.clobTokenIds)) {
-                clobTokenIds = market.clobTokenIds;
-              } else if (typeof market.clobTokenIds === "string") {
-                try { clobTokenIds = JSON.parse(market.clobTokenIds); } catch {}
-              }
-
-              const tokenIndex = clobTokenIds.indexOf(tokenId);
-
-              // outcomePrices after resolution are [1, 0] or [0, 1]
-              let prices: number[] = [];
-              if (market.outcomePrices) {
-                try {
-                  const raw = typeof market.outcomePrices === "string"
-                    ? JSON.parse(market.outcomePrices)
-                    : market.outcomePrices;
-                  prices = raw.map(Number);
-                } catch {}
-              }
-
-              if (tokenIndex >= 0 && prices[tokenIndex] != null) {
-                winningPrice = prices[tokenIndex];
-              }
-            } else {
-              // Market still open — use Gamma prices as fallback
-              let prices: number[] = [];
-              if (market.outcomePrices) {
-                try {
-                  const raw = typeof market.outcomePrices === "string"
-                    ? JSON.parse(market.outcomePrices)
-                    : market.outcomePrices;
-                  prices = raw.map(Number);
-                } catch {}
-              }
-
-              let clobTokenIds: string[] = [];
-              if (Array.isArray(market.clobTokenIds)) {
-                clobTokenIds = market.clobTokenIds;
-              } else if (typeof market.clobTokenIds === "string") {
-                try { clobTokenIds = JSON.parse(market.clobTokenIds); } catch {}
-              }
-
-              const tokenIndex = clobTokenIds.indexOf(tokenId);
-              if (tokenIndex >= 0 && prices[tokenIndex] != null) {
-                midPrice = prices[tokenIndex];
-              } else if (prices.length > 0) {
-                midPrice = prices[0];
-              }
+            const price = extractPriceFromGammaMarket(markets[0], tokenId);
+            if (price !== null) {
+              midPrice = price;
+              console.log(`📊 Gamma [${tokenId.slice(0,8)}...]: price=${price}`);
             }
           }
         }
-      } catch (e: any) {
-        console.warn("Gamma fallback failed:", e.message?.slice(0, 100));
-      }
+      } catch { /* ignore */ }
     }
 
-    const headers = {
-      "Cache-Control": resolved
-        ? "public, s-maxage=3600, stale-while-revalidate=86400" // resolved: cache 1hr
-        : "public, s-maxage=30, stale-while-revalidate=120",     // live: cache 30s
-    };
+    // Strategy 3: Gamma API by condition_id
+    if (midPrice === null && marketId) {
+      try {
+        const gammaRes = await fetch(
+          `https://gamma-api.polymarket.com/markets?condition_id=${marketId}&limit=1`,
+          { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(5000) }
+        );
+        if (gammaRes.ok) {
+          const markets = await gammaRes.json();
+          if (Array.isArray(markets) && markets.length > 0) {
+            const price = extractPriceFromGammaMarket(markets[0], null);
+            if (price !== null) {
+              midPrice = price;
+              console.log(`📊 Gamma cond [${marketId.slice(0,8)}...]: price=${price}`);
+            }
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    if (midPrice === null) {
+      console.warn(`❌ No price: token=${tokenId?.slice(0,8)} market=${marketId?.slice(0,8)}`);
+    }
 
     return NextResponse.json(
-      { tokenId, bestBid, bestAsk, midPrice, resolved, outcome, winningPrice },
-      { headers }
+      { tokenId, marketId, bestBid, bestAsk, midPrice },
+      { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" } }
     );
   } catch (error: any) {
     console.error("Price proxy error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch price" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message || "Failed" }, { status: 500 });
   }
+}
+
+function extractPriceFromGammaMarket(market: any, tokenId: string | null): number | null {
+  let prices: number[] = [];
+
+  if (market.outcomePrices) {
+    if (typeof market.outcomePrices === "string") {
+      try { prices = JSON.parse(market.outcomePrices).map(Number); }
+      catch { prices = market.outcomePrices.split(",").map(Number); }
+    } else if (Array.isArray(market.outcomePrices)) {
+      prices = market.outcomePrices.map(Number);
+    }
+  }
+
+  if (prices.length === 0) return null;
+
+  if (tokenId) {
+    let clobTokenIds: string[] = [];
+    if (Array.isArray(market.clobTokenIds)) {
+      clobTokenIds = market.clobTokenIds;
+    } else if (typeof market.clobTokenIds === "string") {
+      try { clobTokenIds = JSON.parse(market.clobTokenIds); } catch { /* ignore */ }
+    }
+    const tokenIndex = clobTokenIds.indexOf(tokenId);
+    if (tokenIndex >= 0 && prices[tokenIndex] != null) {
+      return prices[tokenIndex];
+    }
+  }
+
+  if (!isNaN(prices[0]) && prices[0] >= 0 && prices[0] <= 1) {
+    return prices[0];
+  }
+  return null;
 }

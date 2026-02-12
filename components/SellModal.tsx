@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { X, TrendingDown, Info, AlertCircle, Loader2 } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { X, TrendingDown, Info, AlertCircle, Loader2, Zap } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { usePlaceOrder } from "@/hooks/usePlaceOrder";
 
@@ -11,13 +11,13 @@ interface SellModalProps {
   position: {
     asset_id: string;
     size: number;
-    avgPrice: number;      // 0.0–1.0 (доллары)
+    avgPrice: number;
     currentValue: number;
     outcome?: string;
     question?: string;
     negRisk?: boolean;
   };
-  currentPrice?: number;   // 0.0–1.0 (доллары)
+  currentPrice?: number;
   onSuccess?: () => void;
 }
 
@@ -31,29 +31,48 @@ export function SellModal({
   const { authenticated, login } = usePrivy();
   const { sellShares } = usePlaceOrder();
 
-  // price в ДОЛЛАРАХ (0.20 = 20¢)
   const [sellAmount, setSellAmount] = useState<string>("");
   const [sellPrice, setSellPrice] = useState<string>(
     (currentPrice ?? position.avgPrice).toFixed(2)
   );
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bestBid, setBestBid] = useState<number | null>(null);
+  const [loadingBest, setLoadingBest] = useState(false);
 
-  const sellAmountNum = useMemo(
-    () => parseFloat(sellAmount || "0"),
-    [sellAmount]
-  );
-  const sellPriceNum = useMemo(
-    () => parseFloat(sellPrice || "0"),
-    [sellPrice]
-  );
+  // Fetch best bid from orderbook when modal opens
+  useEffect(() => {
+    if (!isOpen || !position.asset_id) return;
+
+    let cancelled = false;
+    setLoadingBest(true);
+
+    const fetchBestBid = async () => {
+      try {
+        const res = await fetch(
+          `/api/polymarket/price?token_id=${encodeURIComponent(position.asset_id)}`
+        );
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled && data.bestBid != null && data.bestBid > 0) {
+          setBestBid(data.bestBid);
+        }
+      } catch {
+        // silent
+      } finally {
+        if (!cancelled) setLoadingBest(false);
+      }
+    };
+
+    fetchBestBid();
+    return () => { cancelled = true; };
+  }, [isOpen, position.asset_id]);
+
+  const sellAmountNum = useMemo(() => parseFloat(sellAmount || "0"), [sellAmount]);
+  const sellPriceNum = useMemo(() => parseFloat(sellPrice || "0"), [sellPrice]);
 
   const maxShares = position.size;
-  const estimatedProceeds = useMemo(
-    () => sellAmountNum * sellPriceNum,
-    [sellAmountNum, sellPriceNum]
-  );
-
+  const estimatedProceeds = useMemo(() => sellAmountNum * sellPriceNum, [sellAmountNum, sellPriceNum]);
   const costBasis = sellAmountNum * position.avgPrice;
   const pnl = estimatedProceeds - costBasis;
   const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
@@ -61,34 +80,29 @@ export function SellModal({
   const MIN_SHARES = 5;
   const isBelowMinimum = sellAmountNum > 0 && sellAmountNum < MIN_SHARES;
   const exceedsPosition = sellAmountNum > maxShares;
+  const MIN_PRICE = 0.01;
+  const MAX_PRICE = 0.99;
 
-  const MIN_PRICE = 0.01; // 1¢
-  const MAX_PRICE = 0.99; // 99¢
+  const handleBestPrice = () => {
+    if (bestBid != null) {
+      setSellPrice(bestBid.toFixed(2));
+    }
+  };
 
   const handleSell = async () => {
-    if (!authenticated) {
-      login();
-      return;
-    }
+    if (!authenticated) { login(); return; }
 
     if (!sellAmountNum || sellAmountNum <= 0 || !sellPriceNum || sellPriceNum <= 0) {
-      setError("Please enter valid amount and price");
-      return;
+      setError("Please enter valid amount and price"); return;
     }
-
     if (sellPriceNum < MIN_PRICE || sellPriceNum > MAX_PRICE) {
-      setError("Price must be between 0.01 and 0.99 (1¢–99¢)");
-      return;
+      setError("Price must be between 0.01 and 0.99 (1¢–99¢)"); return;
     }
-
     if (exceedsPosition) {
-      setError(`Cannot sell more than ${maxShares.toFixed(2)} shares`);
-      return;
+      setError(`Cannot sell more than ${maxShares.toFixed(2)} shares`); return;
     }
-
     if (isBelowMinimum) {
-      setError(`Minimum order size is ${MIN_SHARES} shares`);
-      return;
+      setError(`Minimum order size is ${MIN_SHARES} shares`); return;
     }
 
     setIsProcessing(true);
@@ -96,55 +110,37 @@ export function SellModal({
 
     try {
       const orderId = await sellShares(
-         position.asset_id,
+        position.asset_id,
         sellPriceNum,
         sellAmountNum,
         position.negRisk ?? false
       );
 
-      console.log("✅ Sell order placed:", orderId);
-
       alert(
-        `✅ Sell order placed!\n\nOrder ID: ${orderId}\n\nSelling ${sellAmountNum.toFixed(
-          2
-        )} shares at ${(sellPriceNum * 100).toFixed(1)}¢`
+        `✅ Sell order placed!\n\nOrder ID: ${orderId}\n\nSelling ${sellAmountNum.toFixed(2)} shares at ${(sellPriceNum * 100).toFixed(1)}¢`
       );
 
       onClose();
       setSellAmount("");
-
-      if (onSuccess) {
-        onSuccess();
-      }
+      if (onSuccess) onSuccess();
     } catch (err: any) {
-      console.error("❌ Sell error:", err);
-
       let errorMessage = err.message || "Failed to place sell order";
-
       if (err.message?.includes("Size") || err.message?.includes("minimum")) {
         errorMessage = `Minimum order size: ${MIN_SHARES} shares`;
-      } else if (
-        err.message?.includes("not enough balance") ||
-        err.message?.includes("insufficient") ||
-        err.message?.includes("allowance")
-      ) {
-        errorMessage =
-          "Insufficient shares or approvals missing. Make sure your position is settled and approvals are set.";
+      } else if (err.message?.includes("not enough balance") || err.message?.includes("insufficient") || err.message?.includes("allowance")) {
+        errorMessage = "Insufficient shares or approvals missing.";
       } else if (err.message?.includes("invalid signature")) {
-        errorMessage = "Signature error. Please try logging out and back in.";
+        errorMessage = "Signature error. Try logging out and back in.";
       } else if (err.message?.includes("invalid price")) {
         errorMessage = "Invalid price. Use between 0.01 and 0.99 (1¢–99¢).";
       }
-
       setError(errorMessage);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleSetMaxAmount = () => {
-    setSellAmount(maxShares.toFixed(2));
-  };
+  const handleSetMaxAmount = () => setSellAmount(maxShares.toFixed(2));
 
   const handleSetPercentage = (percent: number) => {
     setSellAmount(((maxShares * percent) / 100).toFixed(2));
@@ -154,66 +150,65 @@ export function SellModal({
 
   return (
     <>
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999]"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/80 z-[9999]" onClick={onClose} />
 
       <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-none px-4">
-        <div className="w-full max-w-md bg-base-900 border border-white/10 rounded-2xl shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto">
-          <div className="relative p-5 border-b border-white/5">
+        <div className="w-full max-w-md bg-[#0a0a0a] border-2 border-white pointer-events-auto max-h-[90vh] overflow-y-auto relative">
+          {/* Corner accents */}
+          <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white" />
+          <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white" />
+
+          {/* Header */}
+          <div className="relative p-5 border-b border-zinc-800">
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10 transition-colors"
+              className="absolute top-4 right-4 w-8 h-8 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white transition-colors"
             >
-              <X className="w-5 h-5 text-slate-400" />
+              <X className="w-4 h-4" />
             </button>
-
             <div className="flex items-center gap-2 mb-1">
-              <TrendingDown className="w-5 h-5 text-rose-400" />
-              <h2 className="font-display text-lg font-semibold tracking-tight text-slate-100">
+              <TrendingDown className="w-5 h-5 text-zinc-400" />
+              <h2 className="font-black text-lg uppercase tracking-wider text-white">
                 Sell Position
               </h2>
             </div>
             {position.question && (
-              <p className="text-xs text-slate-400 line-clamp-2 pr-8 mt-1">
+              <p className="text-xs text-zinc-500 font-bold line-clamp-2 pr-8 mt-1">
                 {position.question}
               </p>
             )}
           </div>
 
           <div className="p-5 space-y-4">
-            <div className="bg-base-850/50 border border-white/5 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-400">Your Position</span>
-                <span className="text-xs px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full font-medium">
+            {/* Position info */}
+            <div className="border border-zinc-800 bg-[#111] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Your Position</span>
+                <span className="text-xs px-2 py-1 border border-zinc-700 text-zinc-300 font-black uppercase tracking-wider">
                   {position.outcome || "Shares"}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-slate-500">Shares Owned</p>
-                  <p className="text-lg font-semibold text-slate-200">
-                    {maxShares.toFixed(2)}
-                  </p>
+              <div className="grid grid-cols-2 gap-px bg-zinc-800">
+                <div className="bg-[#0a0a0a] p-3">
+                  <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold mb-1">Shares</p>
+                  <p className="text-lg font-mono font-bold text-white">{maxShares.toFixed(2)}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-slate-500">Avg Price</p>
-                  <p className="text-lg font-semibold text-slate-200">
-                    {(position.avgPrice * 100).toFixed(1)}¢
-                  </p>
+                <div className="bg-[#0a0a0a] p-3">
+                  <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold mb-1">Avg Price</p>
+                  <p className="text-lg font-mono font-bold text-white">{(position.avgPrice * 100).toFixed(1)}¢</p>
                 </div>
               </div>
             </div>
 
+            {/* Shares to sell */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-slate-200">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
                   Shares to Sell
                 </label>
                 <button
                   onClick={handleSetMaxAmount}
-                  className="text-xs text-blue-400 hover:text-blue-300 font-medium"
+                  className="text-xs text-zinc-400 hover:text-white font-bold uppercase tracking-wider"
                 >
                   Max: {maxShares.toFixed(2)}
                 </button>
@@ -223,17 +218,17 @@ export function SellModal({
                 value={sellAmount}
                 onChange={(e) => setSellAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full bg-base-850/50 border border-white/10 rounded-xl px-4 py-3.5 text-lg focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all placeholder:text-slate-500 text-slate-100"
+                className="w-full bg-[#111] border border-zinc-800 px-4 py-4 text-lg font-bold focus:outline-none focus:border-white transition-all text-white placeholder-zinc-700"
                 min="0"
                 max={maxShares}
                 step="0.01"
               />
-              <div className="flex gap-2 mt-2">
+              <div className="grid grid-cols-4 gap-px bg-zinc-800 mt-2">
                 {[25, 50, 75, 100].map((pct) => (
                   <button
                     key={pct}
                     onClick={() => handleSetPercentage(pct)}
-                    className="flex-1 py-1.5 text-xs font-medium text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition"
+                    className="py-2 text-xs font-black uppercase tracking-wider text-zinc-400 bg-[#111] hover:text-white hover:bg-[#1a1a1a] transition-colors"
                   >
                     {pct}%
                   </button>
@@ -241,101 +236,101 @@ export function SellModal({
               </div>
             </div>
 
+            {/* Sell price */}
             <div>
-              <label className="text-sm font-medium text-slate-200 mb-2 block">
-                Sell Price (¢)
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">
+                Sell Price ($)
               </label>
               <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
                 <input
                   type="number"
                   value={sellPrice}
                   onChange={(e) => setSellPrice(e.target.value)}
-                  placeholder="0.20" // 20¢
-                  className="w-full bg-base-850/50 border border-white/10 rounded-xl px-4 py-3.5 text-lg focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all placeholder:text-slate-500 text-slate-100"
+                  placeholder="0.20"
+                  className="w-full bg-[#111] border border-zinc-800 pl-8 pr-4 py-4 text-lg font-bold focus:outline-none focus:border-white transition-all text-white placeholder-zinc-700"
                   min={MIN_PRICE.toString()}
                   max={MAX_PRICE.toString()}
                   step="0.01"
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
-                  $
-                </span>
               </div>
-              <p className="mt-1 text-xs text-slate-500">
-                This is in dollars: 0.20 = 20¢.
+              <p className="mt-1 text-[10px] text-zinc-600 uppercase tracking-wider font-bold">
+                0.20 = 20¢ · Range: 1¢–99¢
               </p>
             </div>
 
+            {/* Best Price button */}
+            {bestBid != null && bestBid > 0 && (
+              <button
+                onClick={handleBestPrice}
+                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-white bg-white text-black font-black uppercase tracking-wider text-xs hover:bg-black hover:text-white transition-colors"
+              >
+                <Zap className="w-4 h-4" />
+                Instant Sell: {(bestBid * 100).toFixed(1)}¢
+              </button>
+            )}
+            {loadingBest && (
+              <div className="flex items-center justify-center gap-2 py-2 text-zinc-600">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span className="text-[10px] uppercase tracking-wider font-bold">Loading orderbook...</span>
+              </div>
+            )}
+
+            {/* Calculations */}
             {sellAmountNum > 0 && sellPriceNum > 0 && (
-              <div className="bg-base-850/30 border border-white/5 rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-400">Est. Proceeds</span>
-                  <span className="text-sm font-medium text-slate-200">
-                    ${estimatedProceeds.toFixed(2)}
-                  </span>
+              <div className="border border-zinc-800 bg-[#111] divide-y divide-zinc-800">
+                <div className="flex justify-between items-center p-3">
+                  <span className="text-xs text-zinc-500 uppercase font-bold">Est. Proceeds</span>
+                  <span className="text-sm font-mono font-bold text-white">${estimatedProceeds.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-400">Cost Basis</span>
-                  <span className="text-sm font-medium text-slate-200">
-                    ${costBasis.toFixed(2)}
-                  </span>
+                <div className="flex justify-between items-center p-3">
+                  <span className="text-xs text-zinc-500 uppercase font-bold">Cost Basis</span>
+                  <span className="text-sm font-mono font-bold text-white">${costBasis.toFixed(2)}</span>
                 </div>
-                <div className="h-px bg-white/5" />
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-slate-200">P&L</span>
-                  <span
-                    className={`text-base font-bold ${
-                      pnl >= 0 ? "text-teal-300" : "text-rose-300"
-                    }`}
-                  >
+                <div className="flex justify-between items-center p-3">
+                  <span className="text-xs text-zinc-500 uppercase font-bold">P&L</span>
+                  <span className={`text-sm font-mono font-bold ${pnl >= 0 ? "text-white" : "text-red-400"}`}>
                     {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
-                    <span className="text-xs text-slate-500 ml-1">
-                      ({pnlPercent >= 0 ? "+" : ""}
-                      {pnlPercent.toFixed(1)}%)
+                    <span className="text-zinc-600 ml-1">
+                      ({pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(1)}%)
                     </span>
                   </span>
                 </div>
               </div>
             )}
 
+            {/* Warnings */}
             {isBelowMinimum && (
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-amber-300">
-                  Minimum order: {MIN_SHARES} shares
-                </p>
+              <div className="border border-zinc-600 bg-[#111] p-3 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-zinc-400 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-zinc-400 font-bold">Minimum order: {MIN_SHARES} shares</p>
               </div>
             )}
 
             {exceedsPosition && (
-              <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-rose-300">
-                  Cannot sell more than {maxShares.toFixed(2)} shares
-                </p>
+              <div className="border border-red-800 bg-red-950/30 p-3 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-red-400 font-bold">Cannot sell more than {maxShares.toFixed(2)} shares</p>
               </div>
             )}
 
             {error && (
-              <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-rose-300">{error}</p>
+              <div className="border border-red-800 bg-red-950/30 p-3 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-red-400 font-bold">{error}</p>
               </div>
             )}
 
+            {/* Action */}
             <button
               onClick={handleSell}
               disabled={
-                !sellAmountNum ||
-                sellAmountNum <= 0 ||
-                !sellPriceNum ||
-                sellPriceNum <= 0 ||
-                sellPriceNum < MIN_PRICE ||
-                sellPriceNum > MAX_PRICE ||
-                isProcessing ||
-                isBelowMinimum ||
-                exceedsPosition
+                !sellAmountNum || sellAmountNum <= 0 ||
+                !sellPriceNum || sellPriceNum <= 0 ||
+                sellPriceNum < MIN_PRICE || sellPriceNum > MAX_PRICE ||
+                isProcessing || isBelowMinimum || exceedsPosition
               }
-              className="w-full py-4 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-rose-500 text-white hover:bg-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.3)]"
+              className="w-full py-4 bg-white text-black font-black uppercase tracking-widest text-sm border-2 border-white hover:bg-black hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               {isProcessing ? (
                 <span className="flex items-center justify-center gap-2">
@@ -343,24 +338,21 @@ export function SellModal({
                   Placing sell order...
                 </span>
               ) : (
-                `Sell ${
-                  sellAmountNum > 0 ? sellAmountNum.toFixed(2) : "0"
-                } shares for $${estimatedProceeds.toFixed(2)}`
+                `Sell ${sellAmountNum > 0 ? sellAmountNum.toFixed(2) : "0"} shares — $${estimatedProceeds.toFixed(2)}`
               )}
             </button>
 
             {!authenticated && (
-              <p className="text-center text-xs text-slate-500">
-                Please sign in to sell positions
+              <p className="text-center text-xs text-zinc-600 uppercase font-bold tracking-wider">
+                Sign in to sell positions
               </p>
             )}
 
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
-              <p className="text-xs text-blue-300 leading-relaxed">
-                <Info className="w-3.5 h-3.5 inline mr-1" />
-                Your sell order will be placed on the orderbook at{" "}
-                {(sellPriceNum * 100).toFixed(1)}¢. It will execute when a buyer
-                matches your price.
+            {/* Info */}
+            <div className="border border-zinc-800 bg-[#111] p-3">
+              <p className="text-[10px] text-zinc-500 leading-relaxed uppercase tracking-wider">
+                <Info className="w-3 h-3 inline mr-1" />
+                Sell order at {(sellPriceNum * 100).toFixed(1)}¢. Executes when a buyer matches your price.
               </p>
             </div>
           </div>
