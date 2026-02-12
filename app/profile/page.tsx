@@ -102,7 +102,6 @@ export default function ProfilePage() {
   const shortWallet = walletAddress
     ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
     : "not found";
-
   return (
     <div className="space-y-6">
       {/* Profile Header */}
@@ -115,11 +114,11 @@ export default function ProfilePage() {
 
         {/* Profile Info */}
         <div className="px-5 sm:px-6 pb-6">
-          <div className="flex items-end justify-between -mt-12 mb-6">
+          <div className="flex items-end justify-between -mt-12 mb-6 relative z-10">
             {/* Avatar */}
             <div className="w-24 h-24 border-4 border-[#0a0a0a] bg-white flex items-center justify-center overflow-hidden">
               {avatarUrl ? (
-                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all" />
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-4xl font-black text-black uppercase">{displayName[0]}</span>
               )}

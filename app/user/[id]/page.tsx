@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { ArrowLeft, Fingerprint, MessageCircle, Heart, TrendingUp } from "lucide-react";
+import { ArrowLeft, MessageCircle, Heart, TrendingUp, AlertCircle } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { FollowButton } from "@/components/FollowButton";
 import type { PostWithUser } from "@/lib/types";
@@ -11,22 +11,31 @@ import type { PostWithUser } from "@/lib/types";
 export default function UserProfilePage() {
   const { id } = useParams();
   const router = useRouter();
-  const { user } = usePrivy();
+  const { user, ready } = usePrivy();
   const [profileData, setProfileData] = useState<any>(null);
   const [posts, setPosts] = useState<PostWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
 
-  const userId = id as string;
-  const isOwnProfile = user?.id === userId;
+  const userId = decodeURIComponent(id as string);
+  const isOwnProfile = ready && user?.id === userId;
 
   const loadProfile = useCallback(async () => {
     try {
+      setProfileError(null);
       const res = await fetch(`/api/profile?user_id=${encodeURIComponent(userId)}`, { cache: "no-store" });
       const data = await res.json();
-      if (data.profile) setProfileData(data.profile);
-    } catch (err) { console.error("Error:", err); }
+      if (data.profile) {
+        setProfileData(data.profile);
+      } else {
+        setProfileError("Profile not found");
+      }
+    } catch (err) {
+      console.error("Error loading profile:", err);
+      setProfileError("Failed to load profile");
+    }
   }, [userId]);
 
   const loadFollowCounts = useCallback(async () => {
@@ -40,20 +49,62 @@ export default function UserProfilePage() {
 
   const loadPosts = useCallback(async () => {
     try {
-      setIsLoading(true);
       const response = await fetch(`/api/posts?user_id=${encodeURIComponent(userId)}&page=1&limit=50`);
       const data = await response.json();
       setPosts(data.posts || []);
     } catch (err) { console.error("Error:", err); }
-    finally { setIsLoading(false); }
   }, [userId]);
 
   useEffect(() => {
+    if (!ready) return; // Wait for Privy to initialize
     if (isOwnProfile) { router.replace("/profile"); return; }
-    loadProfile();
-    loadFollowCounts();
-    loadPosts();
-  }, [userId, isOwnProfile]);
+
+    const loadAll = async () => {
+      setIsLoading(true);
+      await Promise.all([loadProfile(), loadFollowCounts(), loadPosts()]);
+      setIsLoading(false);
+    };
+    loadAll();
+  }, [ready, userId, isOwnProfile, router, loadProfile, loadFollowCounts, loadPosts]);
+
+  // Loading state
+  if (!ready || isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-6 h-6 border-2 border-zinc-700 border-t-white animate-spin" />
+      </div>
+    );
+  }
+
+  // Profile not found
+  if (profileError || !profileData) {
+    return (
+      <div className="space-y-6">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="font-bold uppercase tracking-wider text-sm">Back</span>
+        </button>
+        <div className="bg-[#0a0a0a] border border-zinc-800 p-12 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 border-2 border-zinc-700 flex items-center justify-center">
+            <AlertCircle className="w-8 h-8 text-zinc-500" />
+          </div>
+          <h2 className="text-xl font-black uppercase tracking-wider mb-2">User Not Found</h2>
+          <p className="text-sm text-zinc-500 uppercase tracking-wide mb-6">
+            {profileError || "This profile doesn't exist or hasn't been set up yet"}
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-colors"
+          >
+            Back to Feed
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const displayName = profileData?.display_name || profileData?.username || "User";
   const username = profileData?.username || "user";
@@ -77,10 +128,10 @@ export default function UserProfilePage() {
           <div className="absolute inset-0 grid-bg opacity-70" />
         </div>
         <div className="px-5 sm:px-6 pb-6">
-          <div className="flex items-end justify-between -mt-12 mb-6">
+          <div className="flex items-end justify-between -mt-12 mb-6 relative z-10">
             <div className="w-24 h-24 border-4 border-[#0a0a0a] bg-white flex items-center justify-center overflow-hidden">
               {avatarUrl ? (
-                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all" />
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-4xl font-black text-black uppercase">{displayName[0]}</span>
               )}
@@ -118,11 +169,7 @@ export default function UserProfilePage() {
         <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4 pb-3 border-b border-zinc-800">
           Posts
         </h2>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-2 border-zinc-700 border-t-white animate-spin" />
-          </div>
-        ) : posts.length === 0 ? (
+        {posts.length === 0 ? (
           <div className="bg-[#0a0a0a] border border-zinc-800 p-12 text-center">
             <p className="text-sm text-zinc-500 uppercase tracking-wider font-bold">No Posts Yet</p>
           </div>

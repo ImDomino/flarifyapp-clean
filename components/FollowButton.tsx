@@ -15,10 +15,10 @@ export function FollowButton({ targetUserId, currentUserId, onFollowChange }: Fo
   const checkFollow = useCallback(async () => {
     try {
       const res = await fetch(
-        `/api/follows/check?follower_id=${encodeURIComponent(currentUserId)}&following_id=${encodeURIComponent(targetUserId)}`
+        `/api/follows?user_id=${encodeURIComponent(targetUserId)}&viewer_id=${encodeURIComponent(currentUserId)}`
       );
       const data = await res.json();
-      setIsFollowing(data.is_following || false);
+      setIsFollowing(data.isFollowing || false);
     } catch { /* silent */ }
   }, [currentUserId, targetUserId]);
 

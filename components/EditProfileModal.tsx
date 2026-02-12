@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { X, Camera, Loader2 } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 
@@ -27,6 +27,18 @@ export function EditProfileModal({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync state when modal opens or props change
+  useEffect(() => {
+    if (isOpen) {
+      setUsername(currentUsername);
+      setDisplayName(currentDisplayName);
+      setBio(currentBio);
+      setAvatarPreview(currentAvatarUrl || "");
+      setAvatarFile(null);
+      setError(null);
+    }
+  }, [isOpen, currentUsername, currentDisplayName, currentBio, currentAvatarUrl]);
 
   if (!isOpen) return null;
 
@@ -57,7 +69,7 @@ export function EditProfileModal({
       }
 
       const res = await fetch("/api/profile", {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: user.id,
@@ -69,7 +81,7 @@ export function EditProfileModal({
       });
 
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Failed to save");
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to save");
       onSaved();
       onClose();
     } catch (err: any) {
@@ -102,7 +114,7 @@ export function EditProfileModal({
               onClick={() => fileInputRef.current?.click()}
             >
               {avatarPreview ? (
-                <img src={avatarPreview} alt="" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
+                <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-3xl font-black text-black uppercase">{displayName[0]}</span>
               )}
