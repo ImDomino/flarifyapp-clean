@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import type { PostWithUser } from "@/lib/types";
 
-type FeedTab = "foryou" | "following" | "trading";
+type FeedTab = "foryou" | "following" ;
 
 export default function Home() {
   const [posts, setPosts] = useState<PostWithUser[]>([]);
@@ -178,10 +178,9 @@ export default function Home() {
           const labels: Record<FeedTab, string> = {
             foryou: "For You",
             following: "Following",
-            trading: "Trading",
           };
           const isActive = feedTab === tab;
-          const isDisabled = (tab === "following" && !authenticated) || tab === "trading";
+          const isDisabled = (tab === "following" && !authenticated);
           return (
             <button
               key={tab}

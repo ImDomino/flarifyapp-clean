@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ExternalLink, TrendingUp } from "lucide-react";
 import { TradingModal } from "./TradingModal";
 
@@ -24,8 +24,54 @@ export function MarketCard({ marketData, marketId }: MarketCardProps) {
     side: "yes" | "no";
   }>({ isOpen: false, side: "yes" });
 
-  const yesPrice = marketData.prices?.[0];
-  const noPrice = marketData.prices?.[1];
+  // Cached prices from post creation (fallback)
+  const cachedYes = marketData.prices?.[0] ?? null;
+  const cachedNo = marketData.prices?.[1] ?? null;
+
+  // Live prices from orderbook
+  const [liveYesPrice, setLiveYesPrice] = useState<number | null>(null);
+  const [liveNoPrice, setLiveNoPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    const yesTokenId = marketData.yesTokenId;
+    if (!yesTokenId) return;
+
+    let cancelled = false;
+
+    const fetchLivePrice = async () => {
+      try {
+        const res = await fetch(
+          `/api/polymarket/price?token_id=${encodeURIComponent(yesTokenId)}`
+        );
+        if (!res.ok || cancelled) return;
+
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (data.midPrice != null && data.midPrice > 0 && data.midPrice < 1) {
+          setLiveYesPrice(data.midPrice);
+          setLiveNoPrice(1 - data.midPrice);
+        }
+      } catch {
+        // Silent — keep whatever prices we have
+      }
+    };
+
+    // Fetch immediately
+    fetchLivePrice();
+
+    // Then every 2 minutes
+    const interval = setInterval(fetchLivePrice, 120_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [marketData.yesTokenId]);
+
+  // Use live prices if available, otherwise cached from post
+  const yesPrice = liveYesPrice ?? cachedYes;
+  const noPrice = liveNoPrice ?? cachedNo;
   const yesPercent = yesPrice != null ? Math.round(yesPrice * 100) : null;
   const noPercent = noPrice != null ? Math.round(noPrice * 100) : null;
 

@@ -69,7 +69,7 @@ export function TopNavBar() {
         >
           <div className="w-10 h-10 border-2 border-white flex items-center justify-center bg-black">
             <img
-              src="/logo/twitter.PNG"   
+              src="/logo/twitter.jpg"   
               alt="Flarify logo"
               width={32}
               height={32}
