@@ -7,9 +7,8 @@ export const preferredRegion = "iad1";
 /**
  * GET /api/polymarket/price?token_id=XXX&market_id=YYY
  *
- * Returns: { midPrice, bestBid, bestAsk }
- * bestBid = highest bid (best price for sellers)
- * bestAsk = lowest ask (best price for buyers)
+ * Returns: { midPrice, bestBid, bestAsk, resolved, winner }
+ * resolved comes from Gamma API (closed / active / tokens[].winner)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -24,8 +23,10 @@ export async function GET(request: NextRequest) {
     let midPrice: number | null = null;
     let bestBid: number | null = null;
     let bestAsk: number | null = null;
+    let resolved = false;
+    let winner: string | null = null; // "Yes" | "No" | null
 
-    // Strategy 1: CLOB orderbook
+    // Strategy 1: CLOB orderbook (live prices)
     if (tokenId) {
       try {
         const clobRes = await fetch(
@@ -38,9 +39,6 @@ export async function GET(request: NextRequest) {
           const bids: Array<{ price: string; size: string }> = data.bids || [];
           const asks: Array<{ price: string; size: string }> = data.asks || [];
 
-          // CLOB may return bids/asks in any order — find actual best
-          // Best bid = HIGHEST price someone is willing to buy at
-          // Best ask = LOWEST price someone is willing to sell at
           if (bids.length > 0) {
             bestBid = Math.max(...bids.map((b) => parseFloat(b.price)));
           }
@@ -56,17 +54,15 @@ export async function GET(request: NextRequest) {
             midPrice = bestAsk;
           }
 
-          console.log(`📊 CLOB [${tokenId.slice(0,8)}...]: bids=${bids.length} asks=${asks.length} bestBid=${bestBid} bestAsk=${bestAsk} mid=${midPrice}`);
-        } else {
-          console.warn(`⚠️ CLOB ${clobRes.status} for ${tokenId.slice(0,8)}...`);
+          console.log(`📊 CLOB [${tokenId.slice(0, 8)}...]: bids=${bids.length} asks=${asks.length} bestBid=${bestBid} bestAsk=${bestAsk} mid=${midPrice}`);
         }
       } catch (e: any) {
         console.warn(`⚠️ CLOB error: ${e.message?.slice(0, 80)}`);
       }
     }
 
-    // Strategy 2: Gamma API by clob_token_ids
-    if (midPrice === null && tokenId) {
+    // Strategy 2: Gamma API — price fallback + resolved/closed/winner
+    if (tokenId) {
       try {
         const gammaRes = await fetch(
           `https://gamma-api.polymarket.com/markets?clob_token_ids=${tokenId}&limit=1`,
@@ -75,18 +71,20 @@ export async function GET(request: NextRequest) {
         if (gammaRes.ok) {
           const markets = await gammaRes.json();
           if (Array.isArray(markets) && markets.length > 0) {
-            const price = extractPriceFromGammaMarket(markets[0], tokenId);
-            if (price !== null) {
-              midPrice = price;
-              console.log(`📊 Gamma [${tokenId.slice(0,8)}...]: price=${price}`);
+            const m = markets[0];
+            extractResolvedStatus(m, tokenId, (r, w) => { resolved = r; winner = w; });
+
+            if (midPrice === null) {
+              const price = extractPriceFromGammaMarket(m, tokenId);
+              if (price !== null) midPrice = price;
             }
           }
         }
       } catch { /* ignore */ }
     }
 
-    // Strategy 3: Gamma API by condition_id
-    if (midPrice === null && marketId) {
+    // Strategy 3: Gamma by condition_id
+    if (marketId && (midPrice === null || !resolved)) {
       try {
         const gammaRes = await fetch(
           `https://gamma-api.polymarket.com/markets?condition_id=${marketId}&limit=1`,
@@ -95,10 +93,14 @@ export async function GET(request: NextRequest) {
         if (gammaRes.ok) {
           const markets = await gammaRes.json();
           if (Array.isArray(markets) && markets.length > 0) {
-            const price = extractPriceFromGammaMarket(markets[0], null);
-            if (price !== null) {
-              midPrice = price;
-              console.log(`📊 Gamma cond [${marketId.slice(0,8)}...]: price=${price}`);
+            const m = markets[0];
+            extractResolvedStatus(m, null, (r, w) => {
+              if (r) { resolved = r; winner = w; }
+            });
+
+            if (midPrice === null) {
+              const price = extractPriceFromGammaMarket(m, null);
+              if (price !== null) midPrice = price;
             }
           }
         }
@@ -106,17 +108,57 @@ export async function GET(request: NextRequest) {
     }
 
     if (midPrice === null) {
-      console.warn(`❌ No price: token=${tokenId?.slice(0,8)} market=${marketId?.slice(0,8)}`);
+      console.warn(`❌ No price: token=${tokenId?.slice(0, 8)} market=${marketId?.slice(0, 8)}`);
     }
 
     return NextResponse.json(
-      { tokenId, marketId, bestBid, bestAsk, midPrice },
+      { tokenId, marketId, bestBid, bestAsk, midPrice, resolved, winner },
       { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" } }
     );
   } catch (error: any) {
     console.error("Price proxy error:", error);
     return NextResponse.json({ error: error.message || "Failed" }, { status: 500 });
   }
+}
+
+/**
+ * Extract resolved status from Gamma market object.
+ * Uses: closed, active, tokens[].winner fields.
+ */
+function extractResolvedStatus(
+  market: any,
+  tokenId: string | null,
+  cb: (resolved: boolean, winner: string | null) => void
+) {
+  let isResolved = false;
+  let winnerOutcome: string | null = null;
+
+  // closed=true means market is closed
+  if (market.closed === true || market.closed === "true") {
+    isResolved = true;
+  }
+
+  // active=false also indicates resolved/closed
+  if (market.active === false || market.active === "false") {
+    isResolved = true;
+  }
+
+  // tokens[].winner tells us who won
+  if (Array.isArray(market.tokens)) {
+    const winnerToken = market.tokens.find(
+      (t: any) => t.winner === true || t.winner === "true"
+    );
+    if (winnerToken) {
+      winnerOutcome = winnerToken.outcome || null;
+      isResolved = true;
+    }
+  }
+
+  if (isResolved) {
+    console.log(`🏁 Market resolved: closed=${market.closed} active=${market.active} winner=${winnerOutcome}`);
+  }
+
+  cb(isResolved, winnerOutcome);
 }
 
 function extractPriceFromGammaMarket(market: any, tokenId: string | null): number | null {

@@ -4,29 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Home, Hash, Bookmark, List, User, LogOut } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { useState, useEffect, useCallback } from "react";
+import { NotificationsPanel } from "./NotificationsPanel";
 
 export function NavigationSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { authenticated, user, logout, login } = usePrivy();
-
-  const [followersCount, setFollowersCount] = useState(0);
-  const [followingCount, setFollowingCount] = useState(0);
-
-  const loadFollowCounts = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const res = await fetch(`/api/follows?user_id=${encodeURIComponent(user.id)}`);
-      const data = await res.json();
-      setFollowersCount(data.followers || 0);
-      setFollowingCount(data.following || 0);
-    } catch { /* silent */ }
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (authenticated) loadFollowCounts();
-  }, [authenticated, loadFollowCounts]);
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
@@ -87,21 +70,10 @@ export function NavigationSidebar() {
           )}
         </div>
 
-        {/* Mini Stats */}
+        {/* Notifications Panel */}
         {authenticated && (
-          <div className="mt-8 lg:mt-12 grid grid-cols-2 gap-px bg-zinc-900 border border-zinc-900">
-            <div className="bg-[#050505] p-4 text-center group cursor-pointer hover:bg-[#0a0a0a] transition-colors">
-              <div className="text-xl font-black text-white">{followingCount}</div>
-              <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold group-hover:text-zinc-400">
-                Following
-              </div>
-            </div>
-            <div className="bg-[#050505] p-4 text-center group cursor-pointer hover:bg-[#0a0a0a] transition-colors">
-              <div className="text-xl font-black text-white">{followersCount}</div>
-              <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold group-hover:text-zinc-400">
-                Followers
-              </div>
-            </div>
+          <div className="mt-6">
+            <NotificationsPanel />
           </div>
         )}
 

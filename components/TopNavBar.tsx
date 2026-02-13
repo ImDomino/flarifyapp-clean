@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell, MessageSquare, ChevronDown } from "lucide-react";
+import { Search, MessageSquare, ChevronDown } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
@@ -8,24 +8,7 @@ import { useState, useEffect, useCallback } from "react";
 export function TopNavBar() {
   const { authenticated, user, login } = usePrivy();
   const router = useRouter();
-  const [unreadCount, setUnreadCount] = useState(0);
   const [profileData, setProfileData] = useState<any>(null);
-
-  const fetchUnread = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const res = await fetch(
-        `/api/notifications?user_id=${encodeURIComponent(
-          user.id
-        )}&unread_only=true&limit=1`,
-        { cache: "no-store" }
-      );
-      const data = await res.json();
-      setUnreadCount(data.unread_count || 0);
-    } catch {
-      /* silent */
-    }
-  }, [user?.id]);
 
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
@@ -43,11 +26,8 @@ export function TopNavBar() {
 
   useEffect(() => {
     if (!authenticated) return;
-    fetchUnread();
     loadProfile();
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
-  }, [authenticated, fetchUnread, loadProfile]);
+  }, [authenticated, loadProfile]);
 
   const fallbackDisplayName =
     user?.google?.name || user?.email?.address?.split("@")[0] || "User";
@@ -69,7 +49,7 @@ export function TopNavBar() {
         >
           <div className="w-10 h-10 border-2 border-white flex items-center justify-center bg-black">
             <img
-              src="/logo/twitter.jpg"   
+              src="/logo/twitter.jpg"
               alt="Flarify logo"
               width={32}
               height={32}
@@ -98,20 +78,9 @@ export function TopNavBar() {
         <div className="flex items-center gap-4 lg:gap-6">
           {authenticated ? (
             <>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => router.push("/profile")}
-                  className="relative p-2 text-zinc-400 hover:text-white transition-colors"
-                >
-                  <Bell className="w-5 h-5 lg:w-6 lg:h-6" />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-white border border-black" />
-                  )}
-                </button>
-                <button className="p-2 text-zinc-400 hover:text-white transition-colors hidden lg:block">
-                  <MessageSquare className="w-6 h-6" />
-                </button>
-              </div>
+              <button className="p-2 text-zinc-400 hover:text-white transition-colors hidden lg:block">
+                <MessageSquare className="w-6 h-6" />
+              </button>
 
               <div className="h-8 w-px bg-zinc-800 hidden lg:block" />
 
