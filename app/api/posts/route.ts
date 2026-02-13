@@ -5,10 +5,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
+    const postId = searchParams.get('post_id');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
-    const userId = searchParams.get('user_id'); // NEW: filter by user
+    const userId = searchParams.get('user_id');
 
     const supabase = createClient();
 
@@ -26,7 +27,12 @@ export async function GET(request: NextRequest) {
       `, { count: 'exact' })
       .order('created_at', { ascending: false });
 
-    // Server-side user filter (no more client-side filtering of 100 posts)
+    // Single post by ID
+    if (postId) {
+      query = query.eq('id', postId);
+    }
+
+    // Server-side user filter
     if (userId) {
       query = query.eq('user_id', userId);
     }
