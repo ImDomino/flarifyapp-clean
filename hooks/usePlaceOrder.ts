@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { Side } from "@polymarket/clob-client";
+import { Side, TickSize } from "@polymarket/clob-client";
 import { useClobClient } from "./useClobClient";
 import { useAuthFetch } from "./useAuthFetch";
 import { useUserApiCredentials } from "./useUserApiCredentials";
@@ -25,10 +25,8 @@ export const usePlaceOrder = () => {
       const { tokenId, side, price, size, negRisk = false } = params;
 
       const attemptOrder = async (isRetry: boolean): Promise<string> => {
-        // Инициализируем CLOB client (при retry форсим новые creds)
         const { clobClient, eoaAddress } = await initClobClient(isRetry);
 
-        // Payload для SDK (он сам посчитает maker/taker amounts и прочее)
         const orderPayload = {
           tokenID: tokenId,
           price,
@@ -38,10 +36,9 @@ export const usePlaceOrder = () => {
 
         const orderOptions = {
           negRisk,
-          tickSize: negRisk ? "0.001" : "0.01",
+          tickSize: negRisk ? TickSize.OneTenthOfACent : TickSize.OneCent,
         };
 
-        // Стратегия: ВСЕГДА через proxy
         const signedOrder = await clobClient.createOrder(
           orderPayload,
           orderOptions
