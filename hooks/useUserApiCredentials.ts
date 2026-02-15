@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { ClobClient } from "@polymarket/clob-client";
 import { useWallet } from "@/providers/WalletProvider";
+import { useAuthFetch } from "./useAuthFetch";
 
 export type UserApiCreds = {
   key: string;
@@ -10,114 +11,46 @@ export type UserApiCreds = {
   passphrase: string;
 };
 
-const LS_KEY = "polymarket_user_api_creds";
-const LS_EOA_KEY = "polymarket_user_api_creds_eoa";
-const LS_SAFE_KEY = "polymarket_user_api_creds_safe"; // NEW: привязка к Safe
-
 /**
- * Проверяет валидность credentials через тестовый запрос к CLOB API
+ * useUserApiCredentials — SECURE version
+ *
+ * Credentials are stored server-side in encrypted HttpOnly cookies.
+ * They NEVER touch localStorage or any JS-accessible storage.
+ *
+ * Flow:
+ * 1. Check if server has stored creds (GET /api/polymarket/credentials)
+ * 2. If yes, derive creds client-side to get them in memory for ClobClient
+ * 3. If no, create new creds and store via POST /api/polymarket/credentials
+ * 4. Creds exist in JS memory only for the duration of the trading operation
  */
-async function validateCredentials(
-  creds: UserApiCreds,
-  eoaAddress: string,
-  ethersSigner: any
-): Promise<boolean> {
-  try {
-    console.log("🔍 Validating credentials...");
-    
-    // Создаём временный клиент с этими credentials
-    const testClient = new ClobClient(
-      "https://clob.polymarket.com",
-      137,
-      ethersSigner,
-      creds,
-      2, // signatureType для Safe
-      eoaAddress // funder (Safe address)
-    );
-
-    // Пытаемся получить API key info (это не требует подписи, только auth)
-    try {
-      await testClient.getApiKeys();
-      console.log("✅ Credentials are valid");
-      return true;
-    } catch (e: any) {
-      if (e.message?.includes("401") || e.message?.includes("Unauthorized")) {
-        console.warn("❌ Credentials are invalid (401)");
-        return false;
-      }
-      // Другие ошибки (сеть и т.д.) считаем валидными credentials
-      console.log("⚠️ Network error during validation, assuming valid");
-      return true;
-    }
-  } catch (error) {
-    console.error("❌ Validation error:", error);
-    return false;
-  }
-}
-
 export const useUserApiCredentials = () => {
   const { ethersSigner, eoaAddress, safeAddress } = useWallet();
+  const authFetch = useAuthFetch();
 
   /**
-   * Получить или создать User API Credentials
-   * 
-   * ВАЖНО: Credentials привязаны к Safe address, не к EOA!
-   * При смене Safe нужно пересоздать credentials.
+   * Get or create User API Credentials.
+   *
+   * Returns creds in memory for ClobClient initialization.
+   * Also ensures they're persisted server-side in HttpOnly cookies.
    */
   const getOrCreateCreds = useCallback(async (): Promise<UserApiCreds> => {
     if (!ethersSigner || !eoaAddress || !safeAddress) {
       throw new Error("No signer, EOA, or Safe address");
     }
 
-    // Проверяем кэш (привязан к конкретному Safe)
-    let cachedCreds: UserApiCreds | null = null;
-    let needsValidation = false;
-
-    if (typeof window !== "undefined") {
-      const cachedEoa = window.localStorage.getItem(LS_EOA_KEY);
-      const cachedSafe = window.localStorage.getItem(LS_SAFE_KEY);
-      const cachedCredsStr = window.localStorage.getItem(LS_KEY);
-      
-      // Используем кэш только если это тот же EOA И Safe
-      if (cachedEoa === eoaAddress && cachedSafe === safeAddress && cachedCredsStr) {
-        try {
-          cachedCreds = JSON.parse(cachedCredsStr);
-          if (cachedCreds?.key && cachedCreds?.secret && cachedCreds?.passphrase) {
-            console.log("📦 Found cached credentials for Safe:", safeAddress.slice(0, 10) + "...");
-            needsValidation = true; // Проверим валидность
-          }
-        } catch (e) {
-          console.warn("⚠️ Invalid cached credentials, will re-derive");
-          cachedCreds = null;
-        }
-      } else if (cachedEoa !== eoaAddress || cachedSafe !== safeAddress) {
-        console.log("🔄 EOA or Safe changed, clearing old credentials");
-        window.localStorage.removeItem(LS_KEY);
-        window.localStorage.removeItem(LS_EOA_KEY);
-        window.localStorage.removeItem(LS_SAFE_KEY);
+    // Step 1: Check if server already has stored credentials
+    let serverHasCreds = false;
+    try {
+      const checkRes = await authFetch("/api/polymarket/credentials");
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        serverHasCreds = checkData.hasCreds === true;
       }
+    } catch {
+      // Server check failed — proceed to derive/create
     }
 
-    // Если есть кэшированные credentials, проверим их валидность
-    if (cachedCreds && needsValidation) {
-      const isValid = await validateCredentials(cachedCreds, safeAddress, ethersSigner);
-      if (isValid) {
-        console.log("✅ Using cached credentials (validated)");
-        return cachedCreds;
-      } else {
-        console.log("❌ Cached credentials invalid, recreating...");
-        // Очищаем невалидные credentials
-        if (typeof window !== "undefined") {
-          window.localStorage.removeItem(LS_KEY);
-          window.localStorage.removeItem(LS_EOA_KEY);
-          window.localStorage.removeItem(LS_SAFE_KEY);
-        }
-      }
-    }
-
-    console.log("🔑 Creating new L2 credentials for Safe:", safeAddress.slice(0, 10) + "...");
-
-    // Создаём временный CLOB клиент (без credentials)
+    // Step 2: Create a temporary CLOB client (no credentials) to derive/create
     const tempClient = new ClobClient(
       "https://clob.polymarket.com",
       137,
@@ -126,30 +59,23 @@ export const useUserApiCredentials = () => {
 
     let creds: UserApiCreds | null = null;
 
-    // Шаг 1: Пробуем derive (для возвращающихся пользователей)
+    // Step 3: Try to derive existing credentials (returning users)
     try {
-      console.log("🔑 Trying to derive existing credentials...");
       const derived = await tempClient.deriveApiKey();
-      
       if (derived?.key && derived?.secret && derived?.passphrase) {
         creds = derived as UserApiCreds;
-        console.log("✅ Derived existing L2 credentials");
       }
-    } catch (deriveError) {
-      console.log("ℹ️ Could not derive credentials (new user or credentials not created yet)");
+    } catch {
+      // Could not derive — new user or creds not created yet
     }
 
-    // Шаг 2: Если derive не сработал - создаём новые
+    // Step 4: If derive failed, create new credentials
     if (!creds) {
       try {
-        console.log("🔑 Creating new L2 credentials...");
         creds = (await tempClient.createApiKey()) as UserApiCreds;
-        console.log("✅ Created new L2 credentials");
-      } catch (createError: any) {
-        // Если createApiKey тоже не сработал - пробуем createOrDeriveApiKey
-        console.log("🔑 Trying createOrDeriveApiKey...");
+      } catch {
+        // Fallback: createOrDeriveApiKey
         creds = (await tempClient.createOrDeriveApiKey()) as UserApiCreds;
-        console.log("✅ Got L2 credentials via createOrDeriveApiKey");
       }
     }
 
@@ -157,34 +83,40 @@ export const useUserApiCredentials = () => {
       throw new Error("Failed to obtain valid L2 credentials");
     }
 
-    // Валидируем новые credentials перед сохранением
-    const isValid = await validateCredentials(creds, safeAddress, ethersSigner);
-    if (!isValid) {
-      throw new Error("Newly created credentials are invalid. Please try again.");
+    // Step 5: Store credentials server-side in HttpOnly cookie
+    // (even if server already had them — refresh to ensure consistency)
+    try {
+      const storeRes = await authFetch("/api/polymarket/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: creds.key,
+          secret: creds.secret,
+          passphrase: creds.passphrase,
+        }),
+      });
+      if (!storeRes.ok) {
+        console.warn("Failed to store credentials server-side, trading may still work for this session");
+      }
+    } catch {
+      console.warn("Could not persist credentials to server");
     }
 
-    // Сохраняем в localStorage (привязываем к EOA И Safe)
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(LS_KEY, JSON.stringify(creds));
-      window.localStorage.setItem(LS_EOA_KEY, eoaAddress);
-      window.localStorage.setItem(LS_SAFE_KEY, safeAddress);
-      console.log("💾 Credentials cached for Safe:", safeAddress.slice(0, 10) + "...");
-    }
-
+    // Return creds in memory for ClobClient usage
+    // These are NOT stored in localStorage — they exist only in JS memory
     return creds;
-  }, [ethersSigner, eoaAddress, safeAddress]);
+  }, [ethersSigner, eoaAddress, safeAddress, authFetch]);
 
   /**
-   * Очистить кэшированные credentials (при логауте или ошибках)
+   * Clear stored credentials (on logout or errors)
    */
-  const clearCreds = useCallback(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(LS_KEY);
-      window.localStorage.removeItem(LS_EOA_KEY);
-      window.localStorage.removeItem(LS_SAFE_KEY);
-      console.log("🗑️ Cleared cached credentials");
+  const clearCreds = useCallback(async () => {
+    try {
+      await authFetch("/api/polymarket/credentials", { method: "DELETE" });
+    } catch {
+      // Silent — best effort
     }
-  }, []);
+  }, [authFetch]);
 
   return { getOrCreateCreds, clearCreds };
 };

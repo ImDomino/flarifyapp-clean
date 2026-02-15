@@ -2,30 +2,34 @@
 
 import { useState } from "react";
 import { RefreshCw, Trash2, CheckCircle, AlertCircle } from "lucide-react";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
 
 /**
- * Debug компонент для управления API credentials
- * Добавьте временно в RightSidebar или ProfilePage для отладки
+ * Debug component for managing API credentials.
+ * Now clears server-side HttpOnly cookies instead of localStorage.
  */
 export function CredentialsDebugPanel() {
   const [status, setStatus] = useState<"idle" | "clearing" | "success" | "error">("idle");
+  const authFetch = useAuthFetch();
 
-  const handleClearCredentials = () => {
+  const handleClearCredentials = async () => {
     try {
       setStatus("clearing");
-      
-      // Очищаем все связанные ключи из localStorage
-      window.localStorage.removeItem("polymarket_user_api_creds");
-      window.localStorage.removeItem("polymarket_user_api_creds_eoa");
-      window.localStorage.removeItem("polymarket_user_api_creds_safe");
-      
-      console.log("🗑️ Cleared all cached credentials");
-      setStatus("success");
-      
-      // Сбросить статус через 2 секунды
+
+      // Clear server-side HttpOnly cookie
+      const res = await authFetch("/api/polymarket/credentials", {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        setStatus("success");
+      } else {
+        setStatus("error");
+      }
+
       setTimeout(() => setStatus("idle"), 2000);
     } catch (error) {
-      console.error("❌ Error clearing credentials:", error);
+      console.error("Error clearing credentials:", error);
       setStatus("error");
       setTimeout(() => setStatus("idle"), 2000);
     }
@@ -43,9 +47,9 @@ export function CredentialsDebugPanel() {
           Debug: API Credentials
         </h3>
       </div>
-      
+
       <p className="text-xs text-amber-300 mb-3">
-        If you're getting 401 Unauthorized errors, try clearing and recreating your API credentials.
+        If you&apos;re getting 401 Unauthorized errors, try clearing and recreating your API credentials.
       </p>
 
       <div className="flex flex-col gap-2">
@@ -90,7 +94,7 @@ export function CredentialsDebugPanel() {
 
       <div className="mt-3 pt-3 border-t border-amber-500/20">
         <p className="text-xs text-amber-400/60">
-          After clearing, credentials will be recreated automatically on next trading attempt.
+          Credentials are stored in encrypted server-side cookies. After clearing, they will be recreated automatically on next trading attempt.
         </p>
       </div>
     </div>

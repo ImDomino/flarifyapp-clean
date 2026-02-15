@@ -3,16 +3,18 @@
 import { useCallback } from "react";
 import { Side, OrderType } from "@polymarket/clob-client";
 import { useClobClient } from "./useClobClient";
+import { useAuthFetch } from "./useAuthFetch";
 
 /**
- * Hook: usePlaceOrder
+ * Hook: usePlaceOrder — SECURE version
  *
  * Hybrid approach:
  * 1. Try createAndPostOrder() directly (works when no CORS/geo block)
  * 2. On network error, fallback to createOrder() + proxy POST
  *
- * The proxy reproduces the exact payload format the SDK uses:
- * { deferExec: false, order: {...signedOrder}, owner: apiKey, orderType: "GTC" }
+ * SECURITY: User credentials are NEVER sent in the request body.
+ * The server reads them from encrypted HttpOnly cookies set by
+ * /api/polymarket/credentials.
  */
 
 export interface PlaceOrderParams {
@@ -25,21 +27,13 @@ export interface PlaceOrderParams {
 
 export const usePlaceOrder = () => {
   const { initClobClient } = useClobClient();
+  const authFetch = useAuthFetch();
 
   const placeOrder = useCallback(
     async (params: PlaceOrderParams): Promise<string> => {
       const { tokenId, side, price, size, negRisk = false } = params;
 
-      const { clobClient, userCreds, eoaAddress } = await initClobClient();
-
-      console.log("ORDER DEBUG:", {
-        tokenId: tokenId.slice(0, 20) + "...",
-        side,
-        price,
-        size,
-        negRisk,
-        eoaAddress: eoaAddress.slice(0, 10) + "...",
-      });
+      const { clobClient, eoaAddress } = await initClobClient();
 
       const orderPayload = {
         tokenID: tokenId,
@@ -53,17 +47,12 @@ export const usePlaceOrder = () => {
 
       // Strategy 1: Try direct createAndPostOrder (no CORS issues in some regions)
       try {
-        console.log("📦 Trying createAndPostOrder (direct)...");
-
         const response = await clobClient.createAndPostOrder(
           orderPayload,
           { negRisk },
           OrderType.GTC
         );
 
-        console.log("✅ Direct order response:", response);
-
-        // Check for network/CORS errors disguised as response
         if (response?.error === "Network Error" || response?.status === 0) {
           throw new Error("CORS_BLOCKED");
         }
@@ -83,15 +72,12 @@ export const usePlaceOrder = () => {
           directError.status === 0;
 
         if (!isCorsOrNetwork) {
-          // Real API error (like "min size: $1") — rethrow
           const msg =
             directError.response?.data?.error ||
             directError.message ||
             "Order failed";
           throw new Error(msg);
         }
-
-        console.log("🔄 CORS/geo blocked, falling back to proxy...");
       }
 
       // Strategy 2: Fallback — createOrder on client, POST via server proxy
@@ -99,19 +85,15 @@ export const usePlaceOrder = () => {
         negRisk,
       });
 
-      console.log("📦 Order signed, posting via proxy...");
-
-      const res = await fetch("/api/polymarket/order", {
+      // SECURITY: Only send signedOrder and eoaAddress.
+      // User credentials are read from HttpOnly cookie on the server.
+      const res = await authFetch("/api/polymarket/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           signedOrder,
-          userCreds: {
-            key: userCreds.key,
-            secret: userCreds.secret,
-            passphrase: userCreds.passphrase,
-          },
           eoaAddress,
+          // NOTE: userCreds intentionally omitted — server reads from cookie
         }),
       });
 
@@ -138,17 +120,12 @@ export const usePlaceOrder = () => {
       if (!res.ok) {
         const errorMsg =
           data.details || data.error || `Order failed: HTTP ${res.status}`;
-        console.error("❌ Proxy order failed:", {
-          status: res.status,
-          error: errorMsg,
-        });
         throw new Error(errorMsg);
       }
 
-      console.log("✅ Proxy order response:", data);
       return data.orderID || data.id || "success";
     },
-    [initClobClient]
+    [initClobClient, authFetch]
   );
 
   const buyShares = useCallback(

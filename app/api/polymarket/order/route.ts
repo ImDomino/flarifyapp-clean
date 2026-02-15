@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { BuilderApiKeyCreds, buildHmacSignature } from "@polymarket/builder-signing-sdk";
 import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
 import { RL, rateLimitResponse } from "@/lib/rate-limit";
+import { getCredsFromCookie } from "@/app/api/polymarket/credentials/route";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
@@ -29,9 +30,21 @@ export async function POST(request: NextRequest) {
     if (!RL.placeOrder(userId)) return rateLimitResponse();
 
     const body = await request.json();
-    const { signedOrder, userCreds, eoaAddress } = body;
-    if (!signedOrder || !userCreds || !eoaAddress)
+    const { signedOrder, eoaAddress } = body;
+
+    if (!signedOrder || !eoaAddress) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // SECURITY: Read user credentials from encrypted HttpOnly cookie
+    // They are NEVER sent in the request body from the client
+    const userCreds = getCredsFromCookie(request);
+    if (!userCreds) {
+      return NextResponse.json(
+        { error: "Trading credentials not found. Please re-authenticate." },
+        { status: 401 }
+      );
+    }
 
     let flatOrder: any;
     if (signedOrder.salt && signedOrder.maker && signedOrder.signature) flatOrder = signedOrder;
@@ -41,7 +54,6 @@ export async function POST(request: NextRequest) {
     const clobPayload = { deferExec: false, order: flatOrder, owner: userCreds.key, orderType: "GTC" };
     const clobBody = JSON.stringify(clobPayload);
 
-    // SECURITY FIX: No credential logging
     const now = Date.now();
     const userTimestamp = Math.floor(now / 1000);
     const builderTimestamp = now;
