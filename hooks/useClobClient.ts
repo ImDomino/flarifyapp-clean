@@ -10,16 +10,10 @@ const CLOB_URL = "https://clob.polymarket.com";
 const CHAIN_ID = 137;
 
 /**
- * useClobClient — Creates authenticated ClobClient instances
+ * useClobClient — создаёт аутентифицированные ClobClient инстансы
  *
- * Based on Polymarket's privy-safe-builder-example:
- * https://github.com/Polymarket/privy-safe-builder-example
- *
- * ClobClient constructor for Safe wallet:
+ * Safe wallet сигнатура:
  *   new ClobClient(host, chainId, signer, creds, 2, safeAddress, undefined, false, builderConfig)
- *
- * BuilderConfig uses remote signing via /api/polymarket/sign
- * so builder credentials stay server-side.
  */
 export const useClobClient = () => {
   const { ethersSigner, eoaAddress, safeAddress } = useWallet();
@@ -29,46 +23,44 @@ export const useClobClient = () => {
   const initClobClient = useCallback(
     async (
       forceRefresh = false
-    ): Promise<{ clobClient: ClobClient; eoaAddress: string; safeAddress: string }> => {
+    ): Promise<{
+      clobClient: ClobClient;
+      eoaAddress: string;
+      safeAddress: string;
+    }> => {
       if (!ethersSigner || !eoaAddress || !safeAddress) {
         throw new Error("Wallet not connected. Please connect your wallet first.");
       }
 
-      // If force refresh, clear cached client and creds
       if (forceRefresh) {
         clientRef.current = null;
         await invalidateCreds();
       }
 
-      // Return cached client if same EOA and not force-refreshing
       if (clientRef.current && clientRef.current.eoa === eoaAddress) {
         return { clobClient: clientRef.current.client, eoaAddress, safeAddress };
       }
 
-      // Get or create credentials (memory → cookie → derive)
       const creds = await getOrCreateCreds(forceRefresh);
 
-      // BuilderConfig for remote signing — builder creds stay on server
-      // Must be absolute URL — BuilderConfig rejects relative paths
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      const baseUrl =
+        typeof window !== "undefined" ? window.location.origin : "";
       const builderConfig = new BuilderConfig({
         remoteBuilderConfig: {
           url: `${baseUrl}/api/polymarket/sign`,
         },
       });
 
-      // ClobClient for Gnosis Safe proxy wallet (Privy embedded EOA + Safe)
-      // Matches Polymarket's official privy-safe-builder-example exactly
       const client = new ClobClient(
         CLOB_URL,
         CHAIN_ID,
         ethersSigner as any,
         creds,
-        2,              // signatureType: POLY_GNOSIS_SAFE
-        safeAddress,    // funder: Safe address that holds USDC
-        undefined,      // mandatory placeholder
-        false,          // mandatory placeholder
-        builderConfig   // Builder order attribution
+        2, // POLY_GNOSIS_SAFE
+        safeAddress,
+        undefined,
+        false,
+        builderConfig
       );
 
       clientRef.current = { client, eoa: eoaAddress };

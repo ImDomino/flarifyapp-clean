@@ -42,11 +42,12 @@ const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
-      // Find Privy embedded wallet (not external browser wallets)
       const wallet = wallets.find((w) => w.walletClientType === "privy");
       if (!wallet) {
         if (attempt <= 10) {
-          console.warn(`⚠️ No Privy embedded wallet found, retry ${attempt}/10...`);
+          console.warn(
+            `⚠️ No Privy embedded wallet found, retry ${attempt}/10...`
+          );
           retryTimer = setTimeout(() => setup(attempt + 1), 500);
         } else {
           console.error("❌ Privy embedded wallet not found after 10 retries");
@@ -55,34 +56,34 @@ const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
       }
 
       try {
-        // CRITICAL: Switch to Polygon chain BEFORE creating signer
-        // Without this, EIP-712 signatures use wrong chainId in domain separator
-        // and Polymarket CLOB rejects with "invalid signature"
+        // Явно переключаемся на Polygon
         try {
-          await wallet.switchChain(polygon.id); // 137
+          await wallet.switchChain(polygon.id);
           console.log("🔗 Switched to Polygon (chainId: 137)");
         } catch (switchErr: any) {
-          console.warn("⚠️ Chain switch failed (may already be on Polygon):", switchErr?.message);
+          console.warn(
+            "⚠️ Chain switch failed (may already be on Polygon):",
+            switchErr?.message
+          );
         }
 
-        // Get provider and create ethers v5 signer
         const provider = await wallet.getEthereumProvider();
         const ethersProvider = new ethers.providers.Web3Provider(provider as any);
         const signer = ethersProvider.getSigner();
         const addr = await signer.getAddress();
 
-        // Verify we're on Polygon
         const network = await ethersProvider.getNetwork();
         if (network.chainId !== 137) {
-          console.warn(`⚠️ Expected chainId 137, got ${network.chainId}. Retrying...`);
+          console.warn(
+            `⚠️ Expected chainId 137, got ${network.chainId}. Retrying...`
+          );
           if (attempt <= 5) {
             retryTimer = setTimeout(() => setup(attempt + 1), 1000);
             return;
           }
         }
 
-        // Derive Safe address deterministically from EOA
-        const config = getContractConfig(137); // Polygon
+        const config = getContractConfig(137);
         const safe = deriveSafe(
           addr as `0x${string}`,
           config.SafeContracts.SafeFactory
@@ -123,7 +124,9 @@ const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
     [login, logout, eoaAddress, safeAddress, ethersSigner, isReady]
   );
 
-  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
+  return (
+    <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
+  );
 };
 
 export const useWallet = () => {

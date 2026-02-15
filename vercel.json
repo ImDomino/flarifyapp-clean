@@ -3,5 +3,7 @@
   "outputDirectory": ".next",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["dub1"]
 }
