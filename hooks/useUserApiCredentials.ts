@@ -81,49 +81,16 @@ export const useUserApiCredentials = () => {
 
         let creds: UserApiCreds | null = null;
 
-        if (forceCreate) {
-          // Пытаемся удалить старый key, если он есть
-          try {
-            const oldCreds = await l1Client.deriveApiKey();
-            if (oldCreds?.key) {
-              console.log(
-                "[Creds] Derived old key:",
-                oldCreds.key.slice(0, 8) + "..., deleting..."
-              );
-              const delClient = new ClobClient(
-                "https://clob.polymarket.com",
-                137,
-                ethersSigner as any,
-                oldCreds
-              );
-              await delClient.deleteApiKey();
-              console.log("[Creds] Old key deleted");
-            }
-          } catch (e: any) {
-            console.warn("[Creds] Could not delete old key:", e?.message);
-          }
-
-          try {
-            creds = (await l1Client.createApiKey()) as UserApiCreds;
-            console.log(
-              "[Creds] Created NEW key:",
-              creds?.key?.slice(0, 8) + "..."
-            );
-          } catch (e: any) {
-            console.warn("[Creds] createApiKey failed:", e?.message);
-            creds = (await l1Client.createOrDeriveApiKey()) as UserApiCreds;
-          }
-        } else {
-          try {
-            creds = (await l1Client.createOrDeriveApiKey()) as UserApiCreds;
-            console.log(
-              "[Creds] createOrDeriveApiKey:",
-              creds?.key?.slice(0, 8) + "..."
-            );
-          } catch (e: any) {
-            console.warn("[Creds] createOrDeriveApiKey failed:", e?.message);
-            creds = (await l1Client.createApiKey()) as UserApiCreds;
-          }
+        // ВСЕГДА один путь: createOrDeriveApiKey
+        try {
+          creds = (await l1Client.createOrDeriveApiKey()) as UserApiCreds;
+          console.log(
+            "[Creds] createOrDeriveApiKey:",
+            creds?.key?.slice(0, 8) + "..."
+          );
+        } catch (e: any) {
+          console.warn("[Creds] createOrDeriveApiKey failed:", e?.message);
+          throw new Error("Failed to obtain CLOB API credentials");
         }
 
         if (!creds?.key || !creds?.secret || !creds?.passphrase) {

@@ -8,7 +8,7 @@ import { RL, rateLimitResponse } from "@/lib/rate-limit";
 import { getCredsFromCookie } from "@/app/api/polymarket/credentials/route";
 
 export const runtime = "nodejs";
-export const preferredRegion = "iad1";
+export const preferredRegion = "dub1"; // ВАЖНО: Dublin / eu-west-1
 
 const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
   key: process.env.POLY_BUILDER_API_KEY!,
@@ -74,6 +74,13 @@ export async function POST(request: NextRequest) {
       clobBody
     );
 
+    console.log("[ORDER PROXY] Sending order", {
+      owner: userCreds.key,
+      hasSecret: !!userCreds.secret,
+      hasPassphrase: !!userCreds.passphrase,
+      bodyLen: clobBody.length,
+    });
+
     const clobResponse = await fetch("https://clob.polymarket.com/order", {
       method: "POST",
       headers: {
@@ -91,6 +98,11 @@ export async function POST(request: NextRequest) {
     const responseText = await clobResponse.text();
 
     if (!clobResponse.ok) {
+      console.error("[ORDER PROXY] CLOB error", {
+        status: clobResponse.status,
+        text: responseText.slice(0, 300),
+      });
+
       const isBlock =
         responseText.includes("Cloudflare") ||
         responseText.includes("blocked");
