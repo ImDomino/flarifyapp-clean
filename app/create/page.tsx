@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { Image as ImageIcon, X, ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { MarketSearchInput } from "@/components/MarketSearchInput";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
 
 interface Market {
   id: string;
@@ -34,6 +35,7 @@ export default function CreatePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { authenticated, login, user } = usePrivy();
+  const authFetch = useAuthFetch();
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -61,8 +63,8 @@ export default function CreatePage() {
         setIsUploading(true);
         const formData = new FormData();
         formData.append("file", imageFile);
-        formData.append("user_id", user.id);
-        const uploadResponse = await fetch("/api/upload", { method: "POST", body: formData });
+        // SECURITY: user_id removed — server extracts from JWT
+        const uploadResponse = await authFetch("/api/upload", { method: "POST", body: formData });
         const uploadData = await uploadResponse.json();
         if (!uploadData.success) throw new Error(uploadData.error || "Failed to upload image");
         imageUrl = uploadData.url;
@@ -94,17 +96,15 @@ export default function CreatePage() {
         };
       }
 
-      const response = await fetch("/api/posts/create", {
+      // SECURITY: user_id removed from body — server extracts from JWT
+      const response = await authFetch("/api/posts/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content,
-          user_id: user.id,
           image_url: imageUrl,
           polymarket_market_id: selectedMarket?.id || null,
           market_data: marketData,
-          yes_token_id: marketData?.yesTokenId || null,
-          no_token_id: marketData?.noTokenId || null,
         }),
       });
 
@@ -136,112 +136,58 @@ export default function CreatePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors"
-        >
+        <button onClick={() => router.back()} className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors">
           <ArrowLeft className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">Back</span>
         </button>
         <h1 className="text-xl font-black uppercase tracking-wider">Create Post</h1>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Content */}
         <div className="bg-[#0a0a0a] border border-zinc-800 interact-border">
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="WHAT IS HAPPENING?"
-            rows={6}
-            className="w-full bg-transparent p-5 sm:p-6 text-white text-lg font-medium placeholder-zinc-700 placeholder:uppercase placeholder:tracking-wider focus:outline-none resize-none"
-          />
-
-          {/* Image Preview */}
+          <textarea value={content} onChange={(e) => setContent(e.target.value)}
+            placeholder="WHAT IS HAPPENING?" rows={6}
+            className="w-full bg-transparent p-5 sm:p-6 text-white text-lg font-medium placeholder-zinc-700 placeholder:uppercase placeholder:tracking-wider focus:outline-none resize-none" />
           {imagePreview && (
             <div className="px-5 pb-4 relative">
               <div className="border border-zinc-800 relative overflow-hidden">
-                <Image
-                  src={imagePreview}
-                  alt="Preview"
-                  width={690}
-                  height={400}
-                  className="w-full h-auto object-cover max-h-64"
-                  unoptimized
-                />
-                <button
-                  type="button"
-                  onClick={removeImage}
-                  className="absolute top-3 right-3 w-8 h-8 bg-black border border-zinc-700 flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors"
-                >
+                <Image src={imagePreview} alt="Preview" width={690} height={400} className="w-full h-auto object-cover max-h-64" unoptimized />
+                <button type="button" onClick={removeImage} className="absolute top-3 right-3 w-8 h-8 bg-black border border-zinc-700 flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
-
-          {/* Selected Market */}
           {selectedMarket && (
             <div className="px-5 pb-4">
               <div className="border border-zinc-800 p-4 bg-[#111] relative">
-                <button
-                  type="button"
-                  onClick={() => setSelectedMarket(null)}
-                  className="absolute top-3 right-3 w-6 h-6 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white transition-colors"
-                >
+                <button type="button" onClick={() => setSelectedMarket(null)} className="absolute top-3 right-3 w-6 h-6 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white transition-colors">
                   <X className="w-3 h-3" />
                 </button>
-                <span className="text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2 block">
-                  Attached Market
-                </span>
+                <span className="text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2 block">Attached Market</span>
                 <p className="text-sm font-bold text-white pr-8">{selectedMarket.question}</p>
               </div>
             </div>
           )}
-
-          {/* Tools bar */}
           <div className="flex items-center justify-between px-5 py-4 border-t border-zinc-800">
             <div className="flex gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageSelect}
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 text-zinc-500 hover:text-white border border-transparent hover:border-zinc-800 transition-all"
-              >
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-zinc-500 hover:text-white border border-transparent hover:border-zinc-800 transition-all">
                 <ImageIcon className="w-5 h-5" />
               </button>
             </div>
-            <span className="text-xs font-mono text-zinc-600">
-              {content.length}/500
-            </span>
+            <span className="text-xs font-mono text-zinc-600">{content.length}/500</span>
           </div>
         </div>
-
-        {/* Market Search */}
         {!selectedMarket && (
           <div>
-            <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-3">
-              Attach Market (Optional)
-            </label>
+            <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-3">Attach Market (Optional)</label>
             <MarketSearchInput onSelectMarket={setSelectedMarket} />
           </div>
         )}
-
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={isLoading || (!content.trim() && !imageFile)}
-          className="w-full py-4 bg-white text-black font-black uppercase tracking-widest text-sm border-2 border-white hover:bg-black hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        >
+        <button type="submit" disabled={isLoading || (!content.trim() && !imageFile)}
+          className="w-full py-4 bg-white text-black font-black uppercase tracking-widest text-sm border-2 border-white hover:bg-black hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
           {isUploading ? "Uploading Image..." : isLoading ? "Creating Post..." : "Publish Post"}
         </button>
       </form>

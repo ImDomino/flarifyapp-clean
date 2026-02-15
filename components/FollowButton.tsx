@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
 
 interface FollowButtonProps {
   targetUserId: string;
@@ -11,6 +12,7 @@ interface FollowButtonProps {
 export function FollowButton({ targetUserId, currentUserId, onFollowChange }: FollowButtonProps) {
   const [isFollowing, setIsFollowing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const authFetch = useAuthFetch();
 
   const checkFollow = useCallback(async () => {
     try {
@@ -27,10 +29,11 @@ export function FollowButton({ targetUserId, currentUserId, onFollowChange }: Fo
   const handleToggle = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/follows", {
+      // SECURITY: follower_id removed — server extracts from JWT
+      const res = await authFetch("/api/follows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ follower_id: currentUserId, following_id: targetUserId }),
+        body: JSON.stringify({ following_id: targetUserId }),
       });
       const data = await res.json();
       setIsFollowing(data.action === "followed");
@@ -40,15 +43,12 @@ export function FollowButton({ targetUserId, currentUserId, onFollowChange }: Fo
   };
 
   return (
-    <button
-      onClick={handleToggle}
-      disabled={isLoading}
+    <button onClick={handleToggle} disabled={isLoading}
       className={`px-5 py-2.5 text-xs font-black uppercase tracking-widest border-2 transition-colors disabled:opacity-50 ${
         isFollowing
           ? "bg-transparent text-white border-zinc-700 hover:border-red-800 hover:text-red-400"
           : "bg-white text-black border-white hover:bg-black hover:text-white"
-      }`}
-    >
+      }`}>
       {isLoading ? "..." : isFollowing ? "Following" : "Follow"}
     </button>
   );

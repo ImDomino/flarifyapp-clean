@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  BuilderApiKeyCreds,
-  buildHmacSignature,
-} from "@polymarket/builder-signing-sdk";
+import { BuilderApiKeyCreds, buildHmacSignature } from "@polymarket/builder-signing-sdk";
+import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
+import { RL, rateLimitResponse } from "@/lib/rate-limit";
 
 const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
   key: process.env.POLY_BUILDER_API_KEY!,
@@ -12,17 +11,12 @@ const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
 
 export async function POST(request: NextRequest) {
   try {
-    const requestBody = await request.json();
-    const { method, path, body } = requestBody;
+    // Auth required — prevent unauthenticated signing
+    const userId = await getAuthenticatedUser(request);
+    if (!userId) return unauthorizedResponse();
+    if (!RL.placeOrder(userId)) return rateLimitResponse();
 
-    console.log("🔍 SIGN DEBUG:");
-    console.log("  method:", method);
-    console.log("  path:", path);
-    console.log("  body type:", typeof body);
-    console.log("  body length:", typeof body === "string" ? body.length : "N/A");
-    console.log("  body preview:", typeof body === "string" ? body.slice(0, 200) : JSON.stringify(body)?.slice(0, 200));
-    console.log("  builder key:", BUILDER_CREDENTIALS.key?.slice(0, 12) + "...");
-
+    const { method, path, body } = await request.json();
     const sigTimestamp = Date.now().toString();
 
     const signature = buildHmacSignature(
@@ -33,19 +27,17 @@ export async function POST(request: NextRequest) {
       body || ""
     );
 
-    console.log("  ✅ Signature:", signature.slice(0, 20) + "...");
-
+    // SECURITY FIX: Return ONLY signature and timestamp.
+    // Builder key/passphrase are added server-side by the order proxy.
+    // This prevents credentials from leaking to client.
     return NextResponse.json({
       POLY_BUILDER_SIGNATURE: signature,
       POLY_BUILDER_TIMESTAMP: sigTimestamp,
-      POLY_BUILDER_API_KEY: BUILDER_CREDENTIALS.key,
-      POLY_BUILDER_PASSPHRASE: BUILDER_CREDENTIALS.passphrase,
+      // REMOVED: POLY_BUILDER_API_KEY, POLY_BUILDER_PASSPHRASE
+      // These are now only used server-side in /api/polymarket/order
     });
-  } catch (error) {
-    console.error("❌ Sign endpoint error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate signature" },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error("Sign error:", error?.message);
+    return NextResponse.json({ error: "Failed to generate signature" }, { status: 500 });
   }
 }

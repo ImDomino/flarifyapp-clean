@@ -1,123 +1,67 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/client';
+import { NextRequest, NextResponse } from "next/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
+import { sanitizeText, isValidUserId } from "@/lib/validate";
+import { RL, rateLimitResponse } from "@/lib/rate-limit";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
-// PATCH /api/profile
-// Update user profile fields
-export async function PATCH(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { user_id, username, display_name, avatar_url, bio } = body;
 
-    if (!user_id) {
-      return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
-    }
-
-    const supabase = createClient();
-
-    // Build update object with only provided fields
-    const updates: Record<string, any> = {};
-    if (username !== undefined && username !== '') updates.username = username;
-    if (display_name !== undefined) updates.display_name = display_name;
-    if (avatar_url !== undefined) updates.avatar_url = avatar_url;
-    if (bio !== undefined) updates.bio = bio;
-    updates.updated_at = new Date().toISOString();
-
-    if (Object.keys(updates).length <= 1) {
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
-    }
-
-    console.log('📝 Profile update request:', { user_id, updates: Object.keys(updates) });
-
-    // Validate username if provided
-    if (updates.username) {
-      const uname = updates.username;
-      if (uname.length < 2 || uname.length > 30) {
-        return NextResponse.json(
-          { error: 'Username must be 2-30 characters' },
-          { status: 400 }
-        );
-      }
-      if (!/^[a-zA-Z0-9_]+$/.test(uname)) {
-        return NextResponse.json(
-          { error: 'Username can only contain letters, numbers, and underscores' },
-          { status: 400 }
-        );
-      }
-
-      // Check uniqueness (exclude current user)
-      const { data: existing, error: checkError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', uname)
-        .neq('id', user_id)
-        .maybeSingle();
-
-      if (checkError) {
-        console.error('❌ Username check error:', checkError);
-      }
-
-      if (existing) {
-        return NextResponse.json(
-          { error: 'Username already taken' },
-          { status: 409 }
-        );
-      }
-    }
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', user_id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('❌ Supabase update error:', error);
-      throw error;
-    }
-
-    console.log('✅ Profile updated:', data?.id, 'username:', data?.username);
-
-    return NextResponse.json({ success: true, profile: data });
-  } catch (error: any) {
-    console.error('Error updating profile:', error);
-    return NextResponse.json(
-      { error: error?.message || 'Failed to update profile' },
-      { status: 500 }
-    );
-  }
-}
-
-// GET /api/profile?user_id=X
-// Get profile data
+// GET: public — fetch profile
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('user_id');
+    const userId = searchParams.get("user_id");
+    if (!userId || !isValidUserId(userId))
+      return NextResponse.json({ error: "Invalid user_id" }, { status: 400 });
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
-    }
-
-    const supabase = createClient();
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-
+    const supabase = createServiceClient();
+    const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
     if (error) throw error;
-
-    if (!data) {
-      return NextResponse.json({ profile: null, error: 'Profile not found' }, { status: 404 });
-    }
+    if (!data) return NextResponse.json({ profile: null, error: "Profile not found" }, { status: 404 });
 
     return NextResponse.json({ profile: data });
-  } catch (error) {
-    console.error('Error fetching profile:', error);
-    return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
+  } catch (error: any) {
+    console.error("Profile GET error:", error);
+    return NextResponse.json({ error: "Failed" }, { status: 500 });
+  }
+}
+
+// PATCH: auth required — update OWN profile only
+export async function PATCH(request: NextRequest) {
+  try {
+    const userId = await getAuthenticatedUser(request);
+    if (!userId) return unauthorizedResponse();
+    if (!RL.updateProfile(userId)) return rateLimitResponse();
+
+    const body = await request.json();
+    const supabase = createServiceClient();
+    const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+
+    // Validate and sanitize fields
+    if (body.username !== undefined && body.username !== "") {
+      const uname = sanitizeText(body.username, 30);
+      if (!uname || uname.length < 2 || !/^[a-zA-Z0-9_]+$/.test(uname))
+        return NextResponse.json({ error: "Username: 2-30 chars, letters/numbers/underscores" }, { status: 400 });
+      // Uniqueness check
+      const { data: existing } = await supabase
+        .from("profiles").select("id").eq("username", uname).neq("id", userId).maybeSingle();
+      if (existing) return NextResponse.json({ error: "Username already taken" }, { status: 409 });
+      updates.username = uname;
+    }
+    if (body.display_name !== undefined) updates.display_name = sanitizeText(body.display_name, 50) || "";
+    if (body.avatar_url !== undefined) updates.avatar_url = body.avatar_url;
+    if (body.bio !== undefined) updates.bio = sanitizeText(body.bio, 300) || "";
+
+    if (Object.keys(updates).length <= 1)
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+
+    const { data, error } = await supabase.from("profiles").update(updates).eq("id", userId).select().single();
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, profile: data });
+  } catch (error: any) {
+    console.error("Profile PATCH error:", error);
+    return NextResponse.json({ error: error?.message || "Failed" }, { status: 500 });
   }
 }

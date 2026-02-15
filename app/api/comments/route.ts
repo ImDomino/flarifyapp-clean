@@ -1,81 +1,63 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/client';
+import { NextRequest, NextResponse } from "next/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
+import { validateCommentContent, isValidUUID } from "@/lib/validate";
+import { RL, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const post_id = searchParams.get('post_id');
+    const post_id = searchParams.get("post_id");
+    if (!post_id || !isValidUUID(post_id))
+      return NextResponse.json({ error: "Invalid post_id" }, { status: 400 });
 
-    if (!post_id) {
-      return NextResponse.json({ error: 'Missing post_id' }, { status: 400 });
-    }
-
-    const supabase = createClient();
-
+    const supabase = createServiceClient();
     const { data: comments, error } = await supabase
-      .from('comments')
-      .select(`
-        *,
-        profiles (
-          id,
-          email,
-          username,
-          avatar_url,
-          display_name
-        )
-      `)
-      .eq('post_id', post_id)
-      .order('created_at', { ascending: true });
-
+      .from("comments")
+      .select(`*, profiles (id, email, username, avatar_url, display_name)`)
+      .eq("post_id", post_id)
+      .order("created_at", { ascending: true })
+      .limit(100);
     if (error) throw error;
+
     return NextResponse.json({ comments: comments || [] });
-  } catch (error) {
-    console.error('Error fetching comments:', error);
-    return NextResponse.json({ error: 'Failed to fetch comments' }, { status: 500 });
+  } catch (error: any) {
+    console.error("Comments GET error:", error);
+    return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { post_id, user_id, content } = await request.json();
+    const userId = await getAuthenticatedUser(request);
+    if (!userId) return unauthorizedResponse();
+    if (!RL.createComment(userId)) return rateLimitResponse();
 
-    if (!post_id || !user_id || !content) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
+    const body = await request.json();
+    if (!body.post_id || !isValidUUID(body.post_id))
+      return NextResponse.json({ error: "Invalid post_id" }, { status: 400 });
 
-    const supabase = createClient();
+    const v = validateCommentContent(body.content);
+    if (!v.valid) return v.error!;
 
+    const supabase = createServiceClient();
     const { data: comment, error } = await supabase
-      .from('comments')
-      .insert({ post_id, user_id, content })
-      .select()
-      .single();
-
+      .from("comments")
+      .insert({ post_id: body.post_id, user_id: userId, content: v.content })
+      .select().single();
     if (error) throw error;
 
-    // Create notification for post owner
+    // Notification (non-critical)
     try {
-      const { data: post } = await supabase
-        .from('posts')
-        .select('user_id')
-        .eq('id', post_id)
-        .single();
-
-      if (post && post.user_id !== user_id) {
-        await supabase.from('notifications').insert({
-          user_id: post.user_id,
-          actor_id: user_id,
-          type: 'comment',
-          post_id,
-        });
+      const { data: post } = await supabase.from("posts").select("user_id").eq("id", body.post_id).single();
+      if (post && post.user_id !== userId) {
+        await supabase.from("notifications").insert({ user_id: post.user_id, actor_id: userId, type: "comment", post_id: body.post_id });
       }
-    } catch (e) {
-      console.warn('Failed to create comment notification:', e);
-    }
+    } catch {}
 
-    return NextResponse.json({ success: true, comment });
-  } catch (error) {
-    console.error('Error creating comment:', error);
-    return NextResponse.json({ error: 'Failed to create comment' }, { status: 500 });
+    return NextResponse.json({ success: true, comment }, { status: 201 });
+  } catch (error: any) {
+    console.error("Comment POST error:", error);
+    return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }

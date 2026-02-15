@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { ArrowLeft, Send, Trash2 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { formatDistanceToNow } from "date-fns";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
 import type { PostWithUser } from "@/lib/types";
 
 interface Comment {
@@ -25,6 +26,7 @@ export default function PostDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = usePrivy();
+  const authFetch = useAuthFetch();
   const [post, setPost] = useState<PostWithUser | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
@@ -56,16 +58,13 @@ export default function PostDetailPage() {
     if (!user || !newComment.trim()) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/comments", {
+      // SECURITY: user_id removed — server extracts from JWT
+      const res = await authFetch("/api/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ post_id: id, user_id: user.id, content: newComment.trim() }),
+        body: JSON.stringify({ post_id: id, content: newComment.trim() }),
       });
-      if (res.ok) {
-        setNewComment("");
-        loadComments();
-        loadPost();
-      }
+      if (res.ok) { setNewComment(""); loadComments(); loadPost(); }
     } catch (err) { console.error("Error:", err); }
     finally { setIsSubmitting(false); }
   };
@@ -73,13 +72,13 @@ export default function PostDetailPage() {
   const handleDeleteComment = async (commentId: string) => {
     if (!user || !confirm("Delete this comment?")) return;
     try {
-      await fetch(`/api/comments/delete`, {
+      // SECURITY: user_id removed — ownership verified server-side via JWT
+      await authFetch("/api/comments/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ comment_id: commentId, user_id: user.id }),
+        body: JSON.stringify({ comment_id: commentId }),
       });
-      loadComments();
-      loadPost();
+      loadComments(); loadPost();
     } catch (err) { console.error("Error:", err); }
   };
 
@@ -111,7 +110,6 @@ export default function PostDetailPage() {
 
       <PostCard post={post} />
 
-      {/* Comment Form */}
       {user && (
         <form onSubmit={handleSubmitComment} className="bg-[#0a0a0a] border border-zinc-800 p-5">
           <div className="flex gap-4">
@@ -121,21 +119,13 @@ export default function PostDetailPage() {
               </span>
             </div>
             <div className="flex-1">
-              <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="WRITE A COMMENT..."
-                rows={3}
-                className="w-full bg-transparent text-sm font-medium text-white placeholder-zinc-700 placeholder:uppercase placeholder:tracking-wider focus:outline-none resize-none mb-3"
-              />
+              <textarea value={newComment} onChange={(e) => setNewComment(e.target.value)}
+                placeholder="WRITE A COMMENT..." rows={3}
+                className="w-full bg-transparent text-sm font-medium text-white placeholder-zinc-700 placeholder:uppercase placeholder:tracking-wider focus:outline-none resize-none mb-3" />
               <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !newComment.trim()}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-black font-black uppercase tracking-wider text-xs border-2 border-white hover:bg-black hover:text-white transition-colors disabled:opacity-30"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  Reply
+                <button type="submit" disabled={isSubmitting || !newComment.trim()}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-black font-black uppercase tracking-wider text-xs border-2 border-white hover:bg-black hover:text-white transition-colors disabled:opacity-30">
+                  <Send className="w-3.5 h-3.5" /> Reply
                 </button>
               </div>
             </div>
@@ -143,12 +133,10 @@ export default function PostDetailPage() {
         </form>
       )}
 
-      {/* Comments */}
       <div>
         <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-4 pb-3 border-b border-zinc-800">
           Comments ({comments.length})
         </h3>
-
         {comments.length === 0 ? (
           <div className="bg-[#0a0a0a] border border-zinc-800 p-8 text-center">
             <p className="text-xs text-zinc-600 uppercase tracking-wider font-bold">No comments yet</p>
@@ -173,10 +161,8 @@ export default function PostDetailPage() {
                           </span>
                         </div>
                         {isOwn && (
-                          <button
-                            onClick={() => handleDeleteComment(comment.id)}
-                            className="text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                          >
+                          <button onClick={() => handleDeleteComment(comment.id)}
+                            className="text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}

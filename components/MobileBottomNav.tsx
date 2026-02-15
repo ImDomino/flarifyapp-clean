@@ -1,27 +1,27 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Home, Search, Plus, Bell, User } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { Home, Search, PlusSquare, Bell, User } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
 
 export function MobileBottomNav() {
+  const router = useRouter();
   const pathname = usePathname();
-  const { user, authenticated } = usePrivy();
+  const { authenticated, user, login } = usePrivy();
+  const authFetch = useAuthFetch();
   const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchUnread = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const res = await fetch(
-        `/api/notifications?user_id=${encodeURIComponent(user.id)}&unread_only=true&limit=1`,
-        { cache: "no-store" }
-      );
+      // SECURITY: auth token sent, server returns only this user's count
+      const res = await authFetch(`/api/notifications?unread_only=true&limit=1`);
       const data = await res.json();
       setUnreadCount(data.unread_count || 0);
-    } catch { /* silent */ }
-  }, [user?.id]);
+    } catch {}
+  }, [user?.id, authFetch]);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -32,52 +32,45 @@ export function MobileBottomNav() {
 
   const isActive = (path: string) => pathname === path;
 
+  const navItems = [
+    { icon: Home, path: "/", label: "Home" },
+    { icon: Search, path: "/explore", label: "Explore" },
+    { icon: PlusSquare, path: "/create", label: "Create", requiresAuth: true },
+    { icon: Bell, path: "/notifications", label: "Alerts", badge: unreadCount > 0 ? unreadCount : undefined, requiresAuth: true },
+    { icon: User, path: "/profile", label: "Profile", requiresAuth: true },
+  ];
+
   return (
-    <nav className="lg:hidden fixed bottom-0 inset-x-0 h-20 bg-[#050505]/95 backdrop-blur-sm border-t border-zinc-800 flex items-center justify-around px-4 z-50">
-      <Link
-        href="/"
-        className={`flex flex-col items-center gap-1 p-2 ${
-          isActive("/") ? "text-white" : "text-zinc-600"
-        }`}
-      >
-        <Home className="w-6 h-6" />
-      </Link>
-
-      <Link
-        href="#"
-        className="flex flex-col items-center gap-1 p-2 text-zinc-600 opacity-40"
-      >
-        <Search className="w-6 h-6" />
-      </Link>
-
-      {/* Floating create button */}
-      <div className="-mt-10">
-        <Link
-          href="/create"
-          className="w-14 h-14 bg-white flex items-center justify-center text-black border-2 border-white hover:bg-black hover:text-white transition-colors"
-        >
-          <Plus className="w-7 h-7" strokeWidth={3} />
-        </Link>
+    <nav className="fixed bottom-0 left-0 right-0 bg-[#050505]/95 backdrop-blur-sm border-t border-zinc-800 z-50 md:hidden">
+      <div className="flex items-center justify-around h-16 px-2">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item.path);
+          return (
+            <button key={item.path}
+              onClick={() => {
+                if (item.requiresAuth && !authenticated) { login(); return; }
+                router.push(item.path);
+              }}
+              className={`flex flex-col items-center justify-center gap-1 w-16 h-full relative transition-colors ${
+                active ? "text-white" : "text-zinc-600 hover:text-zinc-400"
+              }`}>
+              <div className="relative">
+                <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 1.5} />
+                {item.badge && (
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[14px] h-3.5 flex items-center justify-center bg-white text-black text-[8px] font-black px-0.5">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                )}
+              </div>
+              <span className={`text-[9px] uppercase tracking-widest ${active ? "font-black" : "font-medium"}`}>
+                {item.label}
+              </span>
+              {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-white" />}
+            </button>
+          );
+        })}
       </div>
-
-      <Link
-        href="/profile"
-        className="relative flex flex-col items-center gap-1 p-2 text-zinc-600"
-      >
-        <Bell className="w-6 h-6" />
-        {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 w-2 h-2 bg-white border border-black" />
-        )}
-      </Link>
-
-      <Link
-        href="/profile"
-        className={`flex flex-col items-center gap-1 p-2 ${
-          isActive("/profile") ? "text-white" : "text-zinc-600"
-        }`}
-      >
-        <User className="w-6 h-6" />
-      </Link>
     </nav>
   );
 }
