@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { Side, TickSize } from "@polymarket/clob-client";
+import { Side } from "@polymarket/clob-client";
 import { useClobClient } from "./useClobClient";
 import { useAuthFetch } from "./useAuthFetch";
 import { useUserApiCredentials } from "./useUserApiCredentials";
@@ -36,7 +36,7 @@ export const usePlaceOrder = () => {
 
         const orderOptions = {
           negRisk,
-          tickSize: negRisk ? TickSize.OneTenthOfACent : TickSize.OneCent,
+          tickSize: (negRisk ? "0.001" : "0.01") as any,
         };
 
         const signedOrder = await clobClient.createOrder(
