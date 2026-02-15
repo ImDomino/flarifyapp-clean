@@ -43,21 +43,26 @@ export const usePlaceOrder = () => {
         // If retry, force fresh creds by re-initializing
         const { clobClient, eoaAddress } = await initClobClient(isRetry);
 
+        // Simple order payload — let SDK handle feeRateBps, expiration, taker
         const orderPayload = {
           tokenID: tokenId,
           price,
           size,
           side,
-          feeRateBps: 0,
-          expiration: 0,
-          taker: "0x0000000000000000000000000000000000000000",
+        };
+
+        // Options must include negRisk and tickSize
+        // Most markets use "0.01", neg risk markets may use "0.001"
+        const orderOptions = {
+          negRisk,
+          tickSize: negRisk ? "0.001" : "0.01",
         };
 
         // Strategy 1: Try direct createAndPostOrder
         try {
           const response = await clobClient.createAndPostOrder(
             orderPayload,
-            { negRisk },
+            orderOptions,
             OrderType.GTC
           );
 
@@ -120,9 +125,7 @@ export const usePlaceOrder = () => {
         }
 
         // Strategy 2: Fallback — createOrder on client, POST via server proxy
-        const signedOrder = await clobClient.createOrder(orderPayload, {
-          negRisk,
-        });
+        const signedOrder = await clobClient.createOrder(orderPayload, orderOptions);
 
         const res = await authFetch("/api/polymarket/order", {
           method: "POST",
