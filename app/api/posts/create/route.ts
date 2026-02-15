@@ -1,40 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/client';
+import { createServiceClient } from '@/lib/supabase/server';
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth';
+import { validatePostContent } from '@/lib/validate';
+import { RL, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Extract user_id from JWT, not from request body
+    const userId = await getAuthenticatedUser(request);
+    if (!userId) return unauthorizedResponse();
+    if (!RL.createPost(userId)) return rateLimitResponse();
+
     const body = await request.json();
-    const { content, user_id, image_url, polymarket_market_id, market_data } = body;
+    const { content, image_url, polymarket_market_id, market_data } = body;
 
-    if (!content || !user_id) {
-      return NextResponse.json(
-        { error: 'Missing content or user_id' },
-        { status: 400 }
-      );
-    }
+    // Validate content
+    const v = validatePostContent(content);
+    if (!v.valid) return v.error!;
 
-    const supabase = createClient();
+    const supabase = createServiceClient();
 
     // Ensure profile exists (fallback if ProfileSync didn't run yet)
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('id')
-      .eq('id', user_id)
+      .eq('id', userId)
       .maybeSingle();
 
     if (!existingProfile) {
-      console.log('⚡ Auto-creating profile for user:', user_id);
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
-          id: user_id,
+          id: userId,
           email: '',
-          username: `user_${user_id.slice(-6)}`,
+          username: `user_${userId.slice(-6)}`,
           updated_at: new Date().toISOString(),
         });
 
       if (profileError) {
-        console.error('❌ Failed to auto-create profile:', profileError);
+        console.error('Failed to auto-create profile:', profileError);
         return NextResponse.json(
           { error: 'Failed to create user profile' },
           { status: 500 }
@@ -43,8 +47,8 @@ export async function POST(request: NextRequest) {
     }
 
     const postData: Record<string, any> = {
-      content,
-      user_id,
+      content: v.content,
+      user_id: userId, // from JWT, not body
     };
 
     if (image_url) postData.image_url = image_url;

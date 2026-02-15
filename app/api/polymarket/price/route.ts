@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Force US region — Polymarket APIs may geo-block
 export const runtime = "nodejs";
 export const preferredRegion = "iad1";
 
 /**
  * GET /api/polymarket/price?token_id=XXX&market_id=YYY
- *
- * Returns: { midPrice, bestBid, bestAsk, resolved, winner }
- * resolved comes from Gamma API (closed / active / tokens[].winner)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -24,7 +20,11 @@ export async function GET(request: NextRequest) {
     let bestBid: number | null = null;
     let bestAsk: number | null = null;
     let resolved = false;
-    let winner: string | null = null; // "Yes" | "No" | null
+    let winner: string | null = null;
+
+    // Track orderbook state from CLOB
+    let clobBidsCount = 0;
+    let clobAsksCount = 0;
 
     // Strategy 1: CLOB orderbook (live prices)
     if (tokenId) {
@@ -38,6 +38,9 @@ export async function GET(request: NextRequest) {
           const data = await clobRes.json();
           const bids: Array<{ price: string; size: string }> = data.bids || [];
           const asks: Array<{ price: string; size: string }> = data.asks || [];
+
+          clobBidsCount = bids.length;
+          clobAsksCount = asks.length;
 
           if (bids.length > 0) {
             bestBid = Math.max(...bids.map((b) => parseFloat(b.price)));
@@ -53,15 +56,11 @@ export async function GET(request: NextRequest) {
           } else if (bestAsk !== null) {
             midPrice = bestAsk;
           }
-
-          console.log(`📊 CLOB [${tokenId.slice(0, 8)}...]: bids=${bids.length} asks=${asks.length} bestBid=${bestBid} bestAsk=${bestAsk} mid=${midPrice}`);
         }
-      } catch (e: any) {
-        console.warn(`⚠️ CLOB error: ${e.message?.slice(0, 80)}`);
-      }
+      } catch { /* silent */ }
     }
 
-    // Strategy 2: Gamma API — price fallback + resolved/closed/winner
+    // Strategy 2: Gamma API — price fallback + resolved status
     if (tokenId) {
       try {
         const gammaRes = await fetch(
@@ -72,7 +71,9 @@ export async function GET(request: NextRequest) {
           const markets = await gammaRes.json();
           if (Array.isArray(markets) && markets.length > 0) {
             const m = markets[0];
-            extractResolvedStatus(m, tokenId, (r, w) => { resolved = r; winner = w; });
+            const status = extractResolvedStatus(m, clobBidsCount, clobAsksCount);
+            resolved = status.resolved;
+            winner = status.winner;
 
             if (midPrice === null) {
               const price = extractPriceFromGammaMarket(m, tokenId);
@@ -94,9 +95,13 @@ export async function GET(request: NextRequest) {
           const markets = await gammaRes.json();
           if (Array.isArray(markets) && markets.length > 0) {
             const m = markets[0];
-            extractResolvedStatus(m, null, (r, w) => {
-              if (r) { resolved = r; winner = w; }
-            });
+            if (!resolved) {
+              const status = extractResolvedStatus(m, clobBidsCount, clobAsksCount);
+              if (status.resolved) {
+                resolved = status.resolved;
+                winner = status.winner;
+              }
+            }
 
             if (midPrice === null) {
               const price = extractPriceFromGammaMarket(m, null);
@@ -105,10 +110,6 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch { /* ignore */ }
-    }
-
-    if (midPrice === null) {
-      console.warn(`❌ No price: token=${tokenId?.slice(0, 8)} market=${marketId?.slice(0, 8)}`);
     }
 
     return NextResponse.json(
@@ -122,43 +123,56 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Extract resolved status from Gamma market object.
- * Uses: closed, active, tokens[].winner fields.
+ * Determine if a market is resolved.
+ *
+ * | winner | closed | active | orderbook | → resolved? |
+ * |--------|--------|--------|-----------|-------------|
+ * | Yes    | *      | *      | *         | YES         |
+ * | No     | true   | false  | *         | YES         |
+ * | No     | true   | true   | empty     | YES         |
+ * | No     | true   | true   | has orders| NO (paused) |
+ * | No     | false  | *      | *         | NO          |
+ *
+ * Key: closed=true + active=true is ambiguous.
+ * The CLOB orderbook is the tiebreaker — live orders mean
+ * the market is still trading. Empty orderbook means resolved.
  */
 function extractResolvedStatus(
   market: any,
-  tokenId: string | null,
-  cb: (resolved: boolean, winner: string | null) => void
-) {
-  let isResolved = false;
-  let winnerOutcome: string | null = null;
-
-  // closed=true means market is closed
-  if (market.closed === true || market.closed === "true") {
-    isResolved = true;
-  }
-
-  // active=false also indicates resolved/closed
-  if (market.active === false || market.active === "false") {
-    isResolved = true;
-  }
-
-  // tokens[].winner tells us who won
+  clobBidsCount: number,
+  clobAsksCount: number
+): { resolved: boolean; winner: string | null } {
+  // 1. Explicit winner → always resolved
   if (Array.isArray(market.tokens)) {
     const winnerToken = market.tokens.find(
       (t: any) => t.winner === true || t.winner === "true"
     );
     if (winnerToken) {
-      winnerOutcome = winnerToken.outcome || null;
-      isResolved = true;
+      return { resolved: true, winner: winnerToken.outcome || null };
     }
   }
 
-  if (isResolved) {
-    console.log(`🏁 Market resolved: closed=${market.closed} active=${market.active} winner=${winnerOutcome}`);
+  const isClosed = market.closed === true || market.closed === "true";
+  const isActive = market.active === true || market.active === "true";
+
+  // Not closed → not resolved
+  if (!isClosed) {
+    return { resolved: false, winner: null };
   }
 
-  cb(isResolved, winnerOutcome);
+  // closed + not active → resolved
+  if (!isActive) {
+    return { resolved: true, winner: null };
+  }
+
+  // closed + active → check orderbook
+  const orderbookEmpty = clobBidsCount === 0 && clobAsksCount === 0;
+  if (orderbookEmpty) {
+    return { resolved: true, winner: null };
+  }
+
+  // Has live orders → still trading
+  return { resolved: false, winner: null };
 }
 
 function extractPriceFromGammaMarket(market: any, tokenId: string | null): number | null {

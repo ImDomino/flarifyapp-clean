@@ -5,6 +5,7 @@ import { PostCard } from "@/components/PostCard";
 import { Plus, RefreshCw, Image as ImageIcon, BarChart2, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
 import type { PostWithUser } from "@/lib/types";
 
 type FeedTab = "foryou" | "following" | "trading";
@@ -20,6 +21,7 @@ export default function Home() {
 
   const router = useRouter();
   const { user, authenticated } = usePrivy();
+  const authFetch = useAuthFetch();
 
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
@@ -42,14 +44,18 @@ export default function Home() {
         if (pageNum === 1) setIsLoading(true);
         else setIsLoadingMore(true);
 
-        let url = `/api/posts?page=${pageNum}&limit=20`;
+        let response: Response;
+
         if (activeTab === "following" && user?.id) {
-          url = `/api/posts/following?user_id=${encodeURIComponent(
-            user.id
-          )}&page=${pageNum}&limit=20`;
+          // Following feed requires auth — use authFetch
+          response = await authFetch(
+            `/api/posts/following?page=${pageNum}&limit=20`
+          );
+        } else {
+          // Public feed — no auth needed
+          response = await fetch(`/api/posts?page=${pageNum}&limit=20`);
         }
 
-        const response = await fetch(url);
         const data = await response.json();
 
         if (append) setPosts((prev) => [...prev, ...data.posts]);
@@ -63,7 +69,7 @@ export default function Home() {
         setIsLoadingMore(false);
       }
     },
-    [feedTab, user?.id]
+    [feedTab, user?.id, authFetch]
   );
 
   useEffect(() => {
