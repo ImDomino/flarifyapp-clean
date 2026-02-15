@@ -29,13 +29,38 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1);
     if (error) throw error;
 
-    const postsWithCounts = await Promise.all(
-      (posts || []).map(async (post) => {
-        const { count: lc } = await supabase.from("likes").select("*", { count: "exact", head: true }).eq("post_id", post.id);
-        const { count: cc } = await supabase.from("comments").select("*", { count: "exact", head: true }).eq("post_id", post.id);
-        return { ...post, likes_count: lc || 0, comments_count: cc || 0, user_has_liked: false };
-      })
-    );
+    const postIds = (posts || []).map((p) => p.id);
+    const likeCounts: Record<string, number> = {};
+    const commentCounts: Record<string, number> = {};
+    const userLikedSet = new Set<string>();
+
+    if (postIds.length > 0) {
+      const { data: likesData } = await supabase
+        .from("likes").select("post_id").in("post_id", postIds);
+      for (const like of likesData || []) {
+        likeCounts[like.post_id] = (likeCounts[like.post_id] || 0) + 1;
+      }
+
+      const { data: commentsData } = await supabase
+        .from("comments").select("post_id").in("post_id", postIds);
+      for (const comment of commentsData || []) {
+        commentCounts[comment.post_id] = (commentCounts[comment.post_id] || 0) + 1;
+      }
+
+      // Current user's likes
+      const { data: userLikes } = await supabase
+        .from("likes").select("post_id").eq("user_id", userId).in("post_id", postIds);
+      for (const like of userLikes || []) {
+        userLikedSet.add(like.post_id);
+      }
+    }
+
+    const postsWithCounts = (posts || []).map((post) => ({
+      ...post,
+      likes_count: likeCounts[post.id] || 0,
+      comments_count: commentCounts[post.id] || 0,
+      user_has_liked: userLikedSet.has(post.id),
+    }));
 
     return NextResponse.json({
       posts: postsWithCounts,

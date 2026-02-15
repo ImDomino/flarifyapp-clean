@@ -34,7 +34,6 @@ export function PostCard({ post }: PostCardProps) {
     setLikes(newLikes);
 
     try {
-      // SECURITY: user_id removed — server extracts from JWT
       const response = await authFetch("/api/likes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -59,6 +58,9 @@ export function PostCard({ post }: PostCardProps) {
     router.push(isOwnPost ? "/profile" : `/user/${post.user_id}`);
   };
 
+  // Clamp long content in feed view
+  const isLongContent = (post.content?.length || 0) > 280;
+
   return (
     <article className="bg-[#0a0a0a] border border-zinc-800 p-5 sm:p-6 interact-border group cursor-pointer"
       onClick={() => router.push(`/post/${post.id}`)}>
@@ -82,13 +84,31 @@ export function PostCard({ post }: PostCardProps) {
             </div>
             <span className="text-zinc-600 text-xs font-mono flex-shrink-0 ml-2">{timeAgo.toUpperCase()}</span>
           </div>
-          <p className="text-zinc-300 text-sm leading-7 font-medium mb-4 whitespace-pre-wrap">{post.content}</p>
+
+          {/* Content — clamped to 4 lines for long posts */}
+          <div className="mb-4">
+            <p className={`text-zinc-300 text-sm leading-7 font-medium whitespace-pre-wrap ${
+              isLongContent ? "line-clamp-4" : ""
+            }`}>
+              {post.content}
+            </p>
+            {isLongContent && (
+              <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider hover:text-white transition-colors mt-1 inline-block">
+                Show more
+              </span>
+            )}
+          </div>
+
+          {/* Image — constrained max height */}
           {post.image_url && (
-            <div className="border border-zinc-800 mb-4 group-hover:border-zinc-600 transition-colors overflow-hidden">
-              <Image src={post.image_url} alt="Post image" width={690} height={400}
-                className="w-full h-auto object-cover opacity-80 group-hover:opacity-100 transition-opacity" unoptimized />
+            <div className="border border-zinc-800 mb-4 group-hover:border-zinc-600 transition-colors overflow-hidden"
+              style={{ maxHeight: "35rem" }}>
+              <Image src={post.image_url} alt="Post image" width={690} height={288}
+                className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                unoptimized />
             </div>
           )}
+
           {post.polymarket_market_id && post.market_data && (
             <div onClick={(e) => e.stopPropagation()}>
               <MarketCard marketData={{ ...post.market_data, yesTokenId: post.yes_token_id || post.market_data.yesTokenId, noTokenId: post.no_token_id || post.market_data.noTokenId }}
