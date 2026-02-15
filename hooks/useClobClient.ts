@@ -22,7 +22,7 @@ export const useClobClient = () => {
   const initClobClient = useCallback(
     async (
       forceRefresh = false
-    ): Promise<{ clobClient: ClobClient; eoaAddress: string }> => {
+    ): Promise<{ clobClient: ClobClient; eoaAddress: string; safeAddress: string }> => {
       if (!ethersSigner || !eoaAddress || !safeAddress) {
         throw new Error("Wallet not connected. Please connect your wallet first.");
       }
@@ -35,7 +35,7 @@ export const useClobClient = () => {
 
       // Return cached client if same EOA and not force-refreshing
       if (clientRef.current && clientRef.current.eoa === eoaAddress) {
-        return { clobClient: clientRef.current.client, eoaAddress };
+        return { clobClient: clientRef.current.client, eoaAddress, safeAddress };
       }
 
       // Get or create credentials (memory → cookie → derive)
@@ -52,7 +52,7 @@ export const useClobClient = () => {
       );
 
       clientRef.current = { client, eoa: eoaAddress };
-      return { clobClient: client, eoaAddress };
+      return { clobClient: client, eoaAddress, safeAddress };
     },
     [ethersSigner, eoaAddress, safeAddress, getOrCreateCreds, invalidateCreds]
   );
