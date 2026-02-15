@@ -48,13 +48,13 @@ export const useUserApiCredentials = () => {
     }
   }, [authFetch]);
 
-  const getOrCreateCreds = useCallback(async (): Promise<UserApiCreds> => {
+  const getOrCreateCreds = useCallback(async (forceCreate = false): Promise<UserApiCreds> => {
     if (!ethersSigner || !eoaAddress || !safeAddress) {
       throw new Error("No signer, EOA, or Safe address");
     }
 
     // ── 1. In-memory cache (same tab, no network) ──
-    if (memoryCache && memoryCache.eoa === eoaAddress) {
+    if (!forceCreate && memoryCache && memoryCache.eoa === eoaAddress) {
       return memoryCache.creds;
     }
 
@@ -66,24 +66,46 @@ export const useUserApiCredentials = () => {
     const doGetCreds = async (): Promise<UserApiCreds> => {
       // ── 2. Try to retrieve from server HttpOnly cookie ──
       //    (covers page reload — cookie persists, memory doesn't)
-      try {
-        const retrieveRes = await authFetch("/api/polymarket/credentials/retrieve");
-        if (retrieveRes.ok) {
-          const data = await retrieveRes.json();
-          if (data.key && data.secret && data.passphrase) {
-            const creds: UserApiCreds = {
-              key: data.key,
-              secret: data.secret,
-              passphrase: data.passphrase,
-            };
-            // Trust cookie creds — they were valid when stored.
-            // If CLOB rejects them later (401), caller should use invalidateCreds().
-            memoryCache = { eoa: eoaAddress, creds };
-            return creds;
+      //    Skip if forceCreate (we know cached creds are bad)
+      if (!forceCreate) {
+        try {
+          const retrieveRes = await authFetch("/api/polymarket/credentials/retrieve");
+          if (retrieveRes.ok) {
+            const data = await retrieveRes.json();
+            if (data.key && data.secret && data.passphrase) {
+              const creds: UserApiCreds = {
+                key: data.key,
+                secret: data.secret,
+                passphrase: data.passphrase,
+              };
+              
+              // Validate creds by testing a simple authenticated call
+              try {
+                const testClient = new ClobClient(
+                  "https://clob.polymarket.com",
+                  137,
+                  ethersSigner as any,
+                  creds,
+                  2,
+                  safeAddress
+                );
+                await testClient.getApiKeys();
+                // Creds valid — cache and return
+                memoryCache = { eoa: eoaAddress, creds };
+                return creds;
+              } catch (validationErr: any) {
+                console.warn("[Creds] Cookie creds failed validation, will re-create:", validationErr?.message);
+                // Delete invalid cookie
+                try {
+                  await authFetch("/api/polymarket/credentials", { method: "DELETE" });
+                } catch {}
+                // Fall through to create fresh creds
+              }
+            }
           }
+        } catch {
+          // Cookie doesn't exist or is invalid — fall through to derive
         }
-      } catch {
-        // Cookie doesn't exist or is invalid — fall through to derive
       }
 
       // ── 3. Derive or create via Polymarket API (requires Privy signature) ──
@@ -100,22 +122,106 @@ export const useUserApiCredentials = () => {
 
       let creds: UserApiCreds | null = null;
 
-      // Try derive first (returning users — may still need 1 signature)
-      try {
-        const derived = await tempClient.deriveApiKey();
-        if (derived?.key && derived?.secret && derived?.passphrase) {
-          creds = derived as UserApiCreds;
+      if (forceCreate) {
+        // ── Force create: old creds are broken (401). ──
+        // Try to delete old key first, then create fresh.
+        // derive() would return the same broken key, so skip it.
+        
+        // Attempt to delete the old API key
+        try {
+          // derive the old creds just so we can authenticate the delete call
+          const oldCreds = await tempClient.deriveApiKey();
+          if (oldCreds?.key) {
+            const deleteClient = new ClobClient(
+              "https://clob.polymarket.com",
+              137,
+              ethersSigner as any,
+              oldCreds,
+              2,
+              safeAddress
+            );
+            await deleteClient.deleteApiKey();
+            console.log("[Creds] Deleted old API key, creating fresh one...");
+          }
+        } catch (delErr: any) {
+          console.warn("[Creds] Could not delete old key:", delErr?.message);
+          // Continue anyway — createApiKey may still work
         }
-      } catch {
-        // New user or creds not created yet
-      }
 
-      // If derive failed, create new
-      if (!creds) {
+        // Create a brand new API key
         try {
           creds = (await tempClient.createApiKey()) as UserApiCreds;
-        } catch {
+          console.log("[Creds] Created fresh API key:", creds?.key?.slice(0, 8) + "...");
+        } catch (createErr: any) {
+          console.warn("[Creds] createApiKey failed:", createErr?.message);
+          // Last resort
+          try {
+            creds = (await tempClient.createOrDeriveApiKey()) as UserApiCreds;
+          } catch (fallbackErr: any) {
+            throw new Error(
+              "Failed to create new API credentials. " +
+              "Please try logging out completely and back in. " +
+              "Error: " + (fallbackErr?.message || "Unknown")
+            );
+          }
+        }
+      } else {
+        // ── Normal flow: try derive first (fast), then create ──
+        try {
           creds = (await tempClient.createOrDeriveApiKey()) as UserApiCreds;
+        } catch (e: any) {
+          console.warn("[Creds] createOrDeriveApiKey failed:", e?.message);
+        }
+
+        if (!creds) {
+          try {
+            const derived = await tempClient.deriveApiKey();
+            if (derived?.key && derived?.secret && derived?.passphrase) {
+              creds = derived as UserApiCreds;
+            }
+          } catch {
+            // derive failed
+          }
+        }
+
+        // Validate derived creds before accepting them
+        if (creds) {
+          try {
+            const testClient = new ClobClient(
+              "https://clob.polymarket.com",
+              137,
+              ethersSigner as any,
+              creds,
+              2,
+              safeAddress
+            );
+            await testClient.getApiKeys();
+            // Valid!
+          } catch (validationErr: any) {
+            console.warn("[Creds] Derived creds invalid, deleting and creating fresh:", validationErr?.message);
+            // Try to delete old key
+            try {
+              const deleteClient = new ClobClient(
+                "https://clob.polymarket.com",
+                137,
+                ethersSigner as any,
+                creds,
+                2,
+                safeAddress
+              );
+              await deleteClient.deleteApiKey();
+            } catch {}
+            creds = null;
+          }
+        }
+
+        if (!creds) {
+          try {
+            creds = (await tempClient.createApiKey()) as UserApiCreds;
+            console.log("[Creds] Created fresh API key:", creds?.key?.slice(0, 8) + "...");
+          } catch {
+            throw new Error("Failed to obtain API credentials. Please try again.");
+          }
         }
       }
 

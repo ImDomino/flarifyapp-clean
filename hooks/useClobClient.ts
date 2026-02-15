@@ -39,7 +39,8 @@ export const useClobClient = () => {
       }
 
       // Get or create credentials (memory → cookie → derive)
-      const creds = await getOrCreateCreds();
+      // If forceRefresh, skip cache/derive and create fresh key
+      const creds = await getOrCreateCreds(forceRefresh);
 
       // signatureType 2 = POLY_GNOSIS_SAFE (EOA associated with a Safe proxy wallet)
       // funder = safeAddress (the Safe that holds funds on Polymarket)
