@@ -2,25 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
 import crypto from "crypto";
 
-/**
- * /api/polymarket/credentials
- *
- * Secure server-side storage for Polymarket User API credentials.
- * Credentials are stored in encrypted HttpOnly cookies — never in localStorage.
- *
- * GET  — returns { hasCreds: boolean } (never returns actual creds to client)
- * POST — stores encrypted credentials in HttpOnly cookie
- * DELETE — clears stored credentials
- */
-
 const COOKIE_NAME = "pm_creds";
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
 
-// Encryption key derived from PRIVY_APP_SECRET (or dedicated env var)
 function getEncryptionKey(): Buffer {
   const secret = process.env.POLYMARKET_CREDS_SECRET || process.env.PRIVY_APP_SECRET;
   if (!secret) throw new Error("Missing encryption secret");
-  // Derive a 32-byte key from the secret
   return crypto.createHash("sha256").update(secret).digest();
 }
 
@@ -31,7 +18,6 @@ function encrypt(plaintext: string): string {
   let encrypted = cipher.update(plaintext, "utf8", "hex");
   encrypted += cipher.final("hex");
   const authTag = cipher.getAuthTag().toString("hex");
-  // Format: iv:authTag:ciphertext
   return `${iv.toString("hex")}:${authTag}:${encrypted}`;
 }
 
@@ -48,10 +34,6 @@ function decrypt(ciphertext: string): string {
   return decrypted;
 }
 
-/**
- * Extract credentials from cookie (server-side only).
- * Exported for use by other API routes (e.g., /api/polymarket/order).
- */
 export function getCredsFromCookie(
   request: NextRequest
 ): { key: string; secret: string; passphrase: string } | null {
@@ -67,12 +49,11 @@ export function getCredsFromCookie(
   }
 }
 
-// GET — check if credentials exist (never returns actual creds)
+// GET — check if credentials exist
 export async function GET(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUser(request);
     if (!userId) return unauthorizedResponse();
-
     const creds = getCredsFromCookie(request);
     return NextResponse.json({ hasCreds: !!creds });
   } catch (error: any) {
@@ -90,19 +71,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { key, secret, passphrase } = body;
 
-    if (!key || !secret || !passphrase) {
-      return NextResponse.json(
-        { error: "Missing key, secret, or passphrase" },
-        { status: 400 }
-      );
-    }
-
-    // Basic validation — Polymarket API keys have specific formats
-    if (typeof key !== "string" || key.length < 5) {
+    if (!key || !secret || !passphrase)
+      return NextResponse.json({ error: "Missing key, secret, or passphrase" }, { status: 400 });
+    if (typeof key !== "string" || key.length < 5)
       return NextResponse.json({ error: "Invalid API key format" }, { status: 400 });
-    }
 
-    // Encrypt and store in HttpOnly cookie
     const encrypted = encrypt(JSON.stringify({ key, secret, passphrase }));
 
     const response = NextResponse.json({ success: true });
@@ -133,7 +106,7 @@ export async function DELETE(request: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       path: "/",
-      maxAge: 0, // Expire immediately
+      maxAge: 0,
     });
 
     return response;
