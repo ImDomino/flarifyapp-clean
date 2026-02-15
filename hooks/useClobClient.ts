@@ -41,14 +41,15 @@ export const useClobClient = () => {
       // Get or create credentials (memory → cookie → derive)
       const creds = await getOrCreateCreds();
 
+      // signatureType 2 = POLY_GNOSIS_SAFE (EOA associated with a Safe proxy wallet)
+      // funder = safeAddress (the Safe that holds funds on Polymarket)
       const client = new ClobClient(
         CLOB_URL,
         CHAIN_ID,
         ethersSigner as any,
         creds,
-        undefined, // signatureType
-        undefined, // funder
-        safeAddress // proxyWalletAddress — use Safe as the on-chain wallet
+        2,           // signatureType: POLY_GNOSIS_SAFE
+        safeAddress  // funder: Safe address that holds USDC
       );
 
       clientRef.current = { client, eoa: eoaAddress };

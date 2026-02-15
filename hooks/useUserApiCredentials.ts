@@ -87,10 +87,15 @@ export const useUserApiCredentials = () => {
       }
 
       // ── 3. Derive or create via Polymarket API (requires Privy signature) ──
+      // L1 auth: signatureType and funder needed so the API key is bound
+      // to the correct Safe wallet address
       const tempClient = new ClobClient(
         "https://clob.polymarket.com",
         137,
-        ethersSigner as any
+        ethersSigner as any,
+        undefined, // no creds yet — this is L1 client
+        2,         // signatureType: POLY_GNOSIS_SAFE
+        safeAddress // funder: Safe address
       );
 
       let creds: UserApiCreds | null = null;
