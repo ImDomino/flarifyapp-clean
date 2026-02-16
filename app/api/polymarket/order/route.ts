@@ -20,12 +20,8 @@ const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
 };
 
 /**
- * L2 HMAC signature for user credentials.
- * Format: HMAC-SHA256(base64decode(secret), timestamp + method + path + body)
- * Result: base64 string
- *
- * THIS WAS IN THE ORIGINAL WORKING CODE but got removed during security refactor.
- * Without it CLOB returns 401 "Invalid api key".
+ * L2 HMAC signature — used in the original working code.
+ * HMAC-SHA256(base64decode(secret), timestamp + method + path + body)
  */
 function buildL2HmacSignature(
   secret: string,
@@ -63,28 +59,27 @@ export async function POST(request: NextRequest) {
 
     if (!signedOrder || !eoaAddress) {
       return NextResponse.json(
-        { error: "Missing required fields (signedOrder, eoaAddress)" },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Credentials from encrypted HttpOnly cookie (not from request body)
     const userCreds = getCredsFromCookie(request);
     if (!userCreds) {
       return NextResponse.json(
-        { error: "Trading credentials not found. Please try again.", code: "CREDS_MISSING" },
+        { error: "Trading credentials not found.", code: "CREDS_MISSING" },
         { status: 401 }
       );
     }
 
-    // Normalize signed order structure
+    // Normalize signed order
     let flatOrder: any;
     if (signedOrder.salt && signedOrder.maker && signedOrder.signature) {
       flatOrder = signedOrder;
     } else if (signedOrder.order?.salt) {
       flatOrder = signedOrder.order;
     } else {
-      return NextResponse.json({ error: "Invalid signed order structure" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid signed order" }, { status: 400 });
     }
 
     const clobPayload = {
@@ -95,37 +90,56 @@ export async function POST(request: NextRequest) {
     };
     const clobBody = JSON.stringify(clobPayload);
 
+    // Timestamps
     const now = Date.now();
-    const userTimestamp = Math.floor(now / 1000);   // seconds for L2 HMAC
-    const builderTimestamp = now;                     // ms for builder HMAC
+    const userTimestamp = Math.floor(now / 1000);
+    const builderTimestamp = now;
 
-    // L2 User HMAC (was missing after refactor — caused all 401s)
+    // L2 User HMAC
     const userSignature = buildL2HmacSignature(
-      userCreds.secret, userTimestamp, "POST", "/order", clobBody
+      userCreds.secret,
+      userTimestamp,
+      "POST",
+      "/order",
+      clobBody
     );
 
     // Builder HMAC
     const builderSignature = buildHmacSignature(
-      BUILDER_CREDENTIALS.secret, builderTimestamp, "POST", "/order", clobBody
+      BUILDER_CREDENTIALS.secret,
+      builderTimestamp,
+      "POST",
+      "/order",
+      clobBody
     );
 
-    console.log("[ORDER] →", {
-      owner: userCreds.key.slice(0, 12) + "...",
-      maker: flatOrder.maker?.slice(0, 10) + "...",
-      eoa: eoaAddress.slice(0, 10) + "...",
-    });
+    // ══════════════════════════════════════════════════════
+    // DETAILED DEBUG LOG — remove after fixing
+    // ══════════════════════════════════════════════════════
+    console.log("[ORDER] ══════════════════════════════════════");
+    console.log("[ORDER] owner (API key):", userCreds.key);
+    console.log("[ORDER] eoaAddress (from client body):", eoaAddress);
+    console.log("[ORDER] maker (from signed order):", flatOrder.maker);
+    console.log("[ORDER] signer (from signed order):", flatOrder.signer);
+    console.log("[ORDER] signatureType:", flatOrder.signatureType);
+    console.log("[ORDER] secret starts with:", userCreds.secret?.slice(0, 8) + "...");
+    console.log("[ORDER] passphrase starts with:", userCreds.passphrase?.slice(0, 8) + "...");
+    console.log("[ORDER] userTimestamp:", userTimestamp);
+    console.log("[ORDER] userSignature:", userSignature?.slice(0, 20) + "...");
+    console.log("[ORDER] builderTimestamp:", builderTimestamp);
+    console.log("[ORDER] builder key:", BUILDER_CREDENTIALS.key?.slice(0, 12) + "...");
+    console.log("[ORDER] ══════════════════════════════════════");
 
+    // Attempt 1: L2 HMAC auth (original working format)
     const clobResponse = await fetch("https://clob.polymarket.com/order", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // ── User L2 auth (RESTORED) ──
         POLY_ADDRESS: eoaAddress,
         POLY_SIGNATURE: userSignature,
         POLY_TIMESTAMP: userTimestamp.toString(),
         POLY_API_KEY: userCreds.key,
         POLY_PASSPHRASE: userCreds.passphrase,
-        // ── Builder auth ──
         POLY_BUILDER_SIGNATURE: builderSignature,
         POLY_BUILDER_TIMESTAMP: builderTimestamp.toString(),
         POLY_BUILDER_API_KEY: BUILDER_CREDENTIALS.key,
@@ -136,22 +150,65 @@ export async function POST(request: NextRequest) {
 
     const responseText = await clobResponse.text();
 
+    // If L2 HMAC auth failed with 401, try POLY_SECRET header format
+    if (
+      clobResponse.status === 401 &&
+      (responseText.includes("Invalid api key") || responseText.includes("Unauthorized"))
+    ) {
+      console.log("[ORDER] L2 HMAC auth failed (401). Trying POLY_SECRET header format...");
+
+      const clobResponse2 = await fetch("https://clob.polymarket.com/order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          POLY_API_KEY: userCreds.key,
+          POLY_PASSPHRASE: userCreds.passphrase,
+          POLY_SECRET: userCreds.secret,
+          POLY_BUILDER_SIGNATURE: builderSignature,
+          POLY_BUILDER_TIMESTAMP: builderTimestamp.toString(),
+          POLY_BUILDER_API_KEY: BUILDER_CREDENTIALS.key,
+          POLY_BUILDER_PASSPHRASE: BUILDER_CREDENTIALS.passphrase,
+        },
+        body: clobBody,
+      });
+
+      const responseText2 = await clobResponse2.text();
+
+      if (!clobResponse2.ok) {
+        console.error("[ORDER] POLY_SECRET format also failed:", {
+          status: clobResponse2.status,
+          body: responseText2.slice(0, 500),
+        });
+
+        if (
+          clobResponse2.status === 401 ||
+          responseText2.includes("Invalid api key")
+        ) {
+          return clearCredsResponse(
+            { error: "Credentials invalid. Please try again.", code: "INVALID_CREDS" },
+            401
+          );
+        }
+
+        return NextResponse.json(
+          { error: "Order rejected", details: responseText2.slice(0, 500) },
+          { status: clobResponse2.status }
+        );
+      }
+
+      try {
+        return NextResponse.json(JSON.parse(responseText2));
+      } catch {
+        return NextResponse.json({ result: responseText2 });
+      }
+    }
+
+    // Handle first attempt errors (non-401)
     if (!clobResponse.ok) {
-      console.error("[ORDER] CLOB error", {
+      console.error("[ORDER] CLOB error:", {
         status: clobResponse.status,
         body: responseText.slice(0, 500),
       });
-
-      if (
-        clobResponse.status === 401 ||
-        responseText.includes("Invalid api key") ||
-        responseText.includes("Unauthorized")
-      ) {
-        return clearCredsResponse(
-          { error: "Trading credentials expired. Please try again.", code: "INVALID_CREDS" },
-          401
-        );
-      }
 
       if (responseText.includes("Cloudflare") || responseText.includes("blocked")) {
         return NextResponse.json(
@@ -166,6 +223,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Success
+    console.log("[ORDER] ✅ Success:", responseText.slice(0, 200));
     try {
       return NextResponse.json(JSON.parse(responseText));
     } catch {
