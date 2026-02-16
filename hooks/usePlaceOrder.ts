@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import { Side } from "@polymarket/clob-client";
 import { useClobClient } from "./useClobClient";
 import { useAuthFetch } from "./useAuthFetch";
@@ -14,88 +14,96 @@ export interface PlaceOrderParams {
   negRisk?: boolean;
 }
 
+/**
+ * usePlaceOrder
+ *
+ * Signature flow (optimal path — 1 Privy popup):
+ *   1. initClobClient() → creds from memory/cookie → NO signature
+ *   2. clobClient.createOrder() → signs order with ethers → 1 Privy popup
+ *   3. POST /api/polymarket/order → server proxies to CLOB → no popup
+ *
+ * If creds are missing (first time or expired):
+ *   1. initClobClient() → getOrCreateCreds() → createOrDeriveApiKey → 1 Privy popup
+ *   2. clobClient.createOrder() → 1 Privy popup
+ *   Total: 2 popups (unavoidable on first trade)
+ *
+ * On 401 "Invalid api key":
+ *   - Creds are invalidated (memory + cookie cleared)
+ *   - User gets a clear error message to retry
+ *   - Next attempt will create fresh creds (2 popups)
+ *   - We do NOT auto-retry because that would cause 2 MORE popups silently
+ */
 export const usePlaceOrder = () => {
   const { initClobClient } = useClobClient();
   const authFetch = useAuthFetch();
   const { invalidateCreds } = useUserApiCredentials();
-  const retryCountRef = useRef(0);
 
   const placeOrder = useCallback(
     async (params: PlaceOrderParams): Promise<string> => {
       const { tokenId, side, price, size, negRisk = false } = params;
 
-      const attemptOrder = async (isRetry: boolean): Promise<string> => {
-        const { clobClient, eoaAddress } = await initClobClient(isRetry);
+      // ── 1. Initialize client (uses cached creds if available) ──
+      const { clobClient, eoaAddress } = await initClobClient(false);
 
-        const orderPayload = {
+      // ── 2. Create & sign order (1 Privy popup) ──
+      const signedOrder = await clobClient.createOrder(
+        {
           tokenID: tokenId,
           price,
           size,
           side,
-        };
-
-        const orderOptions = {
+        },
+        {
           negRisk,
           tickSize: (negRisk ? "0.001" : "0.01") as any,
+        }
+      );
+
+      // ── 3. Send to server proxy ──
+      const res = await authFetch("/api/polymarket/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signedOrder, eoaAddress }),
+      });
+
+      // ── 4. Parse response ──
+      const rawText = await res.text();
+      let data: any;
+
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        const isCloudflare = rawText.includes("Cloudflare") || rawText.includes("blocked");
+        data = {
+          error: isCloudflare
+            ? "Blocked by Cloudflare geo-restriction. Try using a VPN."
+            : rawText.slice(0, 300) || `HTTP ${res.status}`,
         };
+      }
 
-        const signedOrder = await clobClient.createOrder(
-          orderPayload,
-          orderOptions
-        );
+      // ── 5. Handle errors ──
+      if (!res.ok) {
+        const errorMsg = data.details || data.error || `Order failed: HTTP ${res.status}`;
+        const isCredsInvalid =
+          data.code === "INVALID_CREDS" ||
+          errorMsg.includes("Invalid api key") ||
+          errorMsg.includes("Invalid API credentials");
 
-        const res = await authFetch("/api/polymarket/order", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            signedOrder,
-            eoaAddress,
-          }),
-        });
-
-        let data: any;
-        const contentType = res.headers.get("content-type") || "";
-        const rawText = await res.text();
-
-        if (contentType.includes("application/json") && rawText) {
-          try {
-            data = JSON.parse(rawText);
-          } catch {
-            data = { error: rawText.slice(0, 300) };
-          }
-        } else {
-          const isCloudflareBlock =
-            rawText.includes("Cloudflare") || rawText.includes("blocked");
-          data = {
-            error: isCloudflareBlock
-              ? "Request blocked by Cloudflare geo-restriction"
-              : rawText.slice(0, 300) || `HTTP ${res.status}`,
-          };
+        if (isCredsInvalid) {
+          // Clear stale creds so next attempt creates fresh ones
+          console.log("[PlaceOrder] Creds invalid, clearing for next attempt");
+          await invalidateCreds();
+          throw new Error(
+            "Trading credentials expired. Please try again — " +
+            "you'll need to approve one signature to refresh them."
+          );
         }
 
-        if (!res.ok) {
-          const isCredsIssue = 
-            res.status === 401 || 
-            (data.error && (
-              data.error.includes("Invalid api key") || 
-              data.error.includes("CREDS_MISSING") ||
-              data.error.includes("Unauthorized")
-            ));
-            
-          if (isCredsIssue && !isRetry) {
-            console.log("[usePlaceOrder] Creds invalid, invalidating and retrying...");
-            await invalidateCreds();
-            return attemptOrder(true);
-          }
+        throw new Error(errorMsg);
+      }
 
-          const errorMsg = data.details || data.error || `Order failed: HTTP ${res.status}`;
-          throw new Error(errorMsg);
-        }
-
-        return data.orderID || data.id || "success";
-      };
-
-      return attemptOrder(false);
+      // ── 6. Success ──
+      return data.orderID || data.id || "success";
     },
     [initClobClient, authFetch, invalidateCreds]
   );
