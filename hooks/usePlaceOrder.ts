@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { Side } from "@polymarket/clob-client";
+import { Side, OrderType } from "@polymarket/clob-client";
 import { useClobClient } from "./useClobClient";
 import { useAuthFetch } from "./useAuthFetch";
 import { useUserApiCredentials } from "./useUserApiCredentials";
@@ -15,23 +15,15 @@ export interface PlaceOrderParams {
 }
 
 /**
- * usePlaceOrder
+ * usePlaceOrder — hybrid approach (same as original working version):
  *
- * Signature flow (optimal path — 1 Privy popup):
- *   1. initClobClient() → creds from memory/cookie → NO signature
- *   2. clobClient.createOrder() → signs order with ethers → 1 Privy popup
- *   3. POST /api/polymarket/order → server proxies to CLOB → no popup
+ * 1. Try createAndPostOrder() directly (works when no CORS/geo block)
+ * 2. On CORS/network error → fallback to createOrder() + server proxy
  *
- * If creds are missing (first time or expired):
- *   1. initClobClient() → getOrCreateCreds() → createOrDeriveApiKey → 1 Privy popup
- *   2. clobClient.createOrder() → 1 Privy popup
- *   Total: 2 popups (unavoidable on first trade)
- *
- * On 401 "Invalid api key":
- *   - Creds are invalidated (memory + cookie cleared)
- *   - User gets a clear error message to retry
- *   - Next attempt will create fresh creds (2 popups)
- *   - We do NOT auto-retry because that would cause 2 MORE popups silently
+ * Signature count:
+ *   - If creds cached: 1 popup (createOrder signs via ethers)
+ *   - If creds missing: 2 popups (derive + createOrder)
+ *   - NO auto-retry on 401 (would cause extra popups)
  */
 export const usePlaceOrder = () => {
   const { initClobClient } = useClobClient();
@@ -42,31 +34,69 @@ export const usePlaceOrder = () => {
     async (params: PlaceOrderParams): Promise<string> => {
       const { tokenId, side, price, size, negRisk = false } = params;
 
-      // ── 1. Initialize client (uses cached creds if available) ──
-      const { clobClient, eoaAddress } = await initClobClient(false);
+      const { clobClient, eoaAddress } = await initClobClient();
 
-      // ── 2. Create & sign order (1 Privy popup) ──
-      const signedOrder = await clobClient.createOrder(
-        {
-          tokenID: tokenId,
-          price,
-          size,
-          side,
-        },
-        {
-          negRisk,
-          tickSize: (negRisk ? "0.001" : "0.01") as any,
+      const orderPayload = {
+        tokenID: tokenId,
+        price,
+        size,
+        side,
+        feeRateBps: 0,
+        expiration: 0,
+        taker: "0x0000000000000000000000000000000000000000",
+      };
+
+      const orderOptions = {
+        negRisk,
+        tickSize: (negRisk ? "0.001" : "0.01") as any,
+      };
+
+      // ── Strategy 1: Direct SDK call (no proxy needed if no geo-block) ──
+      try {
+        const response = await clobClient.createAndPostOrder(
+          orderPayload,
+          { negRisk },
+          OrderType.GTC
+        );
+
+        if (response?.error === "Network Error" || response?.status === 0) {
+          throw new Error("CORS_BLOCKED");
         }
-      );
+        if (response.success === false) {
+          throw new Error(response.errorMsg || "Order failed");
+        }
 
-      // ── 3. Send to server proxy ──
+        return response.orderID || "success";
+      } catch (directError: any) {
+        const isCorsOrNetwork =
+          directError.message === "CORS_BLOCKED" ||
+          directError.message?.includes("Network Error") ||
+          directError.message?.includes("ERR_FAILED") ||
+          directError.message?.includes("CORS") ||
+          directError.response?.status === 0 ||
+          directError.status === 0;
+
+        if (!isCorsOrNetwork) {
+          // Real API error — rethrow
+          const msg =
+            directError.response?.data?.error ||
+            directError.message ||
+            "Order failed";
+          throw new Error(msg);
+        }
+
+        console.log("[PlaceOrder] CORS/geo blocked, falling back to proxy...");
+      }
+
+      // ── Strategy 2: Sign on client, post via server proxy ──
+      const signedOrder = await clobClient.createOrder(orderPayload, orderOptions);
+
       const res = await authFetch("/api/polymarket/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ signedOrder, eoaAddress }),
       });
 
-      // ── 4. Parse response ──
       const rawText = await res.text();
       let data: any;
 
@@ -81,52 +111,38 @@ export const usePlaceOrder = () => {
         };
       }
 
-      // ── 5. Handle errors ──
       if (!res.ok) {
         const errorMsg = data.details || data.error || `Order failed: HTTP ${res.status}`;
-        const isCredsInvalid =
-          data.code === "INVALID_CREDS" ||
-          errorMsg.includes("Invalid api key") ||
-          errorMsg.includes("Invalid API credentials");
 
-        if (isCredsInvalid) {
-          // Clear stale creds so next attempt creates fresh ones
-          console.log("[PlaceOrder] Creds invalid, clearing for next attempt");
+        // If creds are invalid, clear them (next attempt will re-derive)
+        if (
+          data.code === "INVALID_CREDS" ||
+          data.code === "CREDS_MISSING" ||
+          errorMsg.includes("Invalid api key")
+        ) {
           await invalidateCreds();
           throw new Error(
-            "Trading credentials expired. Please try again — " +
-            "you'll need to approve one signature to refresh them."
+            "Trading credentials expired. Please try again."
           );
         }
 
         throw new Error(errorMsg);
       }
 
-      // ── 6. Success ──
       return data.orderID || data.id || "success";
     },
     [initClobClient, authFetch, invalidateCreds]
   );
 
   const buyShares = useCallback(
-    async (
-      tokenId: string,
-      price: number,
-      size: number,
-      negRisk?: boolean
-    ): Promise<string> => {
+    async (tokenId: string, price: number, size: number, negRisk?: boolean): Promise<string> => {
       return placeOrder({ tokenId, side: Side.BUY, price, size, negRisk });
     },
     [placeOrder]
   );
 
   const sellShares = useCallback(
-    async (
-      tokenId: string,
-      price: number,
-      size: number,
-      negRisk?: boolean
-    ): Promise<string> => {
+    async (tokenId: string, price: number, size: number, negRisk?: boolean): Promise<string> => {
       return placeOrder({ tokenId, side: Side.SELL, price, size, negRisk });
     },
     [placeOrder]
