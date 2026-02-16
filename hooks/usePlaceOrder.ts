@@ -74,16 +74,21 @@ export const usePlaceOrder = () => {
         }
 
         if (!res.ok) {
-          if (res.status === 401 && !isRetry) {
-            console.log(
-              "[usePlaceOrder] Proxy 401, invalidating creds and retrying..."
-            );
+          const isCredsIssue = 
+            res.status === 401 || 
+            (data.error && (
+              data.error.includes("Invalid api key") || 
+              data.error.includes("CREDS_MISSING") ||
+              data.error.includes("Unauthorized")
+            ));
+            
+          if (isCredsIssue && !isRetry) {
+            console.log("[usePlaceOrder] Creds invalid, invalidating and retrying...");
             await invalidateCreds();
             return attemptOrder(true);
           }
 
-          const errorMsg =
-            data.details || data.error || `Order failed: HTTP ${res.status}`;
+          const errorMsg = data.details || data.error || `Order failed: HTTP ${res.status}`;
           throw new Error(errorMsg);
         }
 

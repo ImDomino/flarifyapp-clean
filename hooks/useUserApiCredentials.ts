@@ -47,7 +47,7 @@ export const useUserApiCredentials = () => {
       if (pendingRef.current) return pendingRef.current;
 
       const doGetCreds = async (): Promise<UserApiCreds> => {
-        // 1. Пробуем достать из cookie
+
         if (!forceCreate) {
           try {
             const res = await authFetch(
@@ -72,7 +72,6 @@ export const useUserApiCredentials = () => {
           } catch {}
         }
 
-        // 2. L1 client для derive/create API key (без signatureType и funder)
         const l1Client = new ClobClient(
           "https://clob.polymarket.com",
           137,
@@ -81,7 +80,6 @@ export const useUserApiCredentials = () => {
 
         let creds: UserApiCreds | null = null;
 
-        // ВСЕГДА один путь: createOrDeriveApiKey
         try {
           creds = (await l1Client.createOrDeriveApiKey()) as UserApiCreds;
           console.log(
@@ -100,7 +98,7 @@ export const useUserApiCredentials = () => {
         memoryCache = { eoa: eoaAddress, creds };
 
         try {
-          await authFetch("/api/polymarket/credentials", {
+          const res = await authFetch("/api/polymarket/credentials", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -109,7 +107,12 @@ export const useUserApiCredentials = () => {
               passphrase: creds.passphrase,
             }),
           });
-        } catch {}
+          if (!res.ok) {
+            console.error("[Creds] Failed to save to cookie:", await res.text());
+          }
+        } catch (e) {
+          console.error("[Creds] Cookie save error:", e);
+        }
 
         return creds;
       };

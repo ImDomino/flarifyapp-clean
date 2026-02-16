@@ -103,12 +103,25 @@ export async function POST(request: NextRequest) {
         text: responseText.slice(0, 300),
       });
 
-      const isBlock =
-        responseText.includes("Cloudflare") ||
-        responseText.includes("blocked");
-      const detail = isBlock
-        ? "Blocked by Cloudflare geo-restriction"
-        : responseText.slice(0, 500);
+      // If CLOB says creds are invalid, clear the cookie
+      if (clobResponse.status === 401 || responseText.includes("Invalid api key")) {
+        const errorResponse = NextResponse.json(
+          { error: "Invalid API credentials. Please retry.", code: "INVALID_CREDS" },
+          { status: 401 }
+        );
+        // Clear the invalid cookie
+        errorResponse.cookies.set("pm_creds", "", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          path: "/",
+          maxAge: 0,
+        });
+        return errorResponse;
+      }
+
+      const isBlock = responseText.includes("Cloudflare") || responseText.includes("blocked");
+      const detail = isBlock ? "Blocked by Cloudflare geo-restriction" : responseText.slice(0, 500);
 
       return NextResponse.json(
         { error: "CLOB order failed", details: detail },
