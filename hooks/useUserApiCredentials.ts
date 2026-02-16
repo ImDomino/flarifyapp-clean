@@ -10,25 +10,9 @@ export type UserApiCreds = {
   passphrase: string;
 };
 
-/**
- * useUserApiCredentials
- *
- * Exactly follows Polymarket's official privy-safe-builder-example:
- * - Credentials stored in localStorage (same as their example)
- * - Derive first, then create if needed
- * - Bare ClobClient (no signatureType, no funder) for deriving
- *
- * From their README:
- *   "The example stores credentials in localStorage for convenience"
- *   "production apps should use secure httpOnly cookies or server-side session management"
- *
- * We'll use localStorage for now to get it working, can secure later.
- */
-
 const LS_KEY = "pm_api_creds";
 const LS_EOA_KEY = "pm_api_creds_eoa";
 
-// In-memory cache for current session
 let memCache: { eoa: string; creds: UserApiCreds } | null = null;
 
 export const useUserApiCredentials = () => {
@@ -41,13 +25,12 @@ export const useUserApiCredentials = () => {
         throw new Error("Wallet not ready");
       }
 
-      // 1. Memory cache (no signature, instant)
+      // 1. Memory cache
       if (!forceNew && memCache && memCache.eoa === eoaAddress) {
-        console.log("[Creds] From memory");
         return memCache.creds;
       }
 
-      // 2. localStorage cache
+      // 2. localStorage
       if (!forceNew && typeof window !== "undefined") {
         const savedEoa = localStorage.getItem(LS_EOA_KEY);
         const savedCreds = localStorage.getItem(LS_KEY);
@@ -63,14 +46,13 @@ export const useUserApiCredentials = () => {
         }
       }
 
-      // Dedup concurrent calls
+      // Dedup
       if (pendingRef.current) return pendingRef.current;
 
       const doDerive = async (): Promise<UserApiCreds> => {
-        console.log("[Creds] Creating via bare ClobClient...");
+        console.log("[Creds] Deriving via bare ClobClient...");
 
-        // Bare client — exactly like official example
-        // No signatureType, no funder, no builderConfig
+        // Bare client — exactly like official privy-safe-builder-example
         const tempClient = new ClobClient(
           "https://clob.polymarket.com",
           137,
@@ -79,24 +61,23 @@ export const useUserApiCredentials = () => {
 
         let creds: UserApiCreds | null = null;
 
-        // Step 1: Try derive (returning users) — 1 Privy signature
+        // Try derive first (returning users)
         try {
           const derived = await tempClient.deriveApiKey();
           if (derived?.key && derived?.secret && derived?.passphrase) {
             creds = derived as UserApiCreds;
-            console.log("[Creds] Derived existing:", creds.key.slice(0, 8) + "...");
+            console.log("[Creds] Derived:", creds.key.slice(0, 8) + "...");
           }
-        } catch (e) {
+        } catch {
           console.log("[Creds] Derive failed, trying create...");
         }
 
-        // Step 2: Create new if derive didn't work — 1 Privy signature
+        // Create new if derive didn't work
         if (!creds) {
           try {
             creds = (await tempClient.createApiKey()) as UserApiCreds;
-            console.log("[Creds] Created new:", creds?.key?.slice(0, 8) + "...");
+            console.log("[Creds] Created:", creds?.key?.slice(0, 8) + "...");
           } catch {
-            // Step 3: Last resort
             creds = (await tempClient.createOrDeriveApiKey()) as UserApiCreds;
             console.log("[Creds] createOrDeriveApiKey:", creds?.key?.slice(0, 8) + "...");
           }
@@ -106,7 +87,7 @@ export const useUserApiCredentials = () => {
           throw new Error("Failed to obtain trading credentials");
         }
 
-        // Save to localStorage + memory
+        // Save
         memCache = { eoa: eoaAddress, creds };
         if (typeof window !== "undefined") {
           localStorage.setItem(LS_KEY, JSON.stringify(creds));

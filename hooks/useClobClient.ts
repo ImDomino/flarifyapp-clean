@@ -6,23 +6,6 @@ import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { useWallet } from "@/providers/WalletProvider";
 import { useUserApiCredentials, UserApiCreds } from "./useUserApiCredentials";
 
-/**
- * useClobClient
- *
- * Creates authenticated ClobClient exactly like Polymarket's official example:
- *
- * const clobClient = new ClobClient(
- *   "https://clob.polymarket.com",
- *   137,
- *   ethersSigner,
- *   userApiCredentials,    // { key, secret, passphrase }
- *   2,                     // signatureType = 2 for Safe
- *   safeAddress,           // funder = Safe address
- *   undefined,
- *   false,
- *   builderConfig          // remote HMAC signing
- * );
- */
 export const useClobClient = () => {
   const { ethersSigner, eoaAddress, safeAddress } = useWallet();
   const { getOrCreateCreds } = useUserApiCredentials();
@@ -35,21 +18,14 @@ export const useClobClient = () => {
   } | null>(null);
 
   const initClobClient = useCallback(
-    async (
-      forceRefresh = false
-    ): Promise<{
-      clobClient: ClobClient;
-      userCreds: UserApiCreds;
-      eoaAddress: string;
-      safeAddress: string;
-    }> => {
+    async (forceRefresh = false) => {
       if (!ethersSigner || !eoaAddress || !safeAddress) {
         throw new Error("Wallet not connected");
       }
 
       const creds = await getOrCreateCreds(forceRefresh);
 
-      // Return cached client if same EOA + same creds
+      // Return cached if same
       if (
         !forceRefresh &&
         clientRef.current &&
@@ -64,13 +40,12 @@ export const useClobClient = () => {
         };
       }
 
-      // BuilderConfig for remote HMAC signing (builder creds stay server-side)
       const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
       const builderConfig = new BuilderConfig({
         remoteBuilderConfig: { url: `${baseUrl}/api/polymarket/sign` },
       });
 
-      // Exactly matches official example constructor
+      // Exactly matches official privy-safe-builder-example
       const client = new ClobClient(
         "https://clob.polymarket.com",
         137,
@@ -85,7 +60,7 @@ export const useClobClient = () => {
 
       clientRef.current = { client, eoa: eoaAddress, credsKey: creds.key, creds };
 
-      console.log("[ClobClient] Initialized:", {
+      console.log("[ClobClient] Init:", {
         eoa: eoaAddress.slice(0, 10) + "...",
         safe: safeAddress.slice(0, 10) + "...",
         key: creds.key.slice(0, 8) + "...",
