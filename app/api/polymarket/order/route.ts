@@ -5,13 +5,10 @@ import {
 } from "@polymarket/builder-signing-sdk";
 import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
 import { RL, rateLimitResponse } from "@/lib/rate-limit";
-import { getCredsFromCookie } from "@/app/api/polymarket/credentials/route";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
 export const preferredRegion = "dub1";
-
-const COOKIE_NAME = "pm_creds";
 
 const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
   key: process.env.POLY_BUILDER_API_KEY!,
@@ -19,6 +16,11 @@ const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
   passphrase: process.env.POLY_BUILDER_PASSPHRASE!,
 };
 
+/**
+ * L2 HMAC signature for user credentials.
+ * This is what the SDK computes internally in createAndPostOrder().
+ * We reproduce it here for the proxy fallback.
+ */
 function buildL2HmacSignature(
   secret: string,
   timestamp: number,
@@ -32,55 +34,17 @@ function buildL2HmacSignature(
   return hmac.digest("base64");
 }
 
-function clearCredsResponse(body: object, status: number): NextResponse {
-  const res = NextResponse.json(body, { status });
-  res.cookies.set(COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/",
-    maxAge: 0,
-  });
-  return res;
-}
-
 /**
- * Pre-flight: validate credentials by calling GET /auth/api-keys on CLOB.
- * This uses L2 HMAC auth (same as order endpoint).
- * Returns the CLOB response for debugging.
+ * POST /api/polymarket/order
+ *
+ * Fallback proxy — only used when direct createAndPostOrder() is CORS/geo-blocked.
+ *
+ * Accepts userCreds in body (like the original working code).
+ * This is safe because:
+ * - Endpoint requires authentication (getAuthenticatedUser)
+ * - Credentials are per-user, not builder credentials
+ * - Same security model as Polymarket's official example (localStorage)
  */
-async function validateCredsOnClob(
-  creds: { key: string; secret: string; passphrase: string },
-  eoaAddress: string
-): Promise<{ valid: boolean; status: number; body: string }> {
-  try {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const hmacSig = buildL2HmacSignature(
-      creds.secret,
-      timestamp,
-      "GET",
-      "/auth/api-keys",
-      ""
-    );
-
-    const res = await fetch("https://clob.polymarket.com/auth/api-keys", {
-      method: "GET",
-      headers: {
-        POLY_ADDRESS: eoaAddress,
-        POLY_SIGNATURE: hmacSig,
-        POLY_TIMESTAMP: timestamp.toString(),
-        POLY_API_KEY: creds.key,
-        POLY_PASSPHRASE: creds.passphrase,
-      },
-    });
-
-    const text = await res.text();
-    return { valid: res.ok, status: res.status, body: text.slice(0, 500) };
-  } catch (e: any) {
-    return { valid: false, status: 0, body: e.message };
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUser(request);
@@ -88,47 +52,19 @@ export async function POST(request: NextRequest) {
     if (!RL.placeOrder(userId)) return rateLimitResponse();
 
     const body = await request.json();
-    const { signedOrder, eoaAddress } = body;
+    const { signedOrder, userCreds, eoaAddress } = body;
 
-    if (!signedOrder || !eoaAddress) {
+    if (!signedOrder || !userCreds || !eoaAddress) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    const userCreds = getCredsFromCookie(request);
-    if (!userCreds) {
+    if (!userCreds.key || !userCreds.secret || !userCreds.passphrase) {
       return NextResponse.json(
-        { error: "Trading credentials not found.", code: "CREDS_MISSING" },
-        { status: 401 }
-      );
-    }
-
-    // ══════════════════════════════════════════════════════
-    // PRE-FLIGHT: Check if credentials are valid at all
-    // ══════════════════════════════════════════════════════
-    const validation = await validateCredsOnClob(userCreds, eoaAddress);
-    console.log("[ORDER] Pre-flight validation:", {
-      valid: validation.valid,
-      status: validation.status,
-      body: validation.body.slice(0, 300),
-    });
-
-    if (!validation.valid && validation.status === 401) {
-      console.error("[ORDER] Credentials INVALID on CLOB side. Clearing cookie.");
-      return clearCredsResponse(
-        {
-          error: "API credentials are invalid on Polymarket. They will be recreated on next attempt.",
-          code: "INVALID_CREDS",
-          debug: {
-            validationStatus: validation.status,
-            validationBody: validation.body.slice(0, 200),
-            credsKey: userCreds.key,
-            eoaUsed: eoaAddress,
-          },
-        },
-        401
+        { error: "Invalid user credentials" },
+        { status: 400 }
       );
     }
 
@@ -161,13 +97,6 @@ export async function POST(request: NextRequest) {
       BUILDER_CREDENTIALS.secret, builderTimestamp, "POST", "/order", clobBody
     );
 
-    console.log("[ORDER] Sending to CLOB:", {
-      owner: userCreds.key.slice(0, 12) + "...",
-      maker: flatOrder.maker?.slice(0, 10) + "...",
-      signer: flatOrder.signer?.slice(0, 10) + "...",
-      eoa: eoaAddress.slice(0, 10) + "...",
-    });
-
     const clobResponse = await fetch("https://clob.polymarket.com/order", {
       method: "POST",
       headers: {
@@ -188,47 +117,29 @@ export async function POST(request: NextRequest) {
     const responseText = await clobResponse.text();
 
     if (!clobResponse.ok) {
-      console.error("[ORDER] CLOB error:", {
+      console.error("[ORDER PROXY] CLOB error:", {
         status: clobResponse.status,
         body: responseText.slice(0, 500),
       });
 
-      if (
-        clobResponse.status === 401 ||
-        responseText.includes("Invalid api key") ||
-        responseText.includes("Unauthorized")
-      ) {
-        return clearCredsResponse(
-          {
-            error: "Credentials rejected by Polymarket. Please try again.",
-            code: "INVALID_CREDS",
-            debug: { preflightPassed: true, orderStatus: clobResponse.status },
-          },
-          401
-        );
-      }
-
-      if (responseText.includes("Cloudflare") || responseText.includes("blocked")) {
-        return NextResponse.json(
-          { error: "Blocked by Cloudflare geo-restriction" },
-          { status: 403 }
-        );
-      }
+      const isBlock = responseText.includes("Cloudflare") || responseText.includes("blocked");
+      const detail = isBlock
+        ? "Blocked by Cloudflare geo-restriction"
+        : responseText.slice(0, 500);
 
       return NextResponse.json(
-        { error: "Order rejected", details: responseText.slice(0, 500) },
+        { error: "CLOB order failed", details: detail },
         { status: clobResponse.status }
       );
     }
 
-    console.log("[ORDER] ✅ Success:", responseText.slice(0, 200));
     try {
       return NextResponse.json(JSON.parse(responseText));
     } catch {
       return NextResponse.json({ result: responseText });
     }
   } catch (error: any) {
-    console.error("[ORDER] Error:", error?.message);
+    console.error("[ORDER PROXY] Error:", error?.message);
     return NextResponse.json({ error: error?.message || "Failed" }, { status: 500 });
   }
 }

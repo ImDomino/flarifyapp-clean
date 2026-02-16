@@ -3,7 +3,6 @@
 import { useCallback, useRef } from "react";
 import { ClobClient } from "@polymarket/clob-client";
 import { useWallet } from "@/providers/WalletProvider";
-import { useAuthFetch } from "./useAuthFetch";
 
 export type UserApiCreds = {
   key: string;
@@ -12,58 +11,66 @@ export type UserApiCreds = {
 };
 
 /**
- * In-memory cache — survives re-renders, cleared on page reload.
- * On reload, HttpOnly cookie is the source of truth.
+ * useUserApiCredentials
+ *
+ * Exactly follows Polymarket's official privy-safe-builder-example:
+ * - Credentials stored in localStorage (same as their example)
+ * - Derive first, then create if needed
+ * - Bare ClobClient (no signatureType, no funder) for deriving
+ *
+ * From their README:
+ *   "The example stores credentials in localStorage for convenience"
+ *   "production apps should use secure httpOnly cookies or server-side session management"
+ *
+ * We'll use localStorage for now to get it working, can secure later.
  */
-let memoryCache: { eoa: string; creds: UserApiCreds } | null = null;
+
+const LS_KEY = "pm_api_creds";
+const LS_EOA_KEY = "pm_api_creds_eoa";
+
+// In-memory cache for current session
+let memCache: { eoa: string; creds: UserApiCreds } | null = null;
 
 export const useUserApiCredentials = () => {
-  const { ethersSigner, eoaAddress, safeAddress } = useWallet();
-  const authFetch = useAuthFetch();
+  const { ethersSigner, eoaAddress } = useWallet();
   const pendingRef = useRef<Promise<UserApiCreds> | null>(null);
 
-  const invalidateCreds = useCallback(async () => {
-    console.log("[Creds] Invalidating");
-    memoryCache = null;
-    try {
-      await authFetch("/api/polymarket/credentials", { method: "DELETE" });
-    } catch {}
-  }, [authFetch]);
-
   const getOrCreateCreds = useCallback(
-    async (forceCreate = false): Promise<UserApiCreds> => {
-      if (!ethersSigner || !eoaAddress || !safeAddress) {
+    async (forceNew = false): Promise<UserApiCreds> => {
+      if (!ethersSigner || !eoaAddress) {
         throw new Error("Wallet not ready");
       }
 
-      // 1. Memory cache (instant, no network, no signature)
-      if (!forceCreate && memoryCache && memoryCache.eoa === eoaAddress) {
-        return memoryCache.creds;
+      // 1. Memory cache (no signature, instant)
+      if (!forceNew && memCache && memCache.eoa === eoaAddress) {
+        console.log("[Creds] From memory");
+        return memCache.creds;
+      }
+
+      // 2. localStorage cache
+      if (!forceNew && typeof window !== "undefined") {
+        const savedEoa = localStorage.getItem(LS_EOA_KEY);
+        const savedCreds = localStorage.getItem(LS_KEY);
+        if (savedEoa === eoaAddress && savedCreds) {
+          try {
+            const parsed = JSON.parse(savedCreds);
+            if (parsed.key && parsed.secret && parsed.passphrase) {
+              memCache = { eoa: eoaAddress, creds: parsed };
+              console.log("[Creds] From localStorage:", parsed.key.slice(0, 8) + "...");
+              return parsed;
+            }
+          } catch {}
+        }
       }
 
       // Dedup concurrent calls
       if (pendingRef.current) return pendingRef.current;
 
-      const doGet = async (): Promise<UserApiCreds> => {
-        // 2. HttpOnly cookie (no signature, 1 network call)
-        if (!forceCreate) {
-          try {
-            const res = await authFetch("/api/polymarket/credentials/retrieve");
-            if (res.ok) {
-              const data = await res.json();
-              if (data.key && data.secret && data.passphrase) {
-                const creds: UserApiCreds = { key: data.key, secret: data.secret, passphrase: data.passphrase };
-                memoryCache = { eoa: eoaAddress, creds };
-                console.log("[Creds] From cookie:", creds.key.slice(0, 8) + "...");
-                return creds;
-              }
-            }
-          } catch {}
-        }
+      const doDerive = async (): Promise<UserApiCreds> => {
+        console.log("[Creds] Creating via bare ClobClient...");
 
-        // 3. Derive or create — ONE Privy signature
-        console.log("[Creds] Creating via L1 client...");
-
+        // Bare client — exactly like official example
+        // No signatureType, no funder, no builderConfig
         const tempClient = new ClobClient(
           "https://clob.polymarket.com",
           137,
@@ -72,24 +79,24 @@ export const useUserApiCredentials = () => {
 
         let creds: UserApiCreds | null = null;
 
-        // Step A: Try derive first (returning users — no new key created)
+        // Step 1: Try derive (returning users) — 1 Privy signature
         try {
           const derived = await tempClient.deriveApiKey();
           if (derived?.key && derived?.secret && derived?.passphrase) {
             creds = derived as UserApiCreds;
             console.log("[Creds] Derived existing:", creds.key.slice(0, 8) + "...");
           }
-        } catch {
-          console.log("[Creds] Derive failed (new user or no key yet)");
+        } catch (e) {
+          console.log("[Creds] Derive failed, trying create...");
         }
 
-        // Step B: Create new if derive didn't work
+        // Step 2: Create new if derive didn't work — 1 Privy signature
         if (!creds) {
           try {
             creds = (await tempClient.createApiKey()) as UserApiCreds;
             console.log("[Creds] Created new:", creds?.key?.slice(0, 8) + "...");
           } catch {
-            // Step C: Last resort
+            // Step 3: Last resort
             creds = (await tempClient.createOrDeriveApiKey()) as UserApiCreds;
             console.log("[Creds] createOrDeriveApiKey:", creds?.key?.slice(0, 8) + "...");
           }
@@ -99,30 +106,34 @@ export const useUserApiCredentials = () => {
           throw new Error("Failed to obtain trading credentials");
         }
 
-        // Cache in memory
-        memoryCache = { eoa: eoaAddress, creds };
-
-        // Persist to HttpOnly cookie
-        try {
-          await authFetch("/api/polymarket/credentials", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key: creds.key, secret: creds.secret, passphrase: creds.passphrase }),
-          });
-        } catch (e) {
-          console.warn("[Creds] Cookie save failed (non-critical):", e);
+        // Save to localStorage + memory
+        memCache = { eoa: eoaAddress, creds };
+        if (typeof window !== "undefined") {
+          localStorage.setItem(LS_KEY, JSON.stringify(creds));
+          localStorage.setItem(LS_EOA_KEY, eoaAddress);
         }
 
         return creds;
       };
 
-      pendingRef.current = doGet().finally(() => { pendingRef.current = null; });
+      pendingRef.current = doDerive().finally(() => {
+        pendingRef.current = null;
+      });
       return pendingRef.current;
     },
-    [ethersSigner, eoaAddress, safeAddress, authFetch]
+    [ethersSigner, eoaAddress]
   );
 
-  const clearCreds = invalidateCreds;
+  const clearCreds = useCallback(() => {
+    memCache = null;
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(LS_KEY);
+      localStorage.removeItem(LS_EOA_KEY);
+    }
+    console.log("[Creds] Cleared");
+  }, []);
+
+  const invalidateCreds = clearCreds;
 
   return { getOrCreateCreds, clearCreds, invalidateCreds };
 };

@@ -6,9 +6,23 @@ import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { useWallet } from "@/providers/WalletProvider";
 import { useUserApiCredentials, UserApiCreds } from "./useUserApiCredentials";
 
-const CLOB_URL = "https://clob.polymarket.com";
-const CHAIN_ID = 137;
-
+/**
+ * useClobClient
+ *
+ * Creates authenticated ClobClient exactly like Polymarket's official example:
+ *
+ * const clobClient = new ClobClient(
+ *   "https://clob.polymarket.com",
+ *   137,
+ *   ethersSigner,
+ *   userApiCredentials,    // { key, secret, passphrase }
+ *   2,                     // signatureType = 2 for Safe
+ *   safeAddress,           // funder = Safe address
+ *   undefined,
+ *   false,
+ *   builderConfig          // remote HMAC signing
+ * );
+ */
 export const useClobClient = () => {
   const { ethersSigner, eoaAddress, safeAddress } = useWallet();
   const { getOrCreateCreds } = useUserApiCredentials();
@@ -30,12 +44,12 @@ export const useClobClient = () => {
       safeAddress: string;
     }> => {
       if (!ethersSigner || !eoaAddress || !safeAddress) {
-        throw new Error("Wallet not connected. Please sign in first.");
+        throw new Error("Wallet not connected");
       }
 
       const creds = await getOrCreateCreds(forceRefresh);
 
-      // Return cached client if nothing changed
+      // Return cached client if same EOA + same creds
       if (
         !forceRefresh &&
         clientRef.current &&
@@ -50,18 +64,20 @@ export const useClobClient = () => {
         };
       }
 
+      // BuilderConfig for remote HMAC signing (builder creds stay server-side)
       const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
       const builderConfig = new BuilderConfig({
         remoteBuilderConfig: { url: `${baseUrl}/api/polymarket/sign` },
       });
 
+      // Exactly matches official example constructor
       const client = new ClobClient(
-        CLOB_URL,
-        CHAIN_ID,
+        "https://clob.polymarket.com",
+        137,
         ethersSigner as any,
         creds,
-        2,              // POLY_GNOSIS_SAFE
-        safeAddress,
+        2,              // signatureType = POLY_GNOSIS_SAFE
+        safeAddress,    // funder
         undefined,
         false,
         builderConfig
@@ -69,9 +85,9 @@ export const useClobClient = () => {
 
       clientRef.current = { client, eoa: eoaAddress, credsKey: creds.key, creds };
 
-      console.log("[ClobClient] Init", {
-        eoa: eoaAddress.slice(0, 8) + "...",
-        safe: safeAddress.slice(0, 8) + "...",
+      console.log("[ClobClient] Initialized:", {
+        eoa: eoaAddress.slice(0, 10) + "...",
+        safe: safeAddress.slice(0, 10) + "...",
         key: creds.key.slice(0, 8) + "...",
       });
 
