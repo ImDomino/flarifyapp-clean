@@ -73,11 +73,11 @@ export default function Home() {
         let response: Response;
         if (activeTab === "following" && user?.id) {
           response = await authFetch(`/api/posts/following?page=${pageNum}&limit=20`);
-        } else if (activeTab === "foryou" && user?.id) {
-          // Use recommendation algorithm for authenticated "For You" feed
-          response = await authFetch(`/api/posts/recommended?page=${pageNum}&limit=20&user_id=${encodeURIComponent(user.id)}`);
+        } else if (activeTab === "foryou") {
+          // Recommendation algorithm — auth token provides user identity
+          response = await authFetch(`/api/posts/recommended?page=${pageNum}&limit=20`);
         } else {
-          // Fallback: chronological or logged-out recommended
+          // Fallback for logged-out users
           response = await authFetch(`/api/posts/recommended?page=${pageNum}&limit=20`);
         }
 
