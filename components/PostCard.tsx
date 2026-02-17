@@ -138,17 +138,12 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
       className={`
         bg-[#0a0a0a] border border-zinc-800/80 p-5 sm:p-6
         group cursor-pointer relative overflow-hidden
-        card-hover corner-accent
-        transition-[border-color] duration-300
-        hover:border-zinc-600/60
+        transition-all duration-300
+        hover:bg-[#0d0d0d] hover:border-zinc-700/60
         ${isVisible ? `animate-fade-up ${staggerClass}` : "opacity-0"}
       `}
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
       onClick={() => router.push(`/post/${post.id}`)}
     >
-      {/* Subtle left accent line on hover */}
-      <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-white/0 group-hover:bg-white/10 transition-colors duration-500" />
-
       <div className="flex gap-4">
         {/* Avatar */}
         <div

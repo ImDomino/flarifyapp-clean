@@ -232,10 +232,7 @@ export default function Home() {
               `}
             >
               {labels[tab]}
-              {/* Active dot */}
-              {isActive && (
-                <span className="absolute top-3 right-[calc(50%-24px)] w-1 h-1 bg-white rounded-full accent-pulse" />
-              )}
+
             </button>
           );
         })}

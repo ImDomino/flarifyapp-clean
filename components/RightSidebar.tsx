@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Wallet, TrendingUp, Plus } from "lucide-react";
+import { Wallet, TrendingUp, Plus, RefreshCw } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { DepositModal } from "./DepositModal";
 import { WithdrawModal } from "./WithdrawModal";
@@ -12,20 +12,30 @@ export function RightSidebar() {
   const { authenticated } = usePrivy();
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const { eoaAddress, safeAddress } = useWallet();
   const { safeBalance, isLoading, refresh } = useBalances(eoaAddress, safeAddress);
   const safeNum = parseFloat(safeBalance || "0");
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refresh();
+    setTimeout(() => setIsRefreshing(false), 600);
+  };
+
   if (!authenticated) {
     return (
       <aside className="col-span-3 hidden lg:block pt-6 lg:pt-8">
         <div className="sticky top-28 space-y-6">
-          <div className="bg-[#0a0a0a] border border-zinc-800 p-6 text-center">
-            <Wallet className="w-10 h-10 mx-auto mb-3 text-zinc-600" />
-            <p className="text-sm text-zinc-500 font-bold uppercase tracking-wider">
-              Sign in to trade
-            </p>
+          <div className="bg-[#0a0a0a] border border-zinc-800/60 p-6 text-center animate-fade-up relative overflow-hidden">
+            <div className="absolute inset-0 grid-bg-animated opacity-10" />
+            <div className="relative z-10">
+              <Wallet className="w-10 h-10 mx-auto mb-3 text-zinc-600" />
+              <p className="text-sm text-zinc-500 font-bold uppercase tracking-wider">
+                Sign in to trade
+              </p>
+            </div>
           </div>
         </div>
       </aside>
@@ -35,90 +45,111 @@ export function RightSidebar() {
   return (
     <>
       <aside className="col-span-3 hidden lg:block pt-6 lg:pt-8 space-y-6">
-        <div className="sticky top-28 space-y-6">
-          {/* Balance Card */}
-          <div className="bg-[#0a0a0a] border-2 border-white p-6 relative">
-            <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white" />
-            <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white" />
+        <div className="sticky top-28 space-y-4">
+          {/* ═══ Balance Card ═══ */}
+          <div className="bg-[#0a0a0a] border-2 border-white/90 p-6 relative overflow-hidden animate-fade-up group">
+            {/* Corner accents */}
+            <div className="absolute -top-px -left-px w-3 h-3 bg-white transition-all duration-300 group-hover:w-4 group-hover:h-4" />
+            <div className="absolute -bottom-px -right-px w-3 h-3 bg-white transition-all duration-300 group-hover:w-4 group-hover:h-4" />
+            {/* Subtle grid background */}
+            <div className="absolute inset-0 grid-bg-animated opacity-5" />
 
-            <div className="flex justify-between items-start mb-6">
-              <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                Trading Balance
-              </span>
-              <Wallet className="w-5 h-5 text-white" />
-            </div>
-            <div className="mb-6">
-              {isLoading ? (
-                <span className="text-4xl font-black text-zinc-500 animate-pulse">$—.——</span>
-              ) : (
-                <span className="text-4xl font-black text-white tracking-tight">
-                  ${safeNum.toFixed(2)}
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                  Trading Balance
                 </span>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setIsDepositOpen(true)}
-                className="py-3 text-xs font-black uppercase tracking-wider bg-white text-black border-2 border-white hover:bg-black hover:text-white transition-colors"
-              >
-                Deposit
-              </button>
-              <button
-                onClick={() => setIsWithdrawOpen(true)}
-                className="py-3 text-xs font-black uppercase tracking-wider bg-black text-white border-2 border-white hover:bg-white hover:text-black transition-colors"
-              >
-                Withdraw
-              </button>
+                <button
+                  onClick={handleRefresh}
+                  className="text-zinc-600 hover:text-white transition-colors p-1"
+                  title="Refresh balance"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                {isLoading ? (
+                  <div className="h-10 w-32 shimmer-bg" />
+                ) : (
+                  <span className="text-4xl font-black text-white tracking-tight transition-all">
+                    ${safeNum.toFixed(2)}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setIsDepositOpen(true)}
+                  className="py-3 text-[10px] font-black uppercase tracking-widest bg-white text-black border-2 border-white hover:bg-emerald-50 transition-all duration-200 active:scale-[0.98]"
+                >
+                  Deposit
+                </button>
+                <button
+                  onClick={() => setIsWithdrawOpen(true)}
+                  className="py-3 text-[10px] font-black uppercase tracking-widest bg-black text-white border-2 border-white hover:bg-zinc-900 transition-all duration-200 active:scale-[0.98]"
+                >
+                  Withdraw
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Watchlist */}
-          <div className="bg-[#0a0a0a] border border-zinc-800">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-              <h3 className="font-black text-white uppercase tracking-wider text-sm">
+          {/* ═══ Watchlist ═══ */}
+          <div className="bg-[#0a0a0a] border border-zinc-800/60 animate-fade-up stagger-2 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800/40">
+              <h3 className="font-black text-white uppercase tracking-wider text-xs">
                 Watchlist
               </h3>
-              <button className="text-zinc-500 hover:text-white">
-                <Plus className="w-4 h-4" />
+              <button className="text-zinc-600 hover:text-white transition-colors p-1 hover:rotate-90 duration-200">
+                <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="p-6 text-center">
-              <p className="text-xs text-zinc-600 uppercase tracking-wider font-bold">
+            <div className="p-5 text-center">
+              <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">
                 Coming Soon
               </p>
-              <p className="text-[10px] text-zinc-700 mt-2">
+              <p className="text-[10px] text-zinc-700 mt-1.5">
                 Track your favorite markets here
               </p>
             </div>
           </div>
 
-          {/* Trending */}
-          <div className="bg-[#0a0a0a] border border-zinc-800 p-5">
-            <h3 className="font-black text-white uppercase tracking-wider text-sm mb-4">
+          {/* ═══ Trending ═══ */}
+          <div className="bg-[#0a0a0a] border border-zinc-800/60 p-4 animate-fade-up stagger-3">
+            <h3 className="font-black text-white uppercase tracking-wider text-xs mb-4 flex items-center gap-2">
+              <div className="w-1 h-3.5 bg-white/30" />
               Trending Now
             </h3>
-            <div className="space-y-4">
+            <div className="space-y-1">
               {[
-                { tag: "#Polymarket", posts: "Live" },
-                { tag: "#Predictions", posts: "Active" },
-                { tag: "#Markets", posts: "Trending" },
-              ].map((t) => (
-                <div key={t.tag} className="block group cursor-pointer">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold text-sm text-white group-hover:text-zinc-300">
+                { tag: "#Polymarket", status: "Live", color: "text-emerald-500/70" },
+                { tag: "#Predictions", status: "Active", color: "text-blue-500/70" },
+                { tag: "#Markets", status: "Trending", color: "text-amber-500/70" },
+              ].map((t, i) => (
+                <div
+                  key={t.tag}
+                  className="flex justify-between items-center py-2.5 px-2 -mx-1 cursor-pointer group transition-all duration-200 hover:bg-white/[0.02] border border-transparent hover:border-zinc-800/40"
+                >
+                  <div>
+                    <span className="font-bold text-sm text-zinc-300 group-hover:text-white transition-colors block leading-tight">
                       {t.tag}
                     </span>
-                    <TrendingUp className="w-3 h-3 text-zinc-600" />
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${t.color}`}>
+                      {t.status}
+                    </span>
                   </div>
-                  <span className="text-xs text-zinc-600">{t.posts}</span>
+                  <TrendingUp className="w-3 h-3 text-zinc-700 group-hover:text-zinc-500 transition-colors" />
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="flex flex-wrap gap-4 text-xs font-bold text-zinc-700 uppercase">
-            don't give up
+          {/* ═══ Footer ═══ */}
+          <div className="px-1 animate-fade-in stagger-4">
+            <p className="text-[10px] text-zinc-800 uppercase tracking-widest font-bold">
+              don't give up
+            </p>
           </div>
         </div>
       </aside>
