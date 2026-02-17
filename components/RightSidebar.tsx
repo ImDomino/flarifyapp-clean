@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Wallet, TrendingUp, Plus, RefreshCw } from "lucide-react";
+import { Wallet, Plus, RefreshCw } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { DepositModal } from "./DepositModal";
 import { WithdrawModal } from "./WithdrawModal";
@@ -112,36 +112,6 @@ export function RightSidebar() {
               <p className="text-[10px] text-zinc-700 mt-1.5">
                 Track your favorite markets here
               </p>
-            </div>
-          </div>
-
-          {/* ═══ Trending ═══ */}
-          <div className="bg-[#0a0a0a] border border-zinc-800/60 p-4 animate-fade-up stagger-3">
-            <h3 className="font-black text-white uppercase tracking-wider text-xs mb-4 flex items-center gap-2">
-              <div className="w-1 h-3.5 bg-white/30" />
-              Trending Now
-            </h3>
-            <div className="space-y-1">
-              {[
-                { tag: "#Polymarket", status: "Live", color: "text-emerald-500/70" },
-                { tag: "#Predictions", status: "Active", color: "text-blue-500/70" },
-                { tag: "#Markets", status: "Trending", color: "text-amber-500/70" },
-              ].map((t, i) => (
-                <div
-                  key={t.tag}
-                  className="flex justify-between items-center py-2.5 px-2 -mx-1 cursor-pointer group transition-all duration-200 hover:bg-white/[0.02] border border-transparent hover:border-zinc-800/40"
-                >
-                  <div>
-                    <span className="font-bold text-sm text-zinc-300 group-hover:text-white transition-colors block leading-tight">
-                      {t.tag}
-                    </span>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider ${t.color}`}>
-                      {t.status}
-                    </span>
-                  </div>
-                  <TrendingUp className="w-3 h-3 text-zinc-700 group-hover:text-zinc-500 transition-colors" />
-                </div>
-              ))}
             </div>
           </div>
 
