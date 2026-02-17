@@ -39,7 +39,6 @@ export default function ProfilePage() {
       const data = await res.json();
       if (data.profile) {
         setProfileData(data.profile);
-        // Sync PnL visibility from DB (default true if column doesn't exist yet)
         setShowPnlPublic(data.profile.show_pnl_public !== false);
       }
     } catch (err) { console.error("Error loading profile:", err); }
@@ -86,7 +85,7 @@ export default function ProfilePage() {
 
   const togglePnlVisibility = async () => {
     const newValue = !showPnlPublic;
-    setShowPnlPublic(newValue); // Optimistic update
+    setShowPnlPublic(newValue);
     try {
       await authFetch("/api/profile", {
         method: "PATCH",
@@ -95,24 +94,27 @@ export default function ProfilePage() {
       });
     } catch (err) {
       console.error("Failed to save PnL visibility:", err);
-      setShowPnlPublic(!newValue); // Revert on error
+      setShowPnlPublic(!newValue);
     }
   };
 
   // ── Not authenticated ──
   if (!authenticated) {
     return (
-      <div className="text-center py-12">
-        <div className="bg-[#0a0a0a] border-2 border-zinc-800 p-12">
-          <div className="w-16 h-16 mx-auto mb-6 border-2 border-zinc-700 flex items-center justify-center">
-            <Shield className="w-8 h-8 text-zinc-500" />
+      <div className="text-center py-12 animate-scale-in">
+        <div className="bg-[#0a0a0a] border-2 border-zinc-800 p-12 relative overflow-hidden corner-accent">
+          <div className="absolute inset-0 grid-bg-animated opacity-10" />
+          <div className="relative z-10">
+            <div className="w-16 h-16 mx-auto mb-6 border-2 border-zinc-700/50 flex items-center justify-center animate-float">
+              <Shield className="w-8 h-8 text-zinc-500" />
+            </div>
+            <h1 className="text-2xl font-black uppercase tracking-wider mb-4">Sign In Required</h1>
+            <p className="text-sm text-zinc-500 uppercase tracking-wide mb-6">You need to be signed in to view your profile</p>
+            <button onClick={login}
+              className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.08)]">
+              Sign In
+            </button>
           </div>
-          <h1 className="text-2xl font-black uppercase tracking-wider mb-4">Sign In Required</h1>
-          <p className="text-sm text-zinc-500 uppercase tracking-wide mb-6">You need to be signed in to view your profile</p>
-          <button onClick={login}
-            className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-colors">
-            Sign In
-          </button>
         </div>
       </div>
     );
@@ -133,20 +135,22 @@ export default function ProfilePage() {
     : "2025";
 
   return (
-    <div className="space-y-4">
-      {/* ═══ PROFILE HEADER — compact hero ═══ */}
-      <section className="bg-[#0a0a0a] border border-zinc-800 relative overflow-hidden">
-        {/* Minimal geometric cover */}
-        <div className="h-20 sm:h-24 bg-[#0a0a0a] relative border-b border-zinc-800">
-          <div className="absolute inset-0 grid-bg opacity-40" />
-          <div className="absolute bottom-0 right-0 w-48 h-48 border-r border-b border-zinc-800 opacity-60 translate-x-12 translate-y-12" />
-          <div className="absolute top-0 left-0 w-24 h-24 border-l border-t border-zinc-800 opacity-60 -translate-x-6 -translate-y-6" />
+    <div className="space-y-3">
+      {/* ═══ PROFILE HEADER ═══ */}
+      <section className="bg-[#0a0a0a] border border-zinc-800/70 relative overflow-hidden animate-fade-up corner-accent">
+        {/* Geometric cover */}
+        <div className="h-20 sm:h-24 bg-[#0a0a0a] relative border-b border-zinc-800/50">
+          <div className="absolute inset-0 grid-bg-animated opacity-30" />
+          <div className="absolute bottom-0 right-0 w-48 h-48 border-r border-b border-zinc-800/40 opacity-60 translate-x-12 translate-y-12" />
+          <div className="absolute top-0 left-0 w-24 h-24 border-l border-t border-zinc-800/40 opacity-60 -translate-x-6 -translate-y-6" />
+          {/* Subtle gradient overlay for depth */}
+          <div className="absolute inset-0 gradient-bottom opacity-60" />
         </div>
 
         <div className="px-5 sm:px-6 pb-5">
           {/* Avatar + Edit row */}
           <div className="flex items-end justify-between -mt-10 mb-4 relative z-10">
-            <div className="w-20 h-20 border-[3px] border-[#0a0a0a] bg-white flex items-center justify-center overflow-hidden shadow-glow">
+            <div className="w-20 h-20 border-[3px] border-[#0a0a0a] bg-white flex items-center justify-center overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.08)]">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
@@ -155,70 +159,75 @@ export default function ProfilePage() {
             </div>
 
             <button onClick={() => setEditModalOpen(true)}
-              className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-zinc-700 text-zinc-400 hover:border-white hover:text-white hover:bg-[#111] transition-all">
+              className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-zinc-700/60 text-zinc-400 hover:border-white/60 hover:text-white hover:bg-white/[0.03] transition-all duration-300 animate-fade-in stagger-3">
               <Pencil className="w-3 h-3 inline mr-1.5" />Edit Profile
             </button>
           </div>
 
           {/* Name + username */}
-          <div className="mb-3">
+          <div className="mb-3 animate-fade-up stagger-2">
             <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight leading-none">{displayName}</h1>
             <span className="text-xs text-zinc-500 font-bold uppercase mt-0.5 inline-block">@{username}</span>
           </div>
 
           {/* Bio */}
           {bioText && (
-            <p className="text-sm text-zinc-400 font-medium leading-relaxed mb-3 max-w-lg">{bioText}</p>
+            <p className="text-sm text-zinc-400 font-medium leading-relaxed mb-3 max-w-lg animate-fade-up stagger-3">{bioText}</p>
           )}
 
-          {/* Meta row — wallet + member since */}
-          <div className="flex flex-wrap items-center gap-3 text-[10px] text-zinc-600 uppercase tracking-widest font-bold">
+          {/* Meta row */}
+          <div className="flex flex-wrap items-center gap-3 text-[10px] text-zinc-600 uppercase tracking-widest font-bold animate-fade-up stagger-4">
             {walletAddress && (
               <button onClick={handleCopyAddress}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-zinc-800 bg-[#111] hover:border-zinc-600 transition-colors">
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-zinc-800/60 bg-white/[0.02] hover:border-zinc-600 hover:bg-white/[0.04] transition-all duration-200">
                 <Fingerprint className="w-3 h-3" />
                 <span className="font-mono text-zinc-500">{shortWallet}</span>
                 <Copy className="w-2.5 h-2.5 text-zinc-600" />
               </button>
             )}
-            {copied && <span className="text-white text-[10px] font-bold">Copied!</span>}
+            {copied && <span className="text-emerald-400 text-[10px] font-bold animate-scale-in">Copied!</span>}
             <span className="text-zinc-700">·</span>
             <span>Joined {memberSince}</span>
           </div>
         </div>
       </section>
 
-      {/* ═══ STATS BAR — horizontal, prominent ═══ */}
-      <section className="grid grid-cols-4 gap-px bg-zinc-800 border border-zinc-800">
+      {/* ═══ STATS BAR ═══ */}
+      <section className="grid grid-cols-4 gap-px bg-zinc-800/60 border border-zinc-800/60 animate-fade-up stagger-3">
         {[
           { value: posts.length, label: "Posts" },
           { value: followersCount, label: "Followers" },
           { value: followingCount, label: "Following" },
           { value: "—", label: "Trades" },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-[#0a0a0a] py-4 px-2 text-center group cursor-default hover:bg-[#111] transition-colors">
-            <div className="text-xl sm:text-2xl font-black text-white leading-none mb-1">{stat.value}</div>
+        ].map((stat, i) => (
+          <div key={stat.label}
+            className="bg-[#0a0a0a] py-4 px-2 text-center group cursor-default hover:bg-white/[0.02] transition-all duration-300">
+            <div className="text-xl sm:text-2xl font-black text-white leading-none mb-1 group-hover:scale-105 transition-transform duration-200">
+              {stat.value}
+            </div>
             <div className="text-[9px] text-zinc-600 uppercase tracking-[0.15em] font-bold">{stat.label}</div>
           </div>
         ))}
       </section>
 
-      {/* ═══ PNL CARD — aggregate with privacy toggle ═══ */}
+      {/* ═══ PNL CARD ═══ */}
       {eoaAddress && (
-        <PnlSummaryCard 
-          isPublic={showPnlPublic} 
-          onTogglePublic={togglePnlVisibility} 
-        />
+        <div className="animate-fade-up stagger-4">
+          <PnlSummaryCard
+            isPublic={showPnlPublic}
+            onTogglePublic={togglePnlVisibility}
+          />
+        </div>
       )}
 
-      {/* ═══ SECTION TOGGLE — minimal inline switcher ═══ */}
-      <div className="flex items-center gap-1 bg-[#0a0a0a] border border-zinc-800 p-1">
+      {/* ═══ SECTION TOGGLE ═══ */}
+      <div className="flex items-center gap-1 bg-[#0a0a0a] border border-zinc-800/60 p-1 animate-fade-up stagger-5">
         {(["posts", "positions"] as const).map((section) => (
           <button key={section} onClick={() => setActiveSection(section)}
-            className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest transition-all ${
+            className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest transition-all duration-300 ${
               activeSection === section
                 ? "bg-white text-black"
-                : "text-zinc-500 hover:text-white hover:bg-[#111]"
+                : "text-zinc-500 hover:text-white hover:bg-white/[0.03]"
             }`}>
             {section === "posts" ? `Posts (${posts.length})` : "Positions"}
           </button>
@@ -229,21 +238,35 @@ export default function ProfilePage() {
       {activeSection === "posts" && (
         <section>
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-6 h-6 border-2 border-zinc-700 border-t-white animate-spin" />
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="bg-[#0a0a0a] border border-zinc-800/50 p-5 animate-fade-in" style={{ animationDelay: `${i * 0.1}s` }}>
+                  <div className="flex gap-4">
+                    <div className="w-11 h-11 shimmer-bg" />
+                    <div className="flex-1 space-y-3">
+                      <div className="h-3.5 w-32 shimmer-bg" />
+                      <div className="h-3 w-full shimmer-bg" />
+                      <div className="h-3 w-3/4 shimmer-bg" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : posts.length === 0 ? (
-            <div className="bg-[#0a0a0a] border border-zinc-800 p-10 text-center">
-              <p className="text-zinc-500 text-sm uppercase tracking-wider font-bold mb-4">No Posts Yet</p>
-              <button onClick={() => router.push("/create")}
-                className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-colors">
-                Create First Post
-              </button>
+            <div className="bg-[#0a0a0a] border border-zinc-800/60 p-10 text-center animate-scale-in corner-accent relative overflow-hidden">
+              <div className="absolute inset-0 grid-bg-animated opacity-10" />
+              <div className="relative z-10">
+                <p className="text-zinc-500 text-sm uppercase tracking-wider font-bold mb-4">No Posts Yet</p>
+                <button onClick={() => router.push("/create")}
+                  className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-all duration-300">
+                  Create First Post
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {posts.map((post) => (
-                <PostCard key={post.id} post={post} onDeleted={handlePostDeleted} />
+            <div className="space-y-3">
+              {posts.map((post, i) => (
+                <PostCard key={post.id} post={post} onDeleted={handlePostDeleted} index={i} />
               ))}
             </div>
           )}
@@ -251,16 +274,19 @@ export default function ProfilePage() {
       )}
 
       {activeSection === "positions" && (
-        <section>
+        <section className="animate-fade-up">
           {eoaAddress ? (
             <PositionsTab />
           ) : (
-            <div className="bg-[#0a0a0a] border border-zinc-800 p-10 text-center">
-              <div className="w-14 h-14 mx-auto mb-3 border-2 border-zinc-700 flex items-center justify-center">
-                <Shield className="w-7 h-7 text-zinc-500" />
+            <div className="bg-[#0a0a0a] border border-zinc-800/60 p-10 text-center corner-accent relative overflow-hidden">
+              <div className="absolute inset-0 grid-bg-animated opacity-10" />
+              <div className="relative z-10">
+                <div className="w-14 h-14 mx-auto mb-3 border-2 border-zinc-700/50 flex items-center justify-center animate-float">
+                  <Shield className="w-7 h-7 text-zinc-500" />
+                </div>
+                <h3 className="text-sm font-black uppercase tracking-wider mb-1">Wallet Not Connected</h3>
+                <p className="text-xs text-zinc-600 uppercase tracking-wider">Your positions will appear here</p>
               </div>
-              <h3 className="text-sm font-black uppercase tracking-wider mb-1">Wallet Not Connected</h3>
-              <p className="text-xs text-zinc-600 uppercase tracking-wider">Your positions will appear here</p>
             </div>
           )}
         </section>
