@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { ArrowLeft, MessageCircle, Heart, TrendingUp, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle, Fingerprint, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { FollowButton } from "@/components/FollowButton";
 import type { PostWithUser } from "@/lib/types";
@@ -27,11 +27,8 @@ export default function UserProfilePage() {
       setProfileError(null);
       const res = await fetch(`/api/profile?user_id=${encodeURIComponent(userId)}`, { cache: "no-store" });
       const data = await res.json();
-      if (data.profile) {
-        setProfileData(data.profile);
-      } else {
-        setProfileError("Profile not found");
-      }
+      if (data.profile) setProfileData(data.profile);
+      else setProfileError("Profile not found");
     } catch (err) {
       console.error("Error loading profile:", err);
       setProfileError("Failed to load profile");
@@ -56,9 +53,8 @@ export default function UserProfilePage() {
   }, [userId]);
 
   useEffect(() => {
-    if (!ready) return; // Wait for Privy to initialize
+    if (!ready) return;
     if (isOwnProfile) { router.replace("/profile"); return; }
-
     const loadAll = async () => {
       setIsLoading(true);
       await Promise.all([loadProfile(), loadFollowCounts(), loadPosts()]);
@@ -67,7 +63,6 @@ export default function UserProfilePage() {
     loadAll();
   }, [ready, userId, isOwnProfile, router, loadProfile, loadFollowCounts, loadPosts]);
 
-  // Loading state
   if (!ready || isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -76,14 +71,11 @@ export default function UserProfilePage() {
     );
   }
 
-  // Profile not found
   if (profileError || !profileData) {
     return (
       <div className="space-y-6">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors"
-        >
+        <button onClick={() => router.back()}
+          className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors">
           <ArrowLeft className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">Back</span>
         </button>
@@ -93,12 +85,10 @@ export default function UserProfilePage() {
           </div>
           <h2 className="text-xl font-black uppercase tracking-wider mb-2">User Not Found</h2>
           <p className="text-sm text-zinc-500 uppercase tracking-wide mb-6">
-            {profileError || "This profile doesn't exist or hasn't been set up yet"}
+            {profileError || "This profile doesn't exist"}
           </p>
-          <button
-            onClick={() => router.push("/")}
-            className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-colors"
-          >
+          <button onClick={() => router.push("/")}
+            className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-colors">
             Back to Feed
           </button>
         </div>
@@ -110,67 +100,93 @@ export default function UserProfilePage() {
   const username = profileData?.username || "user";
   const avatarUrl = profileData?.avatar_url || null;
   const bioText = profileData?.bio || "";
+  const walletAddress = profileData?.wallet_address || "";
+  const shortWallet = walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "";
+  const memberSince = profileData?.created_at
+    ? new Date(profileData.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    : "";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Back */}
-      <button
-        onClick={() => router.back()}
-        className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors"
-      >
+      <button onClick={() => router.back()}
+        className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors">
         <ArrowLeft className="w-5 h-5" />
         <span className="font-bold uppercase tracking-wider text-sm">Back</span>
       </button>
 
-      {/* Profile Header */}
-      <section className="bg-[#0a0a0a] border border-zinc-800 overflow-hidden">
-        <div className="h-32 sm:h-40 bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 relative">
-          <div className="absolute inset-0 grid-bg opacity-70" />
+      {/* ═══ PROFILE HEADER ═══ */}
+      <section className="bg-[#0a0a0a] border border-zinc-800 relative overflow-hidden">
+        <div className="h-20 sm:h-24 bg-[#0a0a0a] relative border-b border-zinc-800">
+          <div className="absolute inset-0 grid-bg opacity-40" />
         </div>
-        <div className="px-5 sm:px-6 pb-6">
-          <div className="flex items-end justify-between -mt-12 mb-6 relative z-10">
-            <div className="w-24 h-24 border-4 border-[#0a0a0a] bg-white flex items-center justify-center overflow-hidden">
+
+        <div className="px-5 sm:px-6 pb-5">
+          <div className="flex items-end justify-between -mt-10 mb-4 relative z-10">
+            <div className="w-20 h-20 border-[3px] border-[#0a0a0a] bg-white flex items-center justify-center overflow-hidden shadow-glow">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-4xl font-black text-black uppercase">{displayName[0]}</span>
+                <span className="text-3xl font-black text-black uppercase">{displayName[0]}</span>
               )}
             </div>
             {user && !isOwnProfile && (
-              <FollowButton
-                targetUserId={userId}
-                currentUserId={user.id}
-                onFollowChange={loadFollowCounts}
-              />
+              <FollowButton targetUserId={userId} currentUserId={user.id} onFollowChange={loadFollowCounts} />
             )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">{displayName}</h1>
-          <div className="text-sm text-zinc-500 font-bold uppercase mt-1">@{username}</div>
-          {bioText && <p className="text-sm text-zinc-400 font-medium mt-4 leading-relaxed">{bioText}</p>}
+
+          <div className="mb-3">
+            <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight leading-none">{displayName}</h1>
+            <span className="text-xs text-zinc-500 font-bold uppercase mt-0.5 inline-block">@{username}</span>
+          </div>
+
+          {bioText && (
+            <p className="text-sm text-zinc-400 font-medium leading-relaxed mb-3 max-w-lg">{bioText}</p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 text-[10px] text-zinc-600 uppercase tracking-widest font-bold">
+            {shortWallet && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-zinc-800 bg-[#111]">
+                <Fingerprint className="w-3 h-3" />
+                <span className="font-mono text-zinc-500">{shortWallet}</span>
+              </span>
+            )}
+            {memberSince && (
+              <>
+                <span className="text-zinc-700">·</span>
+                <span>Joined {memberSince}</span>
+              </>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="grid grid-cols-3 gap-px bg-zinc-900 border border-zinc-900">
+      {/* ═══ STATS ═══ */}
+      <section className="grid grid-cols-3 gap-px bg-zinc-800 border border-zinc-800">
         {[
-          { value: posts.length, label: "Posts", icon: MessageCircle },
-          { value: followersCount, label: "Followers", icon: Heart },
-          { value: followingCount, label: "Following", icon: TrendingUp },
+          { value: posts.length, label: "Posts" },
+          { value: followersCount, label: "Followers" },
+          { value: followingCount, label: "Following" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-[#050505] p-4 sm:p-5 text-center">
-            <div className="text-2xl sm:text-3xl font-black text-white">{stat.value}</div>
-            <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold mt-1">{stat.label}</div>
+          <div key={stat.label} className="bg-[#0a0a0a] py-4 px-2 text-center">
+            <div className="text-xl sm:text-2xl font-black text-white leading-none mb-1">{stat.value}</div>
+            <div className="text-[9px] text-zinc-600 uppercase tracking-[0.15em] font-bold">{stat.label}</div>
           </div>
         ))}
       </section>
 
-      {/* Posts */}
+      {/* ═══ PNL (if user has it public + has wallet) ═══ */}
+      {profileData?.show_pnl_public !== false && profileData?.wallet_address && (
+        <PublicPnlCard walletAddress={profileData.wallet_address} />
+      )}
+
+      {/* ═══ POSTS ═══ */}
       <section>
-        <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4 pb-3 border-b border-zinc-800">
+        <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 pb-2 border-b border-zinc-800">
           Posts
-        </h2>
+        </div>
         {posts.length === 0 ? (
-          <div className="bg-[#0a0a0a] border border-zinc-800 p-12 text-center">
+          <div className="bg-[#0a0a0a] border border-zinc-800 p-10 text-center">
             <p className="text-sm text-zinc-500 uppercase tracking-wider font-bold">No Posts Yet</p>
           </div>
         ) : (
@@ -179,6 +195,108 @@ export default function UserProfilePage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/**
+ * Fetches and displays PnL for another user's wallet address.
+ * Read-only, no toggle.
+ */
+function PublicPnlCard({ walletAddress }: { walletAddress: string }) {
+  const [pnlData, setPnlData] = useState<{
+    totalPnl: number;
+    percentPnl: number;
+    totalValue: number;
+    positionCount: number;
+  } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchPositions = async () => {
+      try {
+        const account = walletAddress.toLowerCase();
+        const res = await fetch(`https://data-api.polymarket.com/positions?user=${account}`);
+        if (!res.ok || cancelled) return;
+
+        const data = await res.json();
+        const raw = Array.isArray(data) ? data : data.data || data.positions || [];
+
+        let totalValue = 0;
+        let totalCost = 0;
+        let totalPnl = 0;
+
+        for (const p of raw) {
+          const size = Number(p.size ?? p.currentSize ?? 0);
+          const avgPrice = Number(p.avgPrice ?? p.avg_price ?? 0) / 100;
+          const currentValue = Number(p.currentValue ?? 0);
+          const cashPnl = Number(p.cashPnl ?? 0);
+
+          totalCost += size * avgPrice;
+          totalValue += currentValue || (size * avgPrice);
+          totalPnl += cashPnl;
+        }
+
+        const percentPnl = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+
+        if (!cancelled) {
+          setPnlData({
+            totalPnl,
+            percentPnl,
+            totalValue,
+            positionCount: raw.length,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch public PnL:", err);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    fetchPositions();
+    return () => { cancelled = true; };
+  }, [walletAddress]);
+
+  if (isLoading) {
+    return (
+      <div className="bg-[#0a0a0a] border border-zinc-800 p-5 flex items-center justify-center">
+        <Loader2 className="w-4 h-4 animate-spin text-zinc-600" />
+        <span className="ml-2 text-xs text-zinc-600 uppercase tracking-wider font-bold">Loading PnL...</span>
+      </div>
+    );
+  }
+
+  if (!pnlData || pnlData.positionCount === 0) return null;
+
+  const isUp = pnlData.totalPnl >= 0;
+
+  return (
+    <div className="bg-[#0a0a0a] border border-zinc-800 relative overflow-hidden">
+      <div className={`absolute top-0 left-0 right-0 h-0.5 ${isUp ? "bg-emerald-500/60" : "bg-red-500/40"}`} />
+      <div className="p-5">
+        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block">
+          Trading Performance
+        </span>
+        <div className="flex items-baseline gap-3 mb-3">
+          <span className={`text-2xl sm:text-3xl font-black tracking-tight ${isUp ? "text-emerald-400" : "text-red-400"}`}>
+            {isUp ? "+" : ""}${pnlData.totalPnl.toFixed(2)}
+          </span>
+          <span className={`text-sm font-mono font-bold ${isUp ? "text-emerald-500/60" : "text-red-500/50"}`}>
+            {isUp ? "+" : ""}{pnlData.percentPnl.toFixed(1)}%
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-[10px] text-zinc-600 uppercase tracking-widest font-bold">
+          <span className="flex items-center gap-1">
+            {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            All-time
+          </span>
+          <span>{pnlData.positionCount} positions</span>
+          <span>${pnlData.totalValue.toFixed(2)} portfolio</span>
+        </div>
+      </div>
     </div>
   );
 }

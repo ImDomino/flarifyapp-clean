@@ -4,14 +4,18 @@ import { useEffect, useState, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import {
-  MessageCircle, Heart, TrendingUp, Shield, Fingerprint,
-  Copy, Pencil, Clock, Hash, AtSign,
+  Shield, Fingerprint, Copy, Pencil, TrendingUp, TrendingDown,
+  Eye, EyeOff, ChevronDown, ChevronUp, ExternalLink,
 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { PositionsTab } from "@/components/PositionsTab";
 import { EditProfileModal } from "@/components/EditProfileModal";
+import { PnlSummaryCard } from "@/components/PnlSummaryCard";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
 import type { PostWithUser } from "@/lib/types";
 import { useWallet } from "@/providers/WalletProvider";
+
+type ProfileSection = "posts" | "positions";
 
 export default function ProfilePage() {
   const { authenticated, user, login } = usePrivy();
@@ -19,19 +23,25 @@ export default function ProfilePage() {
   const { eoaAddress } = useWallet();
   const [posts, setPosts] = useState<PostWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"posts" | "positions" | "activity">("positions");
+  const [activeSection, setActiveSection] = useState<ProfileSection>("posts");
   const [copied, setCopied] = useState(false);
   const [profileData, setProfileData] = useState<any>(null);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [showPnlPublic, setShowPnlPublic] = useState(true);
+  const authFetch = useAuthFetch();
 
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
     try {
       const res = await fetch(`/api/profile?user_id=${encodeURIComponent(user.id)}`, { cache: "no-store" });
       const data = await res.json();
-      if (data.profile) setProfileData(data.profile);
+      if (data.profile) {
+        setProfileData(data.profile);
+        // Sync PnL visibility from DB (default true if column doesn't exist yet)
+        setShowPnlPublic(data.profile.show_pnl_public !== false);
+      }
     } catch (err) { console.error("Error loading profile:", err); }
   }, [user?.id]);
 
@@ -45,14 +55,7 @@ export default function ProfilePage() {
     } catch (err) { console.error("Error loading follow counts:", err); }
   }, [user?.id]);
 
-  useEffect(() => {
-    if (!authenticated || !user) return;
-    loadProfile();
-    loadFollowCounts();
-    loadUserPosts();
-  }, [authenticated, user]);
-
-  const loadUserPosts = async () => {
+  const loadUserPosts = useCallback(async () => {
     if (!user) return;
     try {
       setIsLoading(true);
@@ -61,7 +64,14 @@ export default function ProfilePage() {
       setPosts(data.posts || []);
     } catch (error) { console.error("Error loading posts:", error); }
     finally { setIsLoading(false); }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!authenticated || !user) return;
+    loadProfile();
+    loadFollowCounts();
+    loadUserPosts();
+  }, [authenticated, user, loadProfile, loadFollowCounts, loadUserPosts]);
 
   const handleCopyAddress = () => {
     const value = user?.wallet?.address || "—";
@@ -70,6 +80,26 @@ export default function ProfilePage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handlePostDeleted = () => {
+    loadUserPosts();
+  };
+
+  const togglePnlVisibility = async () => {
+    const newValue = !showPnlPublic;
+    setShowPnlPublic(newValue); // Optimistic update
+    try {
+      await authFetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ show_pnl_public: newValue }),
+      });
+    } catch (err) {
+      console.error("Failed to save PnL visibility:", err);
+      setShowPnlPublic(!newValue); // Revert on error
+    }
+  };
+
+  // ── Not authenticated ──
   if (!authenticated) {
     return (
       <div className="text-center py-12">
@@ -79,10 +109,8 @@ export default function ProfilePage() {
           </div>
           <h1 className="text-2xl font-black uppercase tracking-wider mb-4">Sign In Required</h1>
           <p className="text-sm text-zinc-500 uppercase tracking-wide mb-6">You need to be signed in to view your profile</p>
-          <button
-            onClick={login}
-            className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-colors"
-          >
+          <button onClick={login}
+            className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-colors">
             Sign In
           </button>
         </div>
@@ -90,6 +118,7 @@ export default function ProfilePage() {
     );
   }
 
+  // ── Profile data ──
   const displayName = profileData?.display_name || profileData?.username ||
     user?.google?.name || user?.email?.address?.split("@")[0] || "User";
   const username = profileData?.username ||
@@ -97,133 +126,147 @@ export default function ProfilePage() {
     user?.email?.address?.split("@")[0] || "user";
   const avatarUrl = profileData?.avatar_url || null;
   const bioText = profileData?.bio || "";
-  const walletAddress = profileData?.wallet_address || user?.wallet?.address || "not found";
+  const walletAddress = profileData?.wallet_address || user?.wallet?.address || "";
+  const shortWallet = walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "—";
+  const memberSince = profileData?.created_at
+    ? new Date(profileData.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    : "2025";
 
-  const shortWallet = walletAddress
-    ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-    : "not found";
   return (
-    <div className="space-y-6">
-      {/* Profile Header */}
-      <section className="bg-[#0a0a0a] border border-zinc-800 overflow-hidden">
-        {/* Cover */}
-        <div className="h-32 sm:h-40 bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 relative">
-          <div className="absolute inset-0 grid-bg opacity-70" />
-          <div className="absolute top-0 right-0 w-40 h-40 border-r-2 border-t-2 border-zinc-700 opacity-30" />
+    <div className="space-y-4">
+      {/* ═══ PROFILE HEADER — compact hero ═══ */}
+      <section className="bg-[#0a0a0a] border border-zinc-800 relative overflow-hidden">
+        {/* Minimal geometric cover */}
+        <div className="h-20 sm:h-24 bg-[#0a0a0a] relative border-b border-zinc-800">
+          <div className="absolute inset-0 grid-bg opacity-40" />
+          <div className="absolute bottom-0 right-0 w-48 h-48 border-r border-b border-zinc-800 opacity-60 translate-x-12 translate-y-12" />
+          <div className="absolute top-0 left-0 w-24 h-24 border-l border-t border-zinc-800 opacity-60 -translate-x-6 -translate-y-6" />
         </div>
 
-        {/* Profile Info */}
-        <div className="px-5 sm:px-6 pb-6">
-          <div className="flex items-end justify-between -mt-12 mb-6 relative z-10">
-            {/* Avatar */}
-            <div className="w-24 h-24 border-4 border-[#0a0a0a] bg-white flex items-center justify-center overflow-hidden">
+        <div className="px-5 sm:px-6 pb-5">
+          {/* Avatar + Edit row */}
+          <div className="flex items-end justify-between -mt-10 mb-4 relative z-10">
+            <div className="w-20 h-20 border-[3px] border-[#0a0a0a] bg-white flex items-center justify-center overflow-hidden shadow-glow">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-4xl font-black text-black uppercase">{displayName[0]}</span>
+                <span className="text-3xl font-black text-black uppercase">{displayName[0]}</span>
               )}
             </div>
 
-            {/* Edit button */}
-            <button
-              onClick={() => setEditModalOpen(true)}
-              className="px-4 py-2 text-xs font-black uppercase tracking-wider border border-zinc-700 text-zinc-400 hover:border-white hover:text-white hover:bg-[#111] transition-all"
-            >
-              <Pencil className="w-3.5 h-3.5 inline mr-2" />
-              Edit
+            <button onClick={() => setEditModalOpen(true)}
+              className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-zinc-700 text-zinc-400 hover:border-white hover:text-white hover:bg-[#111] transition-all">
+              <Pencil className="w-3 h-3 inline mr-1.5" />Edit Profile
             </button>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">{displayName}</h1>
-          <div className="text-sm text-zinc-500 font-bold uppercase mt-1">@{username}</div>
+          {/* Name + username */}
+          <div className="mb-3">
+            <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight leading-none">{displayName}</h1>
+            <span className="text-xs text-zinc-500 font-bold uppercase mt-0.5 inline-block">@{username}</span>
+          </div>
 
+          {/* Bio */}
           {bioText && (
-            <p className="text-sm text-zinc-400 font-medium mt-4 leading-relaxed">{bioText}</p>
+            <p className="text-sm text-zinc-400 font-medium leading-relaxed mb-3 max-w-lg">{bioText}</p>
           )}
 
-          {/* Wallet badge */}
-          <div className="mt-4 inline-flex items-center gap-2 px-3 py-2 border border-zinc-800 bg-[#111]">
-            <Fingerprint className="w-4 h-4 text-zinc-500" />
-            <span className="text-xs font-mono text-zinc-400">{shortWallet}</span>
-            <button
-              onClick={handleCopyAddress}
-              className="text-xs font-bold text-zinc-500 hover:text-white transition-colors"
-            >
-              <Copy className="w-3 h-3" />
-            </button>
+          {/* Meta row — wallet + member since */}
+          <div className="flex flex-wrap items-center gap-3 text-[10px] text-zinc-600 uppercase tracking-widest font-bold">
+            {walletAddress && (
+              <button onClick={handleCopyAddress}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-zinc-800 bg-[#111] hover:border-zinc-600 transition-colors">
+                <Fingerprint className="w-3 h-3" />
+                <span className="font-mono text-zinc-500">{shortWallet}</span>
+                <Copy className="w-2.5 h-2.5 text-zinc-600" />
+              </button>
+            )}
+            {copied && <span className="text-white text-[10px] font-bold">Copied!</span>}
+            <span className="text-zinc-700">·</span>
+            <span>Joined {memberSince}</span>
           </div>
-          {copied && <span className="ml-2 text-xs text-white font-bold">Copied!</span>}
         </div>
       </section>
 
-      {/* Stats Grid */}
-      <section className="grid grid-cols-3 gap-px bg-zinc-900 border border-zinc-900">
+      {/* ═══ STATS BAR — horizontal, prominent ═══ */}
+      <section className="grid grid-cols-4 gap-px bg-zinc-800 border border-zinc-800">
         {[
-          { value: posts.length, label: "Posts", icon: MessageCircle },
-          { value: followersCount, label: "Followers", icon: Heart },
-          { value: followingCount, label: "Following", icon: TrendingUp },
+          { value: posts.length, label: "Posts" },
+          { value: followersCount, label: "Followers" },
+          { value: followingCount, label: "Following" },
+          { value: "—", label: "Trades" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-[#050505] p-4 sm:p-5 text-center group cursor-pointer hover:bg-[#0a0a0a] transition-colors">
-            <div className="text-2xl sm:text-3xl font-black text-white">{stat.value}</div>
-            <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold group-hover:text-zinc-400 mt-1">
-              {stat.label}
-            </div>
+          <div key={stat.label} className="bg-[#0a0a0a] py-4 px-2 text-center group cursor-default hover:bg-[#111] transition-colors">
+            <div className="text-xl sm:text-2xl font-black text-white leading-none mb-1">{stat.value}</div>
+            <div className="text-[9px] text-zinc-600 uppercase tracking-[0.15em] font-bold">{stat.label}</div>
           </div>
         ))}
       </section>
 
-      {/* Quick Info */}
-      <section className="bg-[#0a0a0a] border border-zinc-800 divide-y divide-zinc-800">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <AtSign className="w-4 h-4 text-zinc-600" />
-            <div>
-              <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">Handle</div>
-              <div className="text-sm font-bold text-white">@{username}</div>
-            </div>
-          </div>
-          <button onClick={() => setEditModalOpen(true)} className="text-xs font-bold text-zinc-500 hover:text-white transition uppercase tracking-wider">
-            Edit
+      {/* ═══ PNL CARD — aggregate with privacy toggle ═══ */}
+      {eoaAddress && (
+        <PnlSummaryCard 
+          isPublic={showPnlPublic} 
+          onTogglePublic={togglePnlVisibility} 
+        />
+      )}
+
+      {/* ═══ SECTION TOGGLE — minimal inline switcher ═══ */}
+      <div className="flex items-center gap-1 bg-[#0a0a0a] border border-zinc-800 p-1">
+        {(["posts", "positions"] as const).map((section) => (
+          <button key={section} onClick={() => setActiveSection(section)}
+            className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest transition-all ${
+              activeSection === section
+                ? "bg-white text-black"
+                : "text-zinc-500 hover:text-white hover:bg-[#111]"
+            }`}>
+            {section === "posts" ? `Posts (${posts.length})` : "Positions"}
           </button>
-        </div>
-        <div className="flex items-center gap-3 p-4">
-          <Clock className="w-4 h-4 text-zinc-600" />
-          <div>
-            <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">Member Since</div>
-            <div className="text-sm font-bold text-white">
-              {profileData?.created_at
-                ? new Date(profileData.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-                : "2025"}
+        ))}
+      </div>
+
+      {/* ═══ CONTENT ═══ */}
+      {activeSection === "posts" && (
+        <section>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-6 h-6 border-2 border-zinc-700 border-t-white animate-spin" />
             </div>
-          </div>
-        </div>
-      </section>
+          ) : posts.length === 0 ? (
+            <div className="bg-[#0a0a0a] border border-zinc-800 p-10 text-center">
+              <p className="text-zinc-500 text-sm uppercase tracking-wider font-bold mb-4">No Posts Yet</p>
+              <button onClick={() => router.push("/create")}
+                className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-colors">
+                Create First Post
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {posts.map((post) => (
+                <PostCard key={post.id} post={post} onDeleted={handlePostDeleted} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
-      {/* Tabs */}
-      <section className="border border-zinc-800 overflow-hidden">
-        <div className="flex border-b border-zinc-800 bg-[#050505]/95 backdrop-blur">
-          {(["posts", "positions", "activity"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-4 text-center font-black uppercase tracking-wider text-sm transition-colors ${
-                activeTab === tab
-                  ? "border-b-2 border-white text-white"
-                  : "text-zinc-500 hover:text-white hover:bg-[#111]"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
+      {activeSection === "positions" && (
+        <section>
+          {eoaAddress ? (
+            <PositionsTab />
+          ) : (
+            <div className="bg-[#0a0a0a] border border-zinc-800 p-10 text-center">
+              <div className="w-14 h-14 mx-auto mb-3 border-2 border-zinc-700 flex items-center justify-center">
+                <Shield className="w-7 h-7 text-zinc-500" />
+              </div>
+              <h3 className="text-sm font-black uppercase tracking-wider mb-1">Wallet Not Connected</h3>
+              <p className="text-xs text-zinc-600 uppercase tracking-wider">Your positions will appear here</p>
+            </div>
+          )}
+        </section>
+      )}
 
-        <div className="bg-[#0a0a0a] p-4 sm:p-5">
-          {activeTab === "posts" && <PostsContent posts={posts} isLoading={isLoading} />}
-          {activeTab === "positions" && (eoaAddress ? <PositionsTab /> : <WalletRequired />)}
-          {activeTab === "activity" && <ActivityContent />}
-        </div>
-      </section>
-
+      {/* Edit Profile Modal */}
       <EditProfileModal
         isOpen={editModalOpen}
         onClose={() => setEditModalOpen(false)}
@@ -233,56 +276,6 @@ export default function ProfilePage() {
         currentBio={bioText}
         onSaved={() => { loadProfile(); loadFollowCounts(); }}
       />
-    </div>
-  );
-}
-
-function PostsContent({ posts, isLoading }: { posts: PostWithUser[]; isLoading: boolean }) {
-  const router = useRouter();
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-6 h-6 border-2 border-zinc-700 border-t-white animate-spin" />
-      </div>
-    );
-  }
-  if (posts.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-zinc-500 text-sm uppercase tracking-wider font-bold mb-4">No Posts Yet</p>
-        <button
-          onClick={() => router.push("/create")}
-          className="px-8 py-3 bg-white text-black font-black uppercase tracking-wider text-sm border-2 border-white hover:bg-black hover:text-white transition-colors"
-        >
-          Create First Post
-        </button>
-      </div>
-    );
-  }
-  return (
-    <div className="space-y-4">
-      {posts.map((post) => <PostCard key={post.id} post={post} />)}
-    </div>
-  );
-}
-
-function ActivityContent() {
-  return (
-    <div className="text-center py-12">
-      <p className="text-zinc-500 text-sm uppercase tracking-widest font-bold">Coming Soon</p>
-      <p className="text-[10px] text-zinc-700 mt-2 uppercase">Activity feed will appear here</p>
-    </div>
-  );
-}
-
-function WalletRequired() {
-  return (
-    <div className="text-center py-12">
-      <div className="w-16 h-16 mx-auto mb-4 border-2 border-zinc-700 flex items-center justify-center">
-        <Shield className="w-8 h-8 text-zinc-500" />
-      </div>
-      <h3 className="text-lg font-black uppercase tracking-wider mb-2">Wallet Not Connected</h3>
-      <p className="text-sm text-zinc-500 uppercase tracking-wide">Your positions will appear here</p>
     </div>
   );
 }

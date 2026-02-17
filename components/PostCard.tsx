@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, MessageCircle, Repeat, Share } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Share, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { PostWithUser } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -12,15 +12,20 @@ import { useAuthFetch } from "@/hooks/useAuthFetch";
 
 interface PostCardProps {
   post: PostWithUser;
+  onDeleted?: () => void;
 }
 
-export function PostCard({ post }: PostCardProps) {
+export function PostCard({ post, onDeleted }: PostCardProps) {
   const [likes, setLikes] = useState(post.likes_count || 0);
   const [hasLiked, setHasLiked] = useState(post.user_has_liked || false);
   const [isLiking, setIsLiking] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const router = useRouter();
   const { user } = usePrivy();
   const authFetch = useAuthFetch();
+
+  const isOwnPost = user?.id === post.user_id;
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -46,19 +51,49 @@ export function PostCard({ post }: PostCardProps) {
     } finally { setIsLiking(false); }
   };
 
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isDeleting) return;
+    
+    if (!showDeleteConfirm) {
+      setShowDeleteConfirm(true);
+      // Auto-hide confirm after 3s
+      setTimeout(() => setShowDeleteConfirm(false), 3000);
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const res = await authFetch("/api/posts/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ post_id: post.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        onDeleted?.();
+        // If no callback, reload the page
+        if (!onDeleted) router.refresh();
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   const displayName =
     (post.profiles as any)?.display_name || post.profiles?.username || post.profiles?.email?.split("@")[0] || "Unknown";
   const username = post.profiles?.username || post.profiles?.email?.split("@")[0] || "unknown";
   const avatarUrl = post.profiles?.avatar_url;
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: false });
-  const isOwnPost = user?.id === post.user_id;
 
   const navigateToProfile = (e: React.MouseEvent) => {
     e.stopPropagation();
     router.push(isOwnPost ? "/profile" : `/user/${post.user_id}`);
   };
 
-  // Clamp long content in feed view
   const isLongContent = (post.content?.length || 0) > 280;
 
   return (
@@ -82,10 +117,27 @@ export function PostCard({ post }: PostCardProps) {
                 onClick={navigateToProfile}>{displayName}</h3>
               <span className="text-zinc-600 text-xs font-bold uppercase flex-shrink-0">@{username}</span>
             </div>
-            <span className="text-zinc-600 text-xs font-mono flex-shrink-0 ml-2">{timeAgo.toUpperCase()}</span>
+            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+              <span className="text-zinc-600 text-xs font-mono">{timeAgo.toUpperCase()}</span>
+              {/* Delete button — own posts only */}
+              {isOwnPost && (
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className={`p-1.5 transition-all ${
+                    showDeleteConfirm
+                      ? "text-red-400 border border-red-800 bg-red-950/30"
+                      : "text-zinc-700 hover:text-red-400 border border-transparent opacity-0 group-hover:opacity-100"
+                  } disabled:opacity-50`}
+                  title={showDeleteConfirm ? "Click again to confirm" : "Delete post"}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Content — clamped to 4 lines for long posts */}
+          {/* Content */}
           <div className="mb-4">
             <p className={`text-zinc-300 text-sm leading-7 font-medium whitespace-pre-wrap ${
               isLongContent ? "line-clamp-4" : ""
@@ -99,7 +151,7 @@ export function PostCard({ post }: PostCardProps) {
             )}
           </div>
 
-          {/* Image — constrained max height */}
+          {/* Image */}
           {post.image_url && (
             <div className="border border-zinc-800 mb-4 group-hover:border-zinc-600 transition-colors overflow-hidden"
               style={{ maxHeight: "35rem" }}>
@@ -115,6 +167,8 @@ export function PostCard({ post }: PostCardProps) {
                 marketId={post.polymarket_market_id} />
             </div>
           )}
+
+          {/* Actions */}
           <div className="flex items-center gap-6 pt-3" onClick={(e) => e.stopPropagation()}>
             <button onClick={handleLike} disabled={isLiking}
               className={`flex items-center gap-3 group/btn transition-colors ${hasLiked ? "text-white" : "text-zinc-500 hover:text-white"}`}>

@@ -43,8 +43,6 @@ export default function Home() {
         if (activeTab === "following" && user?.id) {
           response = await authFetch(`/api/posts/following?page=${pageNum}&limit=20`);
         } else {
-          // Use authFetch even for public feed — sends token if available
-          // so server can check user_has_liked. Falls back gracefully if unauthenticated.
           response = await authFetch(`/api/posts?page=${pageNum}&limit=20`);
         }
 
@@ -63,6 +61,11 @@ export default function Home() {
     loadPosts(1, false, feedTab);
     if (authenticated) loadProfile();
   }, [feedTab, authenticated, loadPosts, loadProfile]);
+
+  const handlePostDeleted = useCallback(() => {
+    // Remove the deleted post from state instantly, then reload
+    loadPosts(1, false, feedTab);
+  }, [loadPosts, feedTab]);
 
   const handleLoadMore = () => { const n = page + 1; setPage(n); loadPosts(n, true); };
   const handleTabSwitch = (tab: FeedTab) => {
@@ -141,7 +144,11 @@ export default function Home() {
 
       {!isLoading && posts.length > 0 && (
         <>
-          <div className="space-y-4 sm:space-y-6">{posts.map((post) => <PostCard key={post.id} post={post} />)}</div>
+          <div className="space-y-4 sm:space-y-6">
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} onDeleted={handlePostDeleted} />
+            ))}
+          </div>
           {hasMore && (
             <div className="text-center pt-4">
               <button onClick={handleLoadMore} disabled={isLoadingMore} className="inline-flex items-center gap-3 px-8 py-3 text-sm font-black uppercase tracking-wider text-zinc-400 border border-zinc-800 hover:border-white hover:text-white hover:bg-[#111] transition-all disabled:opacity-50">

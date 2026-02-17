@@ -53,6 +53,11 @@ export async function PATCH(request: NextRequest) {
     if (body.avatar_url !== undefined) updates.avatar_url = body.avatar_url;
     if (body.bio !== undefined) updates.bio = sanitizeText(body.bio, 300) || "";
 
+    // PnL visibility toggle
+    if (body.show_pnl_public !== undefined) {
+      updates.show_pnl_public = body.show_pnl_public === true;
+    }
+
     if (Object.keys(updates).length <= 1)
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
 
