@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Hash, User, LogOut } from "lucide-react";
+import { Home, Hash, User, Search, LogOut } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { NotificationsPanel } from "./NotificationsPanel";
 
@@ -13,6 +13,7 @@ export function NavigationSidebar() {
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
+    { href: "/search", icon: Search, label: "Search" },
     { href: "/create", icon: Hash, label: "Create", disabled: false },
     { href: "/profile", icon: User, label: "Profile" },
   ];

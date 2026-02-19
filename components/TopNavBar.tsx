@@ -10,6 +10,7 @@ export function TopNavBar() {
   const router = useRouter();
   const [profileData, setProfileData] = useState<any>(null);
   const [scrolled, setScrolled] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Detect scroll for subtle border enhancement
   useEffect(() => {
@@ -43,6 +44,17 @@ export function TopNavBar() {
     profileData?.display_name || profileData?.username || fallbackDisplayName;
   const avatarUrl = profileData?.avatar_url || null;
 
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim().length >= 2) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  const handleSearchFocus = () => {
+    router.push("/search");
+  };
+
   return (
     <nav className={`
       fixed top-0 left-0 right-0 h-20 z-50
@@ -72,15 +84,16 @@ export function TopNavBar() {
 
         {/* Global Search */}
         <div className="hidden md:flex items-center flex-1 max-w-lg mx-8 lg:mx-12">
-          <div className="relative w-full group">
+          <form onSubmit={handleSearchSubmit} className="relative w-full group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 group-focus-within:text-white transition-colors duration-200" />
             <input
               type="text"
-              placeholder="SEARCH NETWORK..."
-              disabled
-              className="w-full bg-[#0a0a0a] border border-zinc-800/60 py-3 pl-12 pr-4 text-sm font-bold uppercase tracking-wider text-white placeholder-zinc-700 focus:outline-none focus:border-white focus:bg-black transition-all duration-200 cursor-not-allowed hover:border-zinc-700/60"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="SEARCH POSTS, USERS, MARKETS..."
+              className="w-full bg-[#0a0a0a] border border-zinc-800/60 py-3 pl-12 pr-4 text-sm font-bold uppercase tracking-wider text-white placeholder-zinc-700 focus:outline-none focus:border-white focus:bg-black transition-all duration-200 hover:border-zinc-700/60 cursor-text"
             />
-          </div>
+          </form>
         </div>
 
         {/* User Controls */}

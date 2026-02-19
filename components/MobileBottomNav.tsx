@@ -1,39 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
   Home, Search, Bell, User, Plus,
   ArrowDownToLine, ArrowUpFromLine, X,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { useAuthFetch } from "@/hooks/useAuthFetch";
 import { useWallet } from "@/providers/WalletProvider";
+import { useNotifications } from "@/providers/NotificationsProvider";
 
 export function MobileBottomNav() {
   const router = useRouter();
   const pathname = usePathname();
   const { authenticated, user, login } = usePrivy();
-  const authFetch = useAuthFetch();
   const { eoaAddress } = useWallet();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount } = useNotifications();
   const [showActions, setShowActions] = useState(false);
-
-  const fetchUnread = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const res = await authFetch(`/api/notifications?unread_only=true&limit=1`);
-      const data = await res.json();
-      setUnreadCount(data.unread_count || 0);
-    } catch {}
-  }, [user?.id, authFetch]);
-
-  useEffect(() => {
-    if (!authenticated) return;
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
-  }, [authenticated, fetchUnread]);
 
   // Close action sheet on route change
   useEffect(() => {
@@ -161,16 +144,16 @@ export function MobileBottomNav() {
 
           {/* Search */}
           <button
-            onClick={() => handleNavClick("/explore")}
+            onClick={() => handleNavClick("/search")}
             className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative transition-all duration-200 ${
-              isActive("/explore") ? "text-white" : "text-zinc-600 active:text-zinc-400"
+              isActive("/search") ? "text-white" : "text-zinc-600 active:text-zinc-400"
             }`}
           >
-            <Search className="w-[22px] h-[22px]" strokeWidth={isActive("/explore") ? 2.5 : 1.5} />
-            <span className={`text-[8px] uppercase tracking-widest ${isActive("/explore") ? "font-black" : "font-medium"}`}>
-              Explore
+            <Search className="w-[22px] h-[22px]" strokeWidth={isActive("/search") ? 2.5 : 1.5} />
+            <span className={`text-[8px] uppercase tracking-widest ${isActive("/search") ? "font-black" : "font-medium"}`}>
+              Search
             </span>
-            {isActive("/explore") && (
+            {isActive("/search") && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-white" />
             )}
           </button>

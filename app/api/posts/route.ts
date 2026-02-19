@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
     const offset = (page - 1) * limit;
     const userId = searchParams.get("user_id");
+    const marketId = searchParams.get("market_id");
 
     if (postId && !isValidUUID(postId))
       return NextResponse.json({ error: "Invalid post_id" }, { status: 400 });
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
 
     if (postId) query = query.eq("id", postId);
     if (userId) query = query.eq("user_id", userId);
+    if (marketId) query = query.eq("polymarket_market_id", marketId);
 
     const { data: posts, error, count } = await query.range(offset, offset + limit - 1);
     if (error) throw error;

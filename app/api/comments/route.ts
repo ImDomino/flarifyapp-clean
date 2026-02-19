@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       .select(`*, profiles (id, email, username, avatar_url, display_name)`)
       .eq("post_id", post_id)
       .order("created_at", { ascending: true })
-      .limit(100);
+      .limit(200);
     if (error) throw error;
 
     return NextResponse.json({ comments: comments || [] });
@@ -37,21 +37,67 @@ export async function POST(request: NextRequest) {
     if (!body.post_id || !isValidUUID(body.post_id))
       return NextResponse.json({ error: "Invalid post_id" }, { status: 400 });
 
+    // Validate optional parent_id
+    if (body.parent_id && !isValidUUID(body.parent_id))
+      return NextResponse.json({ error: "Invalid parent_id" }, { status: 400 });
+
     const v = validateCommentContent(body.content);
     if (!v.valid) return v.error!;
 
     const supabase = createServiceClient();
+
+    // If parent_id provided, verify it exists and belongs to same post
+    if (body.parent_id) {
+      const { data: parent } = await supabase
+        .from("comments")
+        .select("id, post_id")
+        .eq("id", body.parent_id)
+        .single();
+
+      if (!parent || parent.post_id !== body.post_id) {
+        return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });
+      }
+    }
+
+    const insertData: any = {
+      post_id: body.post_id,
+      user_id: userId,
+      content: v.content,
+    };
+    if (body.parent_id) insertData.parent_id = body.parent_id;
+
     const { data: comment, error } = await supabase
       .from("comments")
-      .insert({ post_id: body.post_id, user_id: userId, content: v.content })
+      .insert(insertData)
       .select().single();
     if (error) throw error;
 
     // Notification (non-critical)
     try {
-      const { data: post } = await supabase.from("posts").select("user_id").eq("id", body.post_id).single();
-      if (post && post.user_id !== userId) {
-        await supabase.from("notifications").insert({ user_id: post.user_id, actor_id: userId, type: "comment", post_id: body.post_id });
+      if (body.parent_id) {
+        // Reply to comment — notify the parent comment author
+        const { data: parentComment } = await supabase
+          .from("comments").select("user_id").eq("id", body.parent_id).single();
+        if (parentComment && parentComment.user_id !== userId) {
+          await supabase.from("notifications").insert({
+            user_id: parentComment.user_id,
+            actor_id: userId,
+            type: "comment",
+            post_id: body.post_id,
+          });
+        }
+      } else {
+        // Top-level comment — notify the post author
+        const { data: post } = await supabase
+          .from("posts").select("user_id").eq("id", body.post_id).single();
+        if (post && post.user_id !== userId) {
+          await supabase.from("notifications").insert({
+            user_id: post.user_id,
+            actor_id: userId,
+            type: "comment",
+            post_id: body.post_id,
+          });
+        }
       }
     } catch {}
 
