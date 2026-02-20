@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Search, Users, FileText, BarChart3, ArrowRight, X } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
@@ -26,6 +26,18 @@ interface MarketResult {
 }
 
 export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-20">
+        <div className="w-6 h-6 border-2 border-zinc-700 border-t-white animate-spin" />
+      </div>
+    }>
+      <SearchContent />
+    </Suspense>
+  );
+}
+
+function SearchContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialQuery = searchParams.get("q") || "";
