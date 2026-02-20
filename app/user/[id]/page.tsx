@@ -46,9 +46,21 @@ export default function UserProfilePage() {
 
   const loadPosts = useCallback(async () => {
     try {
-      const response = await fetch(`/api/posts?user_id=${encodeURIComponent(userId)}&page=1&limit=50`);
-      const data = await response.json();
-      setPosts(data.posts || []);
+      const [postsRes, repostsRes] = await Promise.all([
+        fetch(`/api/posts?user_id=${encodeURIComponent(userId)}&page=1&limit=50`),
+        fetch(`/api/reposts/list?user_id=${encodeURIComponent(userId)}`),
+      ]);
+      const postsData = await postsRes.json();
+      const repostsData = await repostsRes.json();
+
+      const ownPosts = (postsData.posts || []).map((p: any) => ({ ...p, _sortTime: p.created_at }));
+      const repostedPosts = (repostsData.posts || []).map((p: any) => ({ ...p, _sortTime: p.repost_created_at || p.created_at }));
+
+      const merged = [...ownPosts, ...repostedPosts].sort(
+        (a: any, b: any) => new Date(b._sortTime).getTime() - new Date(a._sortTime).getTime()
+      );
+
+      setPosts(merged);
     } catch (err) { console.error("Error:", err); }
   }, [userId]);
 
@@ -192,7 +204,7 @@ export default function UserProfilePage() {
       <section className="animate-fade-up stagger-5">
         <div className="flex items-center gap-3 mb-3 pb-2 border-b border-zinc-800/50">
           <div className="w-1 h-4 bg-white/20" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Posts</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Posts ({posts.length})</span>
         </div>
         {posts.length === 0 ? (
           <div className="bg-[#0a0a0a] border border-zinc-800/60 p-10 text-center corner-accent relative overflow-hidden">
@@ -201,7 +213,7 @@ export default function UserProfilePage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {posts.map((post, i) => <PostCard key={post.id} post={post} index={i} />)}
+            {posts.map((post, i) => <PostCard key={`${post.reposted_by ? 'rp-' : ''}${post.id}`} post={post} index={i} />)}
           </div>
         )}
       </section>

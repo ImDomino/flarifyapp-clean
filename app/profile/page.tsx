@@ -58,9 +58,22 @@ export default function ProfilePage() {
     if (!user) return;
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/posts?user_id=${encodeURIComponent(user.id)}&page=1&limit=50`);
-      const data = await response.json();
-      setPosts(data.posts || []);
+      const [postsRes, repostsRes] = await Promise.all([
+        fetch(`/api/posts?user_id=${encodeURIComponent(user.id)}&page=1&limit=50`),
+        fetch(`/api/reposts/list?user_id=${encodeURIComponent(user.id)}`),
+      ]);
+      const postsData = await postsRes.json();
+      const repostsData = await repostsRes.json();
+
+      const ownPosts = (postsData.posts || []).map((p: any) => ({ ...p, _sortTime: p.created_at }));
+      const repostedPosts = (repostsData.posts || []).map((p: any) => ({ ...p, _sortTime: p.repost_created_at || p.created_at }));
+
+      // Merge and sort by time descending
+      const merged = [...ownPosts, ...repostedPosts].sort(
+        (a: any, b: any) => new Date(b._sortTime).getTime() - new Date(a._sortTime).getTime()
+      );
+
+      setPosts(merged);
     } catch (error) { console.error("Error loading posts:", error); }
     finally { setIsLoading(false); }
   }, [user]);

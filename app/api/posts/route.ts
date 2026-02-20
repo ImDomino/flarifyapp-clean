@@ -36,10 +36,13 @@ export async function GET(request: NextRequest) {
 
     const postIds = (posts || []).map((p) => p.id);
 
-    // Batch fetch counts + user likes
+    // Batch fetch counts + user likes + reposts + bookmarks
     const likeCounts: Record<string, number> = {};
     const commentCounts: Record<string, number> = {};
+    const repostCounts: Record<string, number> = {};
     const userLikedSet = new Set<string>();
+    const userRepostedSet = new Set<string>();
+    const userBookmarkedSet = new Set<string>();
 
     if (postIds.length > 0) {
       const { data: likesData } = await supabase
@@ -54,12 +57,30 @@ export async function GET(request: NextRequest) {
         commentCounts[comment.post_id] = (commentCounts[comment.post_id] || 0) + 1;
       }
 
-      // Check which posts the current user has liked
+      const { data: repostsData } = await supabase
+        .from("reposts").select("post_id").in("post_id", postIds);
+      for (const r of repostsData || []) {
+        repostCounts[r.post_id] = (repostCounts[r.post_id] || 0) + 1;
+      }
+
+      // Check which posts the current user has liked/reposted/bookmarked
       if (currentUserId) {
         const { data: userLikes } = await supabase
           .from("likes").select("post_id").eq("user_id", currentUserId).in("post_id", postIds);
         for (const like of userLikes || []) {
           userLikedSet.add(like.post_id);
+        }
+
+        const { data: userReposts } = await supabase
+          .from("reposts").select("post_id").eq("user_id", currentUserId).in("post_id", postIds);
+        for (const r of userReposts || []) {
+          userRepostedSet.add(r.post_id);
+        }
+
+        const { data: userBookmarks } = await supabase
+          .from("bookmarks").select("post_id").eq("user_id", currentUserId).in("post_id", postIds);
+        for (const b of userBookmarks || []) {
+          userBookmarkedSet.add(b.post_id);
         }
       }
     }
@@ -68,7 +89,10 @@ export async function GET(request: NextRequest) {
       ...post,
       likes_count: likeCounts[post.id] || 0,
       comments_count: commentCounts[post.id] || 0,
+      reposts_count: repostCounts[post.id] || 0,
       user_has_liked: userLikedSet.has(post.id),
+      user_has_reposted: userRepostedSet.has(post.id),
+      user_has_bookmarked: userBookmarkedSet.has(post.id),
     }));
 
     return NextResponse.json({
