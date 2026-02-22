@@ -1,83 +1,89 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   TrendingUp, TrendingDown, Eye, EyeOff, RefreshCw, Loader2, AlertCircle,
 } from "lucide-react";
 import { usePositions, UserPosition } from "@/hooks/usePositions";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
 
 interface PnlSummaryCardProps {
   isPublic: boolean;
   onTogglePublic: () => void;
-  /** If provided, shows another user's PnL (read-only, no toggle) */
   viewOnly?: boolean;
   positions?: UserPosition[];
 }
 
-interface AggregatedPnl {
-  totalValue: number;
-  totalCost: number;
-  totalPnl: number;
-  percentPnl: number;
-  positionCount: number;
-  winCount: number;
-  lossCount: number;
+interface RedeemedTotals {
+  pnl: number;
+  wins: number;
+  losses: number;
+  count: number;
 }
 
-function aggregatePositions(positions: UserPosition[]): AggregatedPnl {
-  let totalValue = 0;
-  let totalCost = 0;
-  let totalPnl = 0;
-  let winCount = 0;
-  let lossCount = 0;
-
+function aggregateOpenPositions(positions: UserPosition[]) {
+  let pnl = 0, value = 0, cost = 0, wins = 0, losses = 0;
   for (const pos of positions) {
-    const cost = pos.size * pos.avgPrice;
-    const value = pos.currentValue || cost;
-    totalCost += cost;
-    totalValue += value;
-    totalPnl += pos.cashPnl;
-    if (pos.cashPnl > 0) winCount++;
-    else if (pos.cashPnl < 0) lossCount++;
+    const c = pos.size * pos.avgPrice;
+    cost += c;
+    value += pos.currentValue || c;
+    pnl += pos.cashPnl;
+    if (pos.cashPnl > 0) wins++;
+    else if (pos.cashPnl < 0) losses++;
   }
-
-  const percentPnl = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
-
-  return {
-    totalValue,
-    totalCost,
-    totalPnl,
-    percentPnl,
-    positionCount: positions.length,
-    winCount,
-    lossCount,
-  };
+  return { pnl, value, cost, count: positions.length, wins, losses };
 }
 
 export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: externalPositions }: PnlSummaryCardProps) {
   const { positions: ownPositions, isLoading, error, fetchPositions } = usePositions();
+  const authFetch = useAuthFetch();
   const [refreshing, setRefreshing] = useState(false);
+  const [redeemed, setRedeemed] = useState<RedeemedTotals>({ pnl: 0, wins: 0, losses: 0, count: 0 });
 
   const positions = externalPositions ?? ownPositions;
 
+  /**
+   * Fetch redeemed positions PnL from our DB.
+   * These are positions that were claimed through Flarify — 
+   * their PnL was saved before they disappeared from Polymarket API.
+   */
+  const fetchRedeemed = useCallback(async () => {
+    if (viewOnly) return;
+    try {
+      const res = await authFetch("/api/redeemed-positions");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.totals) {
+        setRedeemed(data.totals);
+      }
+    } catch {}
+  }, [viewOnly, authFetch]);
+
   useEffect(() => {
-    if (!externalPositions) {
-      fetchPositions();
-    }
+    if (!externalPositions) fetchPositions();
   }, [fetchPositions, externalPositions]);
+
+  useEffect(() => {
+    fetchRedeemed();
+  }, [fetchRedeemed]);
 
   const handleRefresh = async () => {
     if (refreshing || externalPositions) return;
     setRefreshing(true);
-    await fetchPositions();
+    await Promise.all([fetchPositions(), fetchRedeemed()]);
     setRefreshing(false);
   };
 
-  const agg = aggregatePositions(positions);
-  const isUp = agg.totalPnl >= 0;
-  const hasPositions = positions.length > 0;
+  const open = aggregateOpenPositions(positions);
 
-  // Loading state
+  // Total PnL = current positions PnL + redeemed positions PnL (from our DB)
+  const totalPnl = open.pnl + redeemed.pnl;
+  const totalWins = open.wins + redeemed.wins;
+  const totalLosses = open.losses + redeemed.losses;
+  const totalPositions = open.count + redeemed.count;
+  const isUp = totalPnl >= 0;
+  const hasData = totalPositions > 0;
+
   if (isLoading && positions.length === 0) {
     return (
       <div className="bg-[#0a0a0a] border border-zinc-800 p-6 flex items-center justify-center">
@@ -87,7 +93,6 @@ export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: 
     );
   }
 
-  // Error state
   if (error && positions.length === 0) {
     return (
       <div className="bg-[#0a0a0a] border border-zinc-800 p-5">
@@ -104,13 +109,11 @@ export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: 
 
   return (
     <div className="bg-[#0a0a0a] border border-zinc-800 relative overflow-hidden">
-      {/* Subtle accent line based on PnL direction */}
-      {hasPositions && (
+      {hasData && (
         <div className={`absolute top-0 left-0 right-0 h-0.5 ${isUp ? "bg-emerald-500/60" : "bg-red-500/40"}`} />
       )}
 
       <div className="p-5">
-        {/* Header row */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
@@ -120,7 +123,6 @@ export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: 
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Refresh */}
             {!viewOnly && (
               <button onClick={handleRefresh} disabled={refreshing}
                 className="p-1.5 text-zinc-600 hover:text-white transition-colors disabled:opacity-50"
@@ -128,8 +130,6 @@ export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: 
                 <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
               </button>
             )}
-
-            {/* Privacy toggle */}
             {!viewOnly && (
               <button onClick={onTogglePublic}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-zinc-800 text-zinc-500 hover:text-white hover:border-zinc-600 transition-colors"
@@ -143,26 +143,19 @@ export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: 
           </div>
         </div>
 
-        {!hasPositions ? (
-          /* Empty state */
+        {!hasData ? (
           <div className="text-center py-4">
             <p className="text-xs text-zinc-600 uppercase tracking-wider font-bold">No open positions</p>
             <p className="text-[10px] text-zinc-700 mt-1">Trade on markets to see your PnL here</p>
           </div>
         ) : (
           <>
-            {/* Main PnL number */}
             <div className="mb-5">
               <div className="flex items-baseline gap-3">
                 <span className={`text-3xl sm:text-4xl font-black tracking-tight ${
                   isUp ? "text-emerald-400" : "text-red-400"
                 }`}>
-                  {isUp ? "+" : ""}${agg.totalPnl.toFixed(2)}
-                </span>
-                <span className={`text-sm font-mono font-bold ${
-                  isUp ? "text-emerald-500/60" : "text-red-500/50"
-                }`}>
-                  {isUp ? "+" : ""}{agg.percentPnl.toFixed(1)}%
+                  {isUp ? "+" : ""}${totalPnl.toFixed(2)}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 mt-1">
@@ -177,12 +170,11 @@ export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: 
               </div>
             </div>
 
-            {/* Stats grid */}
             <div className="grid grid-cols-4 gap-px bg-zinc-800">
-              <StatCell label="Positions" value={agg.positionCount.toString()} />
-              <StatCell label="Portfolio" value={`$${agg.totalValue.toFixed(2)}`} />
-              <StatCell label="Winning" value={agg.winCount.toString()} accent="emerald" />
-              <StatCell label="Losing" value={agg.lossCount.toString()} accent="red" />
+              <StatCell label="Positions" value={totalPositions.toString()} />
+              <StatCell label="Portfolio" value={`$${open.value.toFixed(2)}`} />
+              <StatCell label="Winning" value={totalWins.toString()} accent="emerald" />
+              <StatCell label="Losing" value={totalLosses.toString()} accent="red" />
             </div>
           </>
         )}

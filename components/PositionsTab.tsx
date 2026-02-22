@@ -56,9 +56,8 @@ export function PositionsTab() {
   };
 
   const handleRedeem = async (position: UserPosition) => {
-    const success = await redeemPosition(position.asset_id, position.negRisk);
+    const success = await redeemPosition(position);
     if (success) {
-      // Refresh positions after successful redeem
       await fetchPositions();
     }
   };
