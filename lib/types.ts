@@ -61,7 +61,13 @@ export interface PostWithUser extends Post {
   profiles: Profile;
   likes_count?: number;
   comments_count?: number;
+  reposts_count?: number;
   user_has_liked?: boolean;
+  user_has_reposted?: boolean;
+  user_has_bookmarked?: boolean;
+  reposted_by?: string;
+  repost_created_at?: string;
+  quote_content?: string;
 }
 
 export interface CommentWithUser extends Comment {
@@ -76,4 +82,3 @@ export interface User extends Profile {
 }
 
 export type { Profile as DBProfile, Post as DBPost };
-
