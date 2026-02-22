@@ -3,19 +3,38 @@
 import { useEffect, useState } from "react";
 import {
   TrendingUp, TrendingDown, Loader2, AlertCircle, RefreshCw,
-  X, Clock, ShoppingCart, Package,
+  X, Clock, ShoppingCart, Package, Filter,
 } from "lucide-react";
 import { usePositions, UserPosition } from "@/hooks/usePositions";
 import { useOpenOrders, OpenOrder } from "@/hooks/useOpenOrders";
+import { useRedeemPosition } from "@/hooks/useRedeemPosition";
 import { SellModal } from "./SellModal";
 
 type SubTab = "positions" | "orders";
+type PositionFilter = "active" | "resolved" | "all";
+
+function isResolved(pos: UserPosition): boolean {
+  // A position is considered resolved if:
+  // 1. currentValue is exactly 0 or very close to 0 AND size > 0 (lost)
+  // 2. cashPnl is non-zero and current price is 0 or 1 (market settled)
+  const value = pos.currentValue || 0;
+  const size = pos.size || 0;
+  if (size <= 0) return true; // no shares left
+  if (value < 0.01 && size > 0) return true; // worthless position
+  // Check if price is exactly 0 or 1 (settled market)
+  const avgPrice = pos.avgPrice || 0;
+  const impliedPrice = size > 0 ? value / size : 0;
+  if (impliedPrice <= 0.01 || impliedPrice >= 0.99) return true;
+  return false;
+}
 
 export function PositionsTab() {
   const { positions, isLoading: posLoading, error: posError, fetchPositions } = usePositions();
   const { orders, isLoading: ordLoading, error: ordError, fetchOrders, cancelOrder, cancelAllOrders } = useOpenOrders();
+  const { isRedeeming, error: redeemError, redeemPosition } = useRedeemPosition();
 
   const [subTab, setSubTab] = useState<SubTab>("positions");
+  const [positionFilter, setPositionFilter] = useState<PositionFilter>("active");
   const [refreshing, setRefreshing] = useState(false);
   const [sellModalOpen, setSellModalOpen] = useState(false);
   const [selectedPosition, setSelectedPosition] = useState<UserPosition | null>(null);
@@ -36,6 +55,14 @@ export function PositionsTab() {
     setSellModalOpen(true);
   };
 
+  const handleRedeem = async (position: UserPosition) => {
+    const success = await redeemPosition(position.asset_id, position.negRisk);
+    if (success) {
+      // Refresh positions after successful redeem
+      await fetchPositions();
+    }
+  };
+
   const handleSellSuccess = () => { fetchPositions(); fetchOrders(); };
 
   const handleCancelOrder = async (orderId: string) => {
@@ -54,6 +81,16 @@ export function PositionsTab() {
     try { await cancelAllOrders(); await fetchOrders(); }
     finally { setCancellingAll(false); }
   };
+
+  // Filter positions
+  const filteredPositions = positions.filter((pos) => {
+    if (positionFilter === "all") return true;
+    const resolved = isResolved(pos);
+    return positionFilter === "resolved" ? resolved : !resolved;
+  });
+
+  const activeCount = positions.filter((p) => !isResolved(p)).length;
+  const resolvedCount = positions.filter((p) => isResolved(p)).length;
 
   const isLoading = subTab === "positions" ? posLoading : ordLoading;
   const error = subTab === "positions" ? posError : ordError;
@@ -111,6 +148,29 @@ export function PositionsTab() {
           </button>
         </div>
 
+        {/* Position filter (only show when on positions tab and have positions) */}
+        {subTab === "positions" && positions.length > 0 && (
+          <div className="flex items-center gap-1 bg-[#0a0a0a] border border-zinc-800/60 p-1">
+            {([
+              { id: "active" as const, label: "Active", count: activeCount },
+              { id: "resolved" as const, label: "Resolved", count: resolvedCount },
+              { id: "all" as const, label: "All", count: positions.length },
+            ]).map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setPositionFilter(f.id)}
+                className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-widest transition-all duration-200 ${
+                  positionFilter === f.id
+                    ? "bg-zinc-800 text-white"
+                    : "text-zinc-600 hover:text-zinc-400"
+                }`}
+              >
+                {f.label} ({f.count})
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Error */}
         {error && (
           <div className="border border-red-800 bg-red-950/30 p-4 flex items-start gap-3">
@@ -137,8 +197,23 @@ export function PositionsTab() {
           <>
             {positions.length === 0 ? (
               <EmptyState icon={<TrendingUp className="w-8 h-8 text-zinc-500" />} title="No Positions Yet" subtitle="Place orders on markets to see them here" />
+            ) : filteredPositions.length === 0 ? (
+              <EmptyState
+                icon={<Filter className="w-8 h-8 text-zinc-500" />}
+                title={`No ${positionFilter} positions`}
+                subtitle={positionFilter === "active" ? "All your positions have resolved" : "No resolved positions yet"}
+              />
             ) : (
-              positions.map((pos) => <PositionCard key={pos.asset_id} position={pos} onSell={handleSellClick} />)
+              filteredPositions.map((pos) => (
+                <PositionCard
+                  key={pos.asset_id}
+                  position={pos}
+                  onSell={handleSellClick}
+                  onRedeem={handleRedeem}
+                  isRedeeming={isRedeeming}
+                  isResolved={isResolved(pos)}
+                />
+              ))
             )}
           </>
         )}
@@ -189,7 +264,13 @@ function EmptyState({ icon, title, subtitle }: { icon: React.ReactNode; title: s
   );
 }
 
-function PositionCard({ position: pos, onSell }: { position: UserPosition; onSell: (p: UserPosition) => void }) {
+function PositionCard({ position: pos, onSell, onRedeem, isRedeeming, isResolved }: { 
+  position: UserPosition; 
+  onSell: (p: UserPosition) => void; 
+  onRedeem: (p: UserPosition) => void;
+  isRedeeming: boolean;
+  isResolved: boolean;
+}) {
   const isUp = pos.currentValue >= pos.size * pos.avgPrice;
   const avgPriceCents = pos.avgPrice * 100;
   const totalCost = pos.size * pos.avgPrice;
@@ -197,13 +278,30 @@ function PositionCard({ position: pos, onSell }: { position: UserPosition; onSel
   const pnlColor = pos.cashPnl > 0 ? "text-white" : pos.cashPnl < 0 ? "text-red-400" : "text-zinc-500";
 
   return (
-    <article className="border border-zinc-800 bg-[#111] p-5 interact-border">
+    <article className={`border bg-[#111] p-5 interact-border ${isResolved ? "border-zinc-800/50 opacity-60" : "border-zinc-800"}`}>
+      {/* Resolved badge */}
+      {isResolved && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest bg-zinc-800 text-zinc-500 border border-zinc-700">
+            Resolved
+          </span>
+          {pos.cashPnl > 0 && (
+            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">Won</span>
+          )}
+          {pos.cashPnl < 0 && (
+            <span className="text-[9px] font-bold uppercase tracking-wider text-red-400">Lost</span>
+          )}
+        </div>
+      )}
+
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
-          {pos.question && <p className="text-sm font-bold text-white mb-2">{pos.question}</p>}
+          {pos.question && <p className={`text-sm font-bold mb-2 ${isResolved ? "text-zinc-400" : "text-white"}`}>{pos.question}</p>}
           <div className="flex items-center gap-2 mb-3">
             <span className={`px-3 py-1 text-xs font-black uppercase tracking-wider flex items-center gap-1 border ${
-              isUp ? "border-white text-white bg-white/5" : "border-zinc-700 text-zinc-400"
+              isResolved
+                ? "border-zinc-700 text-zinc-500"
+                : isUp ? "border-white text-white bg-white/5" : "border-zinc-700 text-zinc-400"
             }`}>
               {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
               {pos.outcome || "Position"}
@@ -234,17 +332,37 @@ function PositionCard({ position: pos, onSell }: { position: UserPosition; onSel
           </p>
         </div>
 
-        <button
-          onClick={() => onSell(pos)}
-          disabled={pos.size <= 0}
-          className="ml-4 px-4 py-2 text-xs font-black uppercase tracking-wider border border-zinc-700 text-zinc-400 hover:border-white hover:text-white hover:bg-[#1a1a1a] transition-colors disabled:opacity-30"
-        >
-          Sell
-        </button>
+        {isResolved ? (
+          // Show Claim button for resolved positions that have value
+          pos.currentValue > 0 && (
+            <button
+              onClick={() => onRedeem(pos)}
+              disabled={isRedeeming}
+              className="ml-4 px-4 py-2 text-xs font-black uppercase tracking-wider border border-emerald-700 text-emerald-400 hover:border-emerald-500 hover:bg-emerald-950/30 transition-colors disabled:opacity-50"
+            >
+              {isRedeeming ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Claiming...
+                </span>
+              ) : (
+                `Claim $${pos.currentValue.toFixed(2)}`
+              )}
+            </button>
+          )
+        ) : (
+          <button
+            onClick={() => onSell(pos)}
+            disabled={pos.size <= 0}
+            className="ml-4 px-4 py-2 text-xs font-black uppercase tracking-wider border border-zinc-700 text-zinc-400 hover:border-white hover:text-white hover:bg-[#1a1a1a] transition-colors disabled:opacity-30"
+          >
+            Sell
+          </button>
+        )}
       </div>
 
       <div className="relative h-1 bg-zinc-800 overflow-hidden">
-        <div className={`h-full ${isUp ? "bg-white" : "bg-zinc-600"}`} style={{ width: "100%" }} />
+        <div className={`h-full ${isResolved ? "bg-zinc-600" : isUp ? "bg-white" : "bg-zinc-600"}`} style={{ width: "100%" }} />
       </div>
     </article>
   );
