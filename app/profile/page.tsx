@@ -20,7 +20,7 @@ type ProfileSection = "posts" | "positions";
 export default function ProfilePage() {
   const { authenticated, user, login } = usePrivy();
   const router = useRouter();
-  const { eoaAddress } = useWallet();
+  const { eoaAddress, safeAddress } = useWallet();
   const [posts, setPosts] = useState<PostWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<ProfileSection>("posts");
@@ -86,7 +86,7 @@ export default function ProfilePage() {
   }, [authenticated, user, loadProfile, loadFollowCounts, loadUserPosts]);
 
   const handleCopyAddress = () => {
-    const value = user?.wallet?.address || "—";
+    const value = safeAddress || user?.wallet?.address || "—";
     navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -141,7 +141,7 @@ export default function ProfilePage() {
     user?.email?.address?.split("@")[0] || "user";
   const avatarUrl = profileData?.avatar_url || null;
   const bioText = profileData?.bio || "";
-  const walletAddress = profileData?.wallet_address || user?.wallet?.address || "";
+  const walletAddress = safeAddress || profileData?.wallet_address || user?.wallet?.address || "";
   const shortWallet = walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "—";
   const memberSince = profileData?.created_at
     ? new Date(profileData.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
