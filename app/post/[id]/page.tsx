@@ -8,6 +8,7 @@ import { PostCard } from "@/components/PostCard";
 import { formatDistanceToNow } from "date-fns";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import type { PostWithUser } from "@/lib/types";
+import Link from "next/link";
 
 interface Comment {
   id: string;
@@ -52,7 +53,6 @@ export default function PostDetailPage() {
     try {
       const res = await fetch(`/api/comments?post_id=${id}`);
       const data = await res.json();
-      // Build tree from flat list
       const flat: Comment[] = data.comments || [];
       const map = new Map<string, Comment>();
       const roots: Comment[] = [];
@@ -135,14 +135,15 @@ export default function PostDetailPage() {
     return list.reduce((sum, c) => sum + 1 + totalComments(c.replies || []), 0);
   };
 
-  // ── Render a single comment + its replies recursively ──
   const renderComment = (comment: Comment, depth: number = 0) => {
     const name = (comment.profiles as any)?.display_name || comment.profiles?.username || comment.profiles?.email?.split("@")[0] || "User";
+    const avatarUrl = comment.profiles?.avatar_url;
     const isOwn = user?.id === comment.user_id;
     const hasReplies = (comment.replies?.length || 0) > 0;
     const isCollapsed = collapsedThreads.has(comment.id);
-    const maxDepth = 4; // visual nesting limit
+    const maxDepth = 4;
     const indentLevel = Math.min(depth, maxDepth);
+    const profileLink = isOwn ? "/profile" : `/user/${encodeURIComponent(comment.user_id)}`;
 
     return (
       <div key={comment.id} className={depth > 0 ? "mt-2" : ""}>
@@ -153,19 +154,28 @@ export default function PostDetailPage() {
           style={{ marginLeft: indentLevel > 0 ? `${indentLevel * 20}px` : undefined }}
         >
           <div className="flex gap-3">
-            <div className="w-8 h-8 flex-shrink-0 border border-zinc-700 bg-zinc-900 flex items-center justify-center">
-              <span className="text-xs font-black text-white uppercase">{name[0]}</span>
-            </div>
+            {/* Avatar - clickable with image support */}
+            <Link href={profileLink} className="flex-shrink-0">
+              <div className="w-8 h-8 border border-zinc-700 bg-zinc-900 flex items-center justify-center overflow-hidden hover:border-zinc-500 transition-colors">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xs font-black text-white uppercase">{name[0]}</span>
+                )}
+              </div>
+            </Link>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-black text-white uppercase">{name}</span>
+                  {/* Name - clickable link to profile */}
+                  <Link href={profileLink} className="text-sm font-black text-white uppercase hover:text-zinc-300 transition-colors">
+                    {name}
+                  </Link>
                   <span className="text-[10px] text-zinc-600 font-mono">
                     {formatDistanceToNow(new Date(comment.created_at), { addSuffix: false }).toUpperCase()}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  {/* Reply button */}
                   {user && (
                     <button
                       onClick={() => {
@@ -178,7 +188,6 @@ export default function PostDetailPage() {
                       <Reply className="w-3.5 h-3.5" />
                     </button>
                   )}
-                  {/* Delete button */}
                   {isOwn && (
                     <button
                       onClick={() => handleDeleteComment(comment.id)}
@@ -191,7 +200,6 @@ export default function PostDetailPage() {
               </div>
               <p className="text-sm text-zinc-300 font-medium leading-relaxed">{comment.content}</p>
 
-              {/* Collapse/expand replies */}
               {hasReplies && (
                 <button
                   onClick={() => toggleThread(comment.id)}
@@ -214,7 +222,7 @@ export default function PostDetailPage() {
             style={{ marginLeft: `${(indentLevel + 1) * 20}px` }}
           >
             <div className="flex gap-3">
-              <div className="w-6 h-6 flex-shrink-0 border border-zinc-700 bg-zinc-900 flex items-center justify-center">
+              <div className="w-6 h-6 flex-shrink-0 border border-zinc-700 bg-zinc-900 flex items-center justify-center overflow-hidden">
                 <span className="text-[9px] font-black text-white uppercase">
                   {(user?.google?.name || user?.email?.address || "U")[0]}
                 </span>
@@ -286,7 +294,6 @@ export default function PostDetailPage() {
 
       <PostCard post={post} />
 
-      {/* New top-level comment */}
       {user && (
         <form onSubmit={handleSubmitComment} className="bg-[#0a0a0a] border border-zinc-800 p-5">
           <div className="flex gap-4">
@@ -317,7 +324,6 @@ export default function PostDetailPage() {
         </form>
       )}
 
-      {/* Comments section */}
       <div>
         <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-4 pb-3 border-b border-zinc-800">
           Comments ({totalComments(comments)})
