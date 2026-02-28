@@ -40,7 +40,9 @@ export async function GET(req: NextRequest) {
     if (error) throw error;
 
     // Fallback: if no posts in 7 days, get latest 50
-    if (!posts || posts.length === 0) {
+    // Fallback: if fewer than 10 posts in 7 days, backfill with older posts
+    if (!posts || posts.length < 10) {
+      const existingIds = (posts || []).map((p: any) => p.id);
       const { data: fallbackPosts, error: fbErr } = await supabase
         .from("posts")
         .select(`*, profiles (id, email, username, avatar_url, display_name)`)
@@ -48,7 +50,9 @@ export async function GET(req: NextRequest) {
         .limit(50);
 
       if (fbErr) throw fbErr;
-      posts = fallbackPosts || [];
+      // Merge without duplicates
+      const backfill = (fallbackPosts || []).filter((p: any) => !existingIds.includes(p.id));
+      posts = [...(posts || []), ...backfill];
     }
 
     if (posts.length === 0) {
