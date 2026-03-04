@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
 import { isValidInviteCode } from "@/lib/validate";
-import { generateInviteCodesForUser } from "@/lib/invite";
 import { RL, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
@@ -77,10 +76,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to approve" }, { status: 500 });
     }
 
-    // Generate invite codes for the new user
-    const newCodes = await generateInviteCodesForUser(userId);
-
-    return NextResponse.json({ success: true, codes: newCodes });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Beta redeem error:", error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

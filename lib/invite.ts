@@ -11,6 +11,22 @@ function generateCode(): string {
   return `FL-${body}`;
 }
 
+export async function generateSingleInviteCode(ownerId: string): Promise<string> {
+  const supabase = createServiceClient();
+  const code = generateCode();
+
+  const { error } = await supabase
+    .from("invite_codes")
+    .insert({ code, owner_id: ownerId });
+
+  if (error) {
+    console.error("Failed to generate invite code:", error);
+    throw new Error("Failed to generate invite code");
+  }
+
+  return code;
+}
+
 export async function generateInviteCodesForUser(userId: string): Promise<string[]> {
   const supabase = createServiceClient();
   const codes: string[] = [];

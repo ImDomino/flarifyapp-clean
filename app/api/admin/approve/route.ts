@@ -6,7 +6,7 @@ import {
   forbiddenResponse,
   isAdmin,
 } from "@/lib/auth";
-import { generateInviteCodesForUser } from "@/lib/invite";
+import { generateSingleInviteCode } from "@/lib/invite";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,9 +21,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Generate invite codes owned by the admin (the waitlist user will
-    // redeem one of these when they sign up)
-    const codes = await generateInviteCodesForUser(userId);
+    // Generate a single invite code owned by admin
+    const inviteCode = await generateSingleInviteCode(userId);
 
     // Mark waitlist entry as approved
     await supabase
@@ -31,15 +30,12 @@ export async function POST(request: NextRequest) {
       .update({ approved_at: new Date().toISOString() })
       .eq("email", email.toLowerCase().trim());
 
-    // Return the first code as the invite link
-    const inviteCode = codes[0];
     const inviteLink = `/?invite=${inviteCode}`;
 
     return NextResponse.json({
       success: true,
       inviteCode,
       inviteLink,
-      allCodes: codes,
     });
   } catch (error) {
     console.error("Admin approve error:", error);
