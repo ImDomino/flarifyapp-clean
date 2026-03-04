@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrivyClient } from "@privy-io/server-auth";
+import { createServiceClient } from "@/lib/supabase/server";
 
 // npm install @privy-io/server-auth
 // Add PRIVY_APP_SECRET to .env
@@ -30,4 +31,28 @@ export function unauthorizedResponse(message = "Unauthorized") {
 
 export function forbiddenResponse(message = "Forbidden") {
   return NextResponse.json({ error: message }, { status: 403 });
+}
+
+export async function isBetaApproved(userId: string): Promise<boolean> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("is_beta_approved")
+    .eq("id", userId)
+    .maybeSingle();
+  return data?.is_beta_approved === true;
+}
+
+export async function isAdmin(userId: string): Promise<boolean> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", userId)
+    .maybeSingle();
+  return data?.is_admin === true;
+}
+
+export function betaRequiredResponse() {
+  return NextResponse.json({ error: "Beta access required" }, { status: 403 });
 }

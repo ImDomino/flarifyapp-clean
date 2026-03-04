@@ -1,57 +1,203 @@
-import { BarChart3, FileText, MousePointerClick, Users } from "lucide-react";
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
+
+interface WaitlistEntry {
+  email: string;
+  created_at: string;
+  approved: boolean;
+}
 
 export default function AdminPage() {
-  const mockStats = {
-    totalPosts: 127,
-    totalClicks: 3456,
-    totalUsers: 89,
+  const authFetch = useAuthFetch();
+  const [entries, setEntries] = useState<WaitlistEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const [inviteResult, setInviteResult] = useState<{
+    email: string;
+    code: string;
+    link: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const loadWaitlist = useCallback(async () => {
+    try {
+      const res = await authFetch("/api/admin/waitlist");
+      if (res.status === 401 || res.status === 403) {
+        setError("Access denied");
+        return;
+      }
+      const data = await res.json();
+      setEntries(data.entries || []);
+    } catch {
+      setError("Failed to load waitlist");
+    } finally {
+      setLoading(false);
+    }
+  }, [authFetch]);
+
+  useEffect(() => {
+    loadWaitlist();
+  }, [loadWaitlist]);
+
+  const handleApprove = async (email: string) => {
+    setGeneratingFor(email);
+    setInviteResult(null);
+    try {
+      const res = await authFetch("/api/admin/approve", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setInviteResult({
+          email,
+          code: data.inviteCode,
+          link: `${window.location.origin}${data.inviteLink}`,
+        });
+        // Refresh list to show updated status
+        setEntries((prev) =>
+          prev.map((e) => (e.email === email ? { ...e, approved: true } : e))
+        );
+      } else {
+        alert(data.error || "Failed to generate invite");
+      }
+    } catch {
+      alert("Failed to generate invite");
+    } finally {
+      setGeneratingFor(null);
+    }
   };
 
-  return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="text-center py-4 bg-yellow-500/10 rounded-lg border border-yellow-500/50">
-        <div className="text-yellow-500 font-semibold mb-1">
-          🧪 DEMO MODE
-        </div>
-        <p className="text-muted-foreground text-sm">
-          Mock analytics data
-        </p>
-      </div>
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-      <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-green-400 bg-clip-text text-transparent mb-6">
-        Admin Dashboard
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto py-12 text-center text-muted-foreground">
+        Loading...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto py-12 text-center">
+        <p className="text-red-500 text-lg font-medium">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6 py-8 px-4">
+      <h1 className="text-2xl font-bold text-foreground">
+        Waitlist Management
       </h1>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card rounded-lg border border-border p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <FileText className="h-6 w-6 text-primary" />
-            <span className="text-muted-foreground">Total Posts</span>
-          </div>
-          <p className="text-4xl font-bold text-foreground">{mockStats.totalPosts}</p>
-        </div>
+      <p className="text-sm text-muted-foreground">
+        {entries.length} total &middot;{" "}
+        {entries.filter((e) => e.approved).length} approved &middot;{" "}
+        {entries.filter((e) => !e.approved).length} pending
+      </p>
 
-        <div className="bg-card rounded-lg border border-border p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <MousePointerClick className="h-6 w-6 text-primary" />
-            <span className="text-muted-foreground">Total Clicks</span>
+      {/* Invite result banner */}
+      {inviteResult && (
+        <div className="bg-card border border-border rounded-lg p-4 space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Invite generated for{" "}
+            <span className="text-foreground font-medium">
+              {inviteResult.email}
+            </span>
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm font-mono select-all">
+              {inviteResult.link}
+            </code>
+            <button
+              onClick={() => copyToClipboard(inviteResult.link)}
+              className="px-3 py-2 text-sm border border-border rounded hover:bg-accent transition-colors whitespace-nowrap"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
           </div>
-          <p className="text-4xl font-bold text-foreground">{mockStats.totalClicks}</p>
+          <p className="text-xs text-muted-foreground">
+            Code: {inviteResult.code}
+          </p>
         </div>
+      )}
 
-        <div className="bg-card rounded-lg border border-border p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <Users className="h-6 w-6 text-primary" />
-            <span className="text-muted-foreground">Total Users</span>
-          </div>
-          <p className="text-4xl font-bold text-foreground">{mockStats.totalUsers}</p>
-        </div>
-      </div>
-
-      <div className="text-center py-12 text-muted-foreground bg-card rounded-lg border border-border">
-        <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-        <p>Detailed analytics will appear here in production</p>
+      {/* Waitlist table */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-card">
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                Email
+              </th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                Date
+              </th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                Status
+              </th>
+              <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry) => (
+              <tr
+                key={entry.email}
+                className="border-b border-border last:border-b-0"
+              >
+                <td className="px-4 py-3 font-mono text-foreground">
+                  {entry.email}
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">
+                  {new Date(entry.created_at).toLocaleDateString()}
+                </td>
+                <td className="px-4 py-3">
+                  {entry.approved ? (
+                    <span className="text-green-500 text-xs font-medium">
+                      Approved
+                    </span>
+                  ) : (
+                    <span className="text-yellow-500 text-xs font-medium">
+                      Pending
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    onClick={() => handleApprove(entry.email)}
+                    disabled={generatingFor === entry.email}
+                    className="px-3 py-1 text-xs border border-border rounded hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    {generatingFor === entry.email
+                      ? "Generating..."
+                      : "Generate Invite"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {entries.length === 0 && (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="px-4 py-8 text-center text-muted-foreground"
+                >
+                  No waitlist entries yet
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

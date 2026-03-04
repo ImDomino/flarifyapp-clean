@@ -22,6 +22,8 @@ export const RL = {
   updateProfile: (uid: string) => check(`profile:${uid}`, 5, 60_000),
   upload:        (uid: string) => check(`upload:${uid}`, 10, 60_000),
   placeOrder:    (uid: string) => check(`order:${uid}`, 10, 60_000),
+  joinWaitlist:  (ip: string)  => check(`waitlist:${ip}`, 3, 60_000),
+  redeemInvite:  (uid: string) => check(`redeem:${uid}`, 5, 60_000),
 };
 
 export function rateLimitResponse() {

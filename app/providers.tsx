@@ -1,6 +1,7 @@
 'use client';
 
 import { WalletProvider, useWallet } from '@/providers/WalletProvider';
+import { BetaGateProvider } from '@/providers/BetaGateProvider';
 import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { createClient } from '@/lib/supabase/client';
@@ -98,7 +99,9 @@ function ProfileSync({ children }: { children: React.ReactNode }) {
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WalletProvider>
-      <ProfileSync>{children}</ProfileSync>
+      <ProfileSync>
+        <BetaGateProvider>{children}</BetaGateProvider>
+      </ProfileSync>
     </WalletProvider>
   );
 }
