@@ -14,21 +14,21 @@ export async function POST(request: NextRequest) {
     if (!userId) return unauthorizedResponse();
     if (!(await isAdmin(userId))) return forbiddenResponse();
 
-    const { email } = await request.json();
-    if (!email || typeof email !== "string") {
-      return NextResponse.json({ error: "Email required" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => ({}));
+    const email = body?.email;
 
     const supabase = createServiceClient();
 
     // Generate a single invite code owned by admin
     const inviteCode = await generateSingleInviteCode(userId);
 
-    // Mark waitlist entry as approved
-    await supabase
-      .from("waitlist")
-      .update({ approved_at: new Date().toISOString() })
-      .eq("email", email.toLowerCase().trim());
+    // If email provided, mark waitlist entry as approved
+    if (email && typeof email === "string") {
+      await supabase
+        .from("waitlist")
+        .update({ approved_at: new Date().toISOString() })
+        .eq("email", email.toLowerCase().trim());
+    }
 
     const inviteLink = `/?invite=${inviteCode}`;
 
