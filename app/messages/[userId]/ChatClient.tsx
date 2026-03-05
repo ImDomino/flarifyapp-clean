@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { ArrowLeft, Send, Image as ImageIcon, X, Loader2 } from "lucide-react";
-import { useChat } from "@/hooks/useChat";
+import { ArrowLeft, Send, Image as ImageIcon, X, Loader2, Check, Pencil, Reply } from "lucide-react";
+import { useChat, type Message } from "@/hooks/useChat";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import { MessageBubble, DateSeparator } from "@/components/MessageBubble";
 import { PageTransition } from "@/components/PageTransition";
@@ -23,18 +23,21 @@ export function ChatClient() {
   const { user } = usePrivy();
   const authFetch = useAuthFetch();
 
-  const { messages, isLoading, isSending, isTyping, sendMessage, sendTyping } = useChat({
-    recipientId,
-    userId: user?.id,
-  });
+  const {
+    messages, isLoading, isSending, isTyping,
+    sendMessage, sendTyping, deleteMessage, editMessage,
+  } = useChat({ recipientId, userId: user?.id });
 
   const [text, setText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [recipientProfile, setRecipientProfile] = useState<any>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -69,8 +72,38 @@ export function ChatClient() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleStartEdit = (msg: Message) => {
+    setEditingMessage(msg);
+    setText(msg.content || "");
+    setReplyingTo(null);
+    removeImage();
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessage(null);
+    setText("");
+  };
+
+  const handleStartReply = (msg: Message) => {
+    setReplyingTo(msg);
+    setEditingMessage(null);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  };
+
   const handleSend = async () => {
+    // Edit mode
+    if (editingMessage) {
+      if (!text.trim()) return;
+      await editMessage(editingMessage.id, text.trim());
+      setEditingMessage(null);
+      setText("");
+      return;
+    }
+
+    // Normal send / reply
     if (!text.trim() && !imageFile) return;
+
     let imageUrl: string | undefined;
     if (imageFile) {
       setIsUploading(true);
@@ -83,12 +116,19 @@ export function ChatClient() {
       } catch {}
       finally { setIsUploading(false); }
     }
-    await sendMessage(text.trim(), imageUrl);
+
+    await sendMessage(text.trim(), imageUrl, replyingTo?.id);
     setText("");
     removeImage();
+    setReplyingTo(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      if (editingMessage) { handleCancelEdit(); return; }
+      if (replyingTo) { setReplyingTo(null); return; }
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -96,7 +136,7 @@ export function ChatClient() {
   };
 
   const messagesWithDates = useMemo(() => {
-    const result: { type: "date" | "message"; date?: string; msg?: any }[] = [];
+    const result: { type: "date" | "message"; date?: string; msg?: Message }[] = [];
     messages.forEach((msg, i) => {
       if (i === 0 || !isSameDay(messages[i - 1].created_at, msg.created_at)) {
         result.push({ type: "date", date: msg.created_at });
@@ -169,13 +209,11 @@ export function ChatClient() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-4 relative">
-        {/* Subtle vertical guide line */}
         <div className="absolute top-0 left-1/2 w-px h-full bg-zinc-900/50 pointer-events-none" />
 
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center animate-scale-in">
-              {/* Profile preview for empty state */}
               <div className="w-16 h-16 mx-auto mb-2 border-2 border-zinc-800 flex items-center justify-center overflow-hidden">
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -200,12 +238,26 @@ export function ChatClient() {
                 <DateSeparator key={`date-${i}`} date={item.date!} />
               ) : (
                 <MessageBubble
-                  key={item.msg.id}
-                  content={item.msg.content}
-                  imageUrl={item.msg.image_url}
-                  isSent={item.msg.sender_id === user?.id}
-                  read={item.msg.read}
-                  createdAt={item.msg.created_at}
+                  key={item.msg!.id}
+                  content={item.msg!.content}
+                  imageUrl={item.msg!.image_url}
+                  isSent={item.msg!.sender_id === user?.id}
+                  read={item.msg!.read}
+                  createdAt={item.msg!.created_at}
+                  deletedAt={item.msg!.deleted_at}
+                  editedAt={item.msg!.edited_at}
+                  replyTo={item.msg!.reply_to}
+                  onReply={() => handleStartReply(item.msg!)}
+                  onEdit={
+                    item.msg!.sender_id === user?.id && !item.msg!.deleted_at && item.msg!.content
+                      ? () => handleStartEdit(item.msg!)
+                      : undefined
+                  }
+                  onDelete={
+                    item.msg!.sender_id === user?.id && !item.msg!.deleted_at
+                      ? () => deleteMessage(item.msg!.id)
+                      : undefined
+                  }
                 />
               )
             )}
@@ -215,7 +267,7 @@ export function ChatClient() {
       </div>
 
       {/* Image Preview */}
-      {imagePreview && (
+      {imagePreview && !editingMessage && (
         <div className="px-4 sm:px-5 pb-2 flex-shrink-0 border-t border-zinc-800/30 pt-3 bg-[#080808]">
           <div className="relative inline-block border border-zinc-800">
             <Image src={imagePreview} alt="Preview" width={120} height={80} className="h-20 w-auto object-cover" unoptimized />
@@ -229,26 +281,69 @@ export function ChatClient() {
         </div>
       )}
 
+      {/* Reply / Edit Preview Bar */}
+      {(replyingTo || editingMessage) && (
+        <div className="flex-shrink-0 border-t border-zinc-800/40 bg-[#080808] px-4 sm:px-5 py-2.5 flex items-center gap-3 animate-fade-in">
+          <div className={`w-1 h-8 flex-shrink-0 ${editingMessage ? "bg-zinc-500" : "bg-white/30"}`} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              {editingMessage ? (
+                <Pencil className="w-3 h-3 text-zinc-500" />
+              ) : (
+                <Reply className="w-3 h-3 text-zinc-500" />
+              )}
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                {editingMessage ? "Editing message" : "Replying"}
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-400 truncate">
+              {editingMessage
+                ? editingMessage.content
+                : replyingTo?.content || (replyingTo?.image_url ? "Photo" : "")
+              }
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              if (editingMessage) handleCancelEdit();
+              else setReplyingTo(null);
+            }}
+            className="p-1.5 text-zinc-600 hover:text-white transition-colors flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Input */}
       <div className="flex-shrink-0 bg-[#0a0a0a] border-t border-zinc-800/60 p-3 sm:p-4">
-        <div className="flex items-end gap-2 bg-[#0e0e0e] border border-zinc-800/70 focus-within:border-zinc-600 transition-colors">
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2.5 text-zinc-600 hover:text-white transition-colors flex-shrink-0"
-          >
-            <ImageIcon className="w-5 h-5" />
-          </button>
+        <div className={`flex items-end gap-2 bg-[#0e0e0e] border transition-colors ${
+          editingMessage ? "border-zinc-600" : "border-zinc-800/70 focus-within:border-zinc-600"
+        }`}>
+          {!editingMessage && (
+            <>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2.5 text-zinc-600 hover:text-white transition-colors flex-shrink-0"
+              >
+                <ImageIcon className="w-5 h-5" />
+              </button>
+            </>
+          )}
           <textarea
+            ref={textareaRef}
             value={text}
             onChange={(e) => {
               setText(e.target.value);
-              handleTyping();
+              if (!editingMessage) handleTyping();
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder={editingMessage ? "Edit message..." : "Type a message..."}
             rows={1}
-            className="flex-1 bg-transparent text-sm font-medium text-white placeholder-zinc-600 focus:outline-none resize-none max-h-28 py-2.5"
+            className={`flex-1 bg-transparent text-sm font-medium text-white placeholder-zinc-600 focus:outline-none resize-none max-h-28 py-2.5 ${
+              editingMessage ? "pl-3" : ""
+            }`}
           />
           <button
             onClick={handleSend}
@@ -257,6 +352,8 @@ export function ChatClient() {
           >
             {isUploading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
+            ) : editingMessage ? (
+              <Check className="w-4 h-4" />
             ) : (
               <Send className="w-4 h-4 group-hover/send:translate-x-0.5 group-hover/send:-translate-y-0.5 transition-transform" />
             )}
@@ -264,7 +361,7 @@ export function ChatClient() {
         </div>
         <div className="flex items-center justify-between mt-1.5 px-1">
           <span className="text-[9px] text-zinc-800 font-mono uppercase tracking-wider">
-            Enter to send · Shift+Enter for new line
+            {editingMessage ? "Esc to cancel · Enter to save" : "Enter to send · Shift+Enter for new line"}
           </span>
         </div>
       </div>
