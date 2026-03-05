@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { X, Camera, Loader2 } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
+import { toast } from "sonner";
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -79,6 +80,7 @@ export function EditProfileModal({
 
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || "Failed to save");
+      toast.success("Profile saved");
       onSaved(); onClose();
     } catch (err: any) {
       setError(err.message || "Failed to save profile");

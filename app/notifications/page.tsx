@@ -8,6 +8,7 @@ import {
   Heart, MessageCircle, UserPlus, Bell,
   CheckCheck, Shield, Loader2,
 } from "lucide-react";
+import { PageTransition } from "@/components/PageTransition";
 import { formatDistanceToNow } from "date-fns";
 
 interface NotificationItem {
@@ -156,6 +157,7 @@ export default function NotificationsPage() {
   const groups = groupByDate(notifications);
 
   return (
+    <PageTransition>
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between animate-fade-up">
@@ -320,5 +322,6 @@ export default function NotificationsPage() {
         </div>
       ))}
     </div>
+    </PageTransition>
   );
 }

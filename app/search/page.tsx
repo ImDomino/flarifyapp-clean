@@ -6,6 +6,7 @@ import { Search, Users, FileText, BarChart3, ArrowRight, X } from "lucide-react"
 import { PostCard } from "@/components/PostCard";
 import { formatDistanceToNow } from "date-fns";
 import type { PostWithUser } from "@/lib/types";
+import { PageTransition } from "@/components/PageTransition";
 
 type Tab = "all" | "posts" | "users" | "markets";
 
@@ -106,6 +107,7 @@ function SearchContent() {
   const showMarkets = activeTab === "all" || activeTab === "markets";
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Search input */}
       <div className="relative">
@@ -275,5 +277,6 @@ function SearchContent() {
         </div>
       )}
     </div>
+    </PageTransition>
   );
 }

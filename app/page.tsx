@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { PostCard } from "@/components/PostCard";
 import { Plus, Image as ImageIcon, BarChart2, Calendar } from "lucide-react";
+import { PageTransition } from "@/components/PageTransition";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
@@ -137,6 +138,7 @@ export default function Home() {
   const avatarUrl = profileData?.avatar_url || null;
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* ═══ ANIMATED HERO ═══ */}
       <div className="mb-8 lg:mb-12 relative overflow-hidden">
@@ -307,5 +309,6 @@ export default function Home() {
         </>
       )}
     </div>
+    </PageTransition>
   );
 }

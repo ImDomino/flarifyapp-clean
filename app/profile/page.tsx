@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
+import { PageTransition } from "@/components/PageTransition";
 import {
   Shield, Fingerprint, Copy, Pencil, TrendingUp, TrendingDown,
   Eye, EyeOff, ChevronDown, ChevronUp, ExternalLink,
@@ -148,6 +149,7 @@ export default function ProfilePage() {
     : "2025";
 
   return (
+    <PageTransition>
     <div className="space-y-3">
       {/* ═══ PROFILE HEADER ═══ */}
       <section className="bg-[#0a0a0a] border border-zinc-800/70 relative overflow-hidden animate-fade-up corner-accent">
@@ -316,5 +318,6 @@ export default function ProfilePage() {
         onSaved={() => { loadProfile(); loadFollowCounts(); }}
       />
     </div>
+    </PageTransition>
   );
 }

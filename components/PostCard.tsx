@@ -9,6 +9,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
 import { MarketCard } from "./MarketCard";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
+import { toast } from "sonner";
 
 interface PostCardProps {
   post: PostWithUser & { 
@@ -96,6 +97,7 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
       if (!data.success) { setHasLiked(!newLiked); setLikes(likes); }
     } catch {
       setHasLiked(!newLiked); setLikes(likes);
+      toast.error("Failed to like post");
     } finally { setIsLiking(false); }
   };
 
@@ -150,6 +152,7 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
       if (!data.success) { setHasReposted(!newReposted); setRepostCount(repostCount); }
     } catch {
       setHasReposted(!newReposted); setRepostCount(repostCount);
+      toast.error("Failed to repost");
     } finally { setIsReposting(false); }
   };
 
@@ -184,6 +187,7 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
       if (!data.success) setHasBookmarked(!newBookmarked);
     } catch {
       setHasBookmarked(!newBookmarked);
+      toast.error("Failed to bookmark");
     } finally { setIsBookmarking(false); }
   };
 
@@ -206,11 +210,13 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
       });
       const data = await res.json();
       if (data.success) {
+        toast.success("Post deleted");
         onDeleted?.();
         if (!onDeleted) router.refresh();
       }
     } catch (err) {
       console.error("Delete error:", err);
+      toast.error("Failed to delete post");
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);

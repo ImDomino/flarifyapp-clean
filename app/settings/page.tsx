@@ -3,6 +3,7 @@
 import { Settings, Bell, Shield, Palette, Globe, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ComingSoon } from "@/components/ComingSoon";
+import { PageTransition } from "@/components/PageTransition";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -31,6 +32,7 @@ export default function SettingsPage() {
   ];
 
   return (
+    <PageTransition>
     <div className="space-y-5">
       <button
         onClick={() => router.back()}
@@ -72,5 +74,6 @@ export default function SettingsPage() {
         ))}
       </div>
     </div>
+    </PageTransition>
   );
 }

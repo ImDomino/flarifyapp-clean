@@ -7,6 +7,7 @@ import { Bookmark, ArrowLeft } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import type { PostWithUser } from "@/lib/types";
+import { PageTransition } from "@/components/PageTransition";
 
 export default function BookmarksPage() {
   const { user, authenticated } = usePrivy();
@@ -51,6 +52,7 @@ export default function BookmarksPage() {
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <button onClick={() => router.back()} className="text-zinc-400 hover:text-white transition-colors">
@@ -87,5 +89,6 @@ export default function BookmarksPage() {
         </>
       )}
     </div>
+    </PageTransition>
   );
 }

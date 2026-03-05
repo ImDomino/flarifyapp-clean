@@ -7,6 +7,8 @@ import { Image as ImageIcon, X, ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { MarketSearchInput } from "@/components/MarketSearchInput";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
+import { toast } from "sonner";
+import { PageTransition } from "@/components/PageTransition";
 
 interface Market {
   id: string;
@@ -113,7 +115,7 @@ export default function CreatePage() {
       setTimeout(() => router.push("/"), 1500);
     } catch (error) {
       console.error("Error creating post:", error);
-      alert("Failed to create post. Please try again.");
+      toast.error("Failed to create post. Please try again.");
     } finally {
       setIsLoading(false);
       setIsUploading(false);
@@ -135,6 +137,7 @@ export default function CreatePage() {
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <button onClick={() => router.back()} className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors">
@@ -192,5 +195,6 @@ export default function CreatePage() {
         </button>
       </form>
     </div>
+    </PageTransition>
   );
 }

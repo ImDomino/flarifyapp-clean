@@ -6,6 +6,7 @@ import { ArrowLeft, BarChart3, ExternalLink, MessageCircle, FileText } from "luc
 import { PostCard } from "@/components/PostCard";
 import { MarketCard } from "@/components/MarketCard";
 import type { PostWithUser } from "@/lib/types";
+import { PageTransition } from "@/components/PageTransition";
 
 interface MarketInfo {
   market_id: string;
@@ -72,6 +73,7 @@ export default function MarketPage() {
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Back button */}
       <button
@@ -160,5 +162,6 @@ export default function MarketPage() {
         )}
       </div>
     </div>
+    </PageTransition>
   );
 }

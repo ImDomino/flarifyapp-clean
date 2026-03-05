@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
+import { toast } from "sonner";
 
 interface FollowButtonProps {
   targetUserId: string;
@@ -38,7 +39,7 @@ export function FollowButton({ targetUserId, currentUserId, onFollowChange }: Fo
       const data = await res.json();
       setIsFollowing(data.action === "followed");
       onFollowChange?.();
-    } catch { /* silent */ }
+    } catch { toast.error("Failed to update follow"); }
     finally { setIsLoading(false); }
   };
 

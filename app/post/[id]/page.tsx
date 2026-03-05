@@ -9,6 +9,8 @@ import { formatDistanceToNow } from "date-fns";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import type { PostWithUser } from "@/lib/types";
 import Link from "next/link";
+import { toast } from "sonner";
+import { PageTransition } from "@/components/PageTransition";
 
 interface Comment {
   id: string;
@@ -86,8 +88,8 @@ export default function PostDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ post_id: id, content: newComment.trim() }),
       });
-      if (res.ok) { setNewComment(""); loadComments(); loadPost(); }
-    } catch (err) { console.error("Error:", err); }
+      if (res.ok) { setNewComment(""); loadComments(); loadPost(); toast.success("Comment added"); }
+    } catch (err) { console.error("Error:", err); toast.error("Failed to add comment"); }
     finally { setIsSubmitting(false); }
   };
 
@@ -105,8 +107,9 @@ export default function PostDetailPage() {
         setReplyingTo(null);
         loadComments();
         loadPost();
+        toast.success("Reply added");
       }
-    } catch (err) { console.error("Error:", err); }
+    } catch (err) { console.error("Error:", err); toast.error("Failed to add reply"); }
     finally { setIsSubmitting(false); }
   };
 
@@ -119,7 +122,8 @@ export default function PostDetailPage() {
         body: JSON.stringify({ comment_id: commentId }),
       });
       loadComments(); loadPost();
-    } catch (err) { console.error("Error:", err); }
+      toast.success("Comment deleted");
+    } catch (err) { console.error("Error:", err); toast.error("Failed to delete comment"); }
   };
 
   const toggleThread = (commentId: string) => {
@@ -286,6 +290,7 @@ export default function PostDetailPage() {
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       <button onClick={() => router.back()} className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors">
         <ArrowLeft className="w-5 h-5" />
@@ -339,5 +344,6 @@ export default function PostDetailPage() {
         )}
       </div>
     </div>
+    </PageTransition>
   );
 }
