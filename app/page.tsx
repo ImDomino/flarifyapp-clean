@@ -9,7 +9,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import type { PostWithUser } from "@/lib/types";
 
-type FeedTab = "foryou" | "following" | "trading";
+type FeedTab = "foryou" | "following";
 
 /* ── Shimmer skeleton for loading states ── */
 function PostSkeleton() {
@@ -128,7 +128,6 @@ export default function Home() {
 
   const handleTabSwitch = (tab: FeedTab) => {
     if (tab === "following" && !authenticated) return;
-    if (tab === "trading") return;
     setFeedTab(tab);
     setPage(1);
   };
@@ -213,8 +212,8 @@ export default function Home() {
 
       {/* ═══ FEED TABS — with animated indicator ═══ */}
       <div className="flex border-b border-zinc-800/60 sticky top-20 bg-[#050505]/95 backdrop-blur-md z-40 animate-fade-down stagger-3">
-        {(["foryou", "following", "trading"] as const).map((tab) => {
-          const labels: Record<FeedTab, string> = { foryou: "For You", following: "Following", trading: "Trading" };
+        {(["foryou", "following"] as const).map((tab) => {
+          const labels: Record<FeedTab, string> = { foryou: "For You", following: "Following" };
           const isActive = feedTab === tab;
           const isDisabled = tab === "following" && !authenticated;
           return (
