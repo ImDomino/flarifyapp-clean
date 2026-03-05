@@ -7,6 +7,17 @@ import { Toaster } from "sonner";
 export const metadata: Metadata = {
   title: "Flarify — Social Network for Prediction Market Traders",
   description: "The first social network for Polymarket predictors",
+  openGraph: {
+    title: "Flarify — Social Network for Prediction Market Traders",
+    description: "The first social network for Polymarket predictors",
+    type: "website",
+    siteName: "Flarify",
+  },
+  twitter: {
+    card: "summary",
+    title: "Flarify — Social Network for Prediction Market Traders",
+    description: "The first social network for Polymarket predictors",
+  },
 };
 
 export default function RootLayout({
