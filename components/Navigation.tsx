@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Hash, User, Search, Bookmark, LogOut } from "lucide-react";
+import { Home, User, Search, Bookmark, LogOut, MessageCircle } from "lucide-react";
+import { useMessages } from "@/providers/MessagesProvider";
 import { usePrivy } from "@privy-io/react-auth";
 import { NotificationsPanel } from "./NotificationsPanel";
 
@@ -10,12 +11,13 @@ export function NavigationSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { authenticated, user, logout, login } = usePrivy();
+  const { unreadCount: unreadMessages } = useMessages();
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
     { href: "/search", icon: Search, label: "Search" },
+    { href: "/messages", icon: MessageCircle, label: "Messages", badge: unreadMessages },
     { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
-    { href: "/create", icon: Hash, label: "Create", disabled: false },
     { href: "/profile", icon: User, label: "Profile" },
   ];
 
@@ -36,7 +38,7 @@ export function NavigationSidebar() {
             return (
               <Link
                 key={item.label}
-                href={item.disabled ? "#" : item.href}
+                href={item.href}
                 className={`
                   flex items-center gap-4 px-4 py-3.5 font-bold uppercase tracking-wider text-sm
                   transition-all duration-200 border relative group
@@ -45,12 +47,17 @@ export function NavigationSidebar() {
                     ? "bg-white text-black border-white"
                     : "text-zinc-500 hover:text-white border-transparent hover:border-zinc-800/60 hover:bg-white/[0.02]"
                   }
-                  ${item.disabled ? "opacity-25 cursor-not-allowed" : ""}
                 `}
                 style={{ animationDelay: `${i * 0.05}s` }}
-                onClick={(e) => item.disabled && e.preventDefault()}
               >
-                <Icon className={`w-5 h-5 transition-transform duration-200 ${!item.disabled && !isActive ? "group-hover:scale-110" : ""}`} />
+                <div className="relative">
+                  <Icon className={`w-5 h-5 transition-transform duration-200 ${!isActive ? "group-hover:scale-110" : ""}`} />
+                  {(item as any).badge > 0 && (
+                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center bg-white text-black text-[9px] font-black px-1 animate-scale-in">
+                      {(item as any).badge > 99 ? "99+" : (item as any).badge}
+                    </span>
+                  )}
+                </div>
                 <span className="hidden lg:inline">{item.label}</span>
                 {/* Active indicator line */}
                 {isActive && (

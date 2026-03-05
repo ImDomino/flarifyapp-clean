@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import {
-  Home, Search, Bell, User, Plus,
+  Home, Search, Bell, User, Plus, MessageCircle,
   ArrowDownToLine, ArrowUpFromLine, X,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallet } from "@/providers/WalletProvider";
 import { useNotifications } from "@/providers/NotificationsProvider";
+import { useMessages } from "@/providers/MessagesProvider";
 
 export function MobileBottomNav() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export function MobileBottomNav() {
   const { authenticated, user, login } = usePrivy();
   const { eoaAddress } = useWallet();
   const { unreadCount } = useNotifications();
+  const { unreadCount: unreadMessages } = useMessages();
   const [showActions, setShowActions] = useState(false);
 
   // Close action sheet on route change
@@ -179,25 +181,25 @@ export function MobileBottomNav() {
             </div>
           </button>
 
-          {/* Notifications */}
+          {/* Messages */}
           <button
-            onClick={() => handleNavClick("/notifications", true)}
+            onClick={() => handleNavClick("/messages", true)}
             className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative transition-all duration-200 ${
-              isActive("/notifications") ? "text-white" : "text-zinc-600 active:text-zinc-400"
+              isActive("/messages") ? "text-white" : "text-zinc-600 active:text-zinc-400"
             }`}
           >
             <div className="relative">
-              <Bell className="w-[22px] h-[22px]" strokeWidth={isActive("/notifications") ? 2.5 : 1.5} />
-              {unreadCount > 0 && (
+              <MessageCircle className="w-[22px] h-[22px]" strokeWidth={isActive("/messages") ? 2.5 : 1.5} />
+              {unreadMessages > 0 && (
                 <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center bg-white text-black text-[9px] font-black px-1 animate-scale-in">
-                  {unreadCount > 99 ? "99+" : unreadCount}
+                  {unreadMessages > 99 ? "99+" : unreadMessages}
                 </span>
               )}
             </div>
-            <span className={`text-[8px] uppercase tracking-widest ${isActive("/notifications") ? "font-black" : "font-medium"}`}>
-              Alerts
+            <span className={`text-[8px] uppercase tracking-widest ${isActive("/messages") ? "font-black" : "font-medium"}`}>
+              Messages
             </span>
-            {isActive("/notifications") && (
+            {isActive("/messages") && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-white" />
             )}
           </button>
