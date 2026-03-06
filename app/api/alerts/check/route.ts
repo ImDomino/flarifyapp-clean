@@ -1,32 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/lib/auth";
+import { RL, rateLimitResponse } from "@/lib/rate-limit";
 import { timingSafeEqual } from "crypto";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// POST /api/alerts/check — called by Vercel Cron every 5 minutes
+/**
+ * POST /api/alerts/check
+ *
+ * Two modes:
+ * 1. Cron: Bearer CRON_SECRET → checks ALL active alerts (batch)
+ * 2. User: JWT auth → checks only that user's active alerts (triggered on page load)
+ */
 export async function POST(request: NextRequest) {
   try {
-    // Verify cron secret
+    const supabase = createServiceClient();
+    let filterUserId: string | null = null;
+
+    // Try cron secret first
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
 
-    const expected = `Bearer ${cronSecret}`;
-    if (!cronSecret || !authHeader || authHeader.length !== expected.length ||
-        !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (cronSecret && authHeader) {
+      const expected = `Bearer ${cronSecret}`;
+      if (authHeader.length === expected.length &&
+          timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))) {
+        // Cron mode — check all alerts
+        filterUserId = null;
+      } else {
+        // Not cron secret — try JWT
+        const userId = await getAuthenticatedUser(request);
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!RL.toggleAlert(userId)) return rateLimitResponse();
+        filterUserId = userId;
+      }
+    } else {
+      // No cron secret configured or no auth header with Bearer — try JWT
+      const userId = await getAuthenticatedUser(request);
+      if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      if (!RL.toggleAlert(userId)) return rateLimitResponse();
+      filterUserId = userId;
     }
 
-    const supabase = createServiceClient();
-
     // Fetch active, un-triggered alerts
-    const { data: alerts, error: fetchError } = await supabase
+    let query = supabase
       .from("price_alerts")
       .select("*")
       .eq("is_active", true)
       .is("triggered_at", null)
       .limit(50);
+
+    if (filterUserId) {
+      query = query.eq("user_id", filterUserId);
+    }
+
+    const { data: alerts, error: fetchError } = await query;
 
     if (fetchError) throw fetchError;
     if (!alerts || alerts.length === 0) {
@@ -47,13 +77,13 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < tokenIds.length; i += 5) {
       const batch = tokenIds.slice(i, i + 5);
-      const results = await Promise.allSettled(
+      await Promise.allSettled(
         batch.map(async (tokenId) => {
           const res = await fetch(
             `https://clob.polymarket.com/book?token_id=${tokenId}`,
             { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(5000) }
           );
-          if (!res.ok) return null;
+          if (!res.ok) return;
           const data = await res.json();
 
           const bids: Array<{ price: string }> = data.bids || [];
@@ -77,11 +107,7 @@ export async function POST(request: NextRequest) {
 
     // Check which alerts should trigger
     const triggeredIds: string[] = [];
-    const notifications: Array<{
-      user_id: string;
-      type: string;
-      content: string;
-    }> = [];
+    const notifications: Array<{ user_id: string; type: string; content: string }> = [];
 
     for (const alert of alerts) {
       const price = prices.get(alert.token_id);

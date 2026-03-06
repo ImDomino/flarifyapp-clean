@@ -25,6 +25,24 @@ export function useAlerts() {
       const res = await authFetch("/api/alerts");
       const data = await res.json();
       setAlerts(data.alerts || []);
+
+      // Trigger price check for user's active alerts in the background
+      const hasActive = (data.alerts || []).some(
+        (a: PriceAlert) => a.is_active && !a.triggered_at
+      );
+      if (hasActive) {
+        authFetch("/api/alerts/check", { method: "POST" })
+          .then(async (r) => {
+            const result = await r.json();
+            // If any alerts triggered, re-fetch to update state
+            if (result.triggered > 0) {
+              const res2 = await authFetch("/api/alerts");
+              const data2 = await res2.json();
+              setAlerts(data2.alerts || []);
+            }
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       console.error("Fetch alerts error:", err);
     } finally {
@@ -99,7 +117,11 @@ export function useAlerts() {
   );
 
   useEffect(() => {
-    if (authenticated) fetchAlerts();
+    if (!authenticated) return;
+    fetchAlerts();
+    // Poll every 5 minutes while tab is open
+    const interval = setInterval(fetchAlerts, 5 * 60_000);
+    return () => clearInterval(interval);
   }, [authenticated, fetchAlerts]);
 
   return {
