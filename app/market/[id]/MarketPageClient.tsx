@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, BarChart3, ExternalLink, MessageCircle, FileText } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { MarketCard } from "@/components/MarketCard";
@@ -23,9 +23,37 @@ interface MarketInfo {
 export function MarketPageClient() {
   const { id } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlTokenId = searchParams.get("token_id");
   const [posts, setPosts] = useState<PostWithUser[]>([]);
   const [marketInfo, setMarketInfo] = useState<MarketInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch market info via our proxy API (Gamma API blocks CORS)
+  // Try token_id first (reliable), fallback to condition_id
+  const loadMarketFromApi = useCallback(async (tokenId?: string) => {
+    try {
+      const params = tokenId
+        ? `token_id=${tokenId}`
+        : `condition_id=${id}`;
+      const res = await fetch(`/api/polymarket/market?${params}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.market) return;
+      const m = data.market;
+      setMarketInfo({
+        market_id: id as string,
+        question: m.question || "",
+        url: m.url || "",
+        outcomes: m.outcomes || ["Yes", "No"],
+        prices: m.prices || null,
+        volume: m.volume || "0",
+        yesTokenId: m.yesTokenId,
+        noTokenId: m.noTokenId,
+        negRisk: m.negRisk,
+      });
+    } catch {}
+  }, [id]);
 
   const loadMarketPosts = useCallback(async () => {
     try {
@@ -35,8 +63,11 @@ export function MarketPageClient() {
       const fetched = data.posts || [];
       setPosts(fetched);
 
-      // Extract market info from the first post that has market_data
-      if (fetched.length > 0) {
+      // If we have a token_id from URL, always use API for reliable data
+      if (urlTokenId) {
+        await loadMarketFromApi(urlTokenId);
+      } else {
+        // Extract market info from the first post that has market_data
         const firstWithMarket = fetched.find((p: any) => p.market_data);
         if (firstWithMarket?.market_data) {
           const md = firstWithMarket.market_data;
@@ -51,6 +82,10 @@ export function MarketPageClient() {
             noTokenId: md.noTokenId || firstWithMarket.no_token_id,
             negRisk: md.negRisk,
           });
+        } else {
+          // No posts with market data — fetch from API
+          const postWithToken = fetched.find((p: any) => p.yes_token_id);
+          await loadMarketFromApi(postWithToken?.yes_token_id);
         }
       }
     } catch (err) {
@@ -58,7 +93,7 @@ export function MarketPageClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [id]);
+  }, [id, urlTokenId, loadMarketFromApi]);
 
   useEffect(() => {
     loadMarketPosts();
@@ -100,14 +135,14 @@ export function MarketPageClient() {
           marketId={id as string}
         />
       ) : (
-        <div className="bg-[#0a0a0a] border border-zinc-800 p-6">
-          <div className="flex items-center gap-2 mb-2">
-            <BarChart3 className="w-4 h-4 text-zinc-500" />
-            <span className="text-[10px] uppercase tracking-widest font-bold text-zinc-500">
-              Prediction Market
-            </span>
-          </div>
-          <p className="text-sm font-bold text-white">Market ID: {id}</p>
+        <div className="bg-[#0a0a0a] border border-zinc-800 p-8 text-center">
+          <BarChart3 className="w-8 h-8 mx-auto mb-3 text-zinc-600" />
+          <p className="text-sm font-black uppercase tracking-wider text-zinc-400 mb-1">
+            Market
+          </p>
+          <p className="text-xs text-zinc-600">
+            No market data available
+          </p>
         </div>
       )}
 

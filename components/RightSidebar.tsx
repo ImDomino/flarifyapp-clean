@@ -1,22 +1,37 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Wallet, Plus, RefreshCw } from "lucide-react";
+import { Wallet, Plus, RefreshCw, X, Loader2, Bell } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
+import { useRouter } from "next/navigation";
 import { DepositModal } from "./DepositModal";
 import { WithdrawModal } from "./WithdrawModal";
 import { InviteCodesCard } from "./InviteCodesCard";
+import { WatchlistSearchModal } from "./WatchlistSearchModal";
 import { useWallet } from "@/providers/WalletProvider";
 import { useBalances } from "@/hooks/useBalances";
+import { useWatchlist } from "@/hooks/useWatchlist";
+import { useAlerts } from "@/hooks/useAlerts";
+import { CreateAlertModal } from "./CreateAlertModal";
 
 export function RightSidebar() {
   const { authenticated } = usePrivy();
+  const router = useRouter();
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isWatchlistSearchOpen, setIsWatchlistSearchOpen] = useState(false);
+  const [alertModalItem, setAlertModalItem] = useState<{
+    conditionId: string;
+    tokenId: string;
+    question: string;
+    price: number | null;
+  } | null>(null);
 
   const { eoaAddress, safeAddress } = useWallet();
   const { safeBalance, isLoading, refresh } = useBalances(eoaAddress, safeAddress);
+  const { watchlist, prices, toggleWatch, isWatching, isLoading: watchlistLoading } = useWatchlist();
+  const { createAlert, hasActiveAlert } = useAlerts();
   const safeNum = parseFloat(safeBalance || "0");
 
   const handleRefresh = async () => {
@@ -105,18 +120,85 @@ export function RightSidebar() {
               <h3 className="font-black text-white uppercase tracking-wider text-xs">
                 Watchlist
               </h3>
-              <button className="text-zinc-600 hover:text-white transition-colors p-1 hover:rotate-90 duration-200">
+              <button
+                onClick={() => setIsWatchlistSearchOpen(true)}
+                className="text-zinc-600 hover:text-white transition-colors p-1 hover:rotate-90 duration-200"
+              >
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="p-5 text-center">
-              <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">
-                Coming Soon
-              </p>
-              <p className="text-[10px] text-zinc-700 mt-1.5">
-                Track your favorite markets here
-              </p>
-            </div>
+            {watchlist.length === 0 ? (
+              <div className="p-5 text-center">
+                <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">
+                  No markets tracked
+                </p>
+                <button
+                  onClick={() => setIsWatchlistSearchOpen(true)}
+                  className="text-[10px] text-zinc-500 hover:text-white mt-1.5 uppercase tracking-wider font-bold transition-colors"
+                >
+                  + Add markets
+                </button>
+              </div>
+            ) : (
+              <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                {watchlist.slice(0, 10).map((item) => {
+                  const price = prices.get(item.token_id);
+                  const priceCents = price != null ? Math.round(price * 100) : null;
+                  const itemHasAlert = hasActiveAlert(item.condition_id);
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-1 px-3 py-2 border-b border-zinc-900 last:border-b-0 hover:bg-[#111] transition-colors group"
+                    >
+                      <button
+                        onClick={() => router.push(`/market/${item.condition_id}?token_id=${item.token_id}`)}
+                        className="flex-1 min-w-0 text-left flex items-center justify-between gap-2"
+                      >
+                        <p className="text-[11px] font-bold text-zinc-300 group-hover:text-white leading-tight truncate flex-1 transition-colors">
+                          {item.market_question || "Market"}
+                        </p>
+                        {priceCents != null ? (
+                          <span className="text-[11px] font-mono font-bold text-white flex-shrink-0">
+                            {priceCents}¢
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-zinc-700 flex-shrink-0">—</span>
+                        )}
+                      </button>
+                      <div className="flex items-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => setAlertModalItem({
+                            conditionId: item.condition_id,
+                            tokenId: item.token_id,
+                            question: item.market_question || "Market",
+                            price: price ?? null,
+                          })}
+                          className={`p-1 transition-colors ${
+                            itemHasAlert
+                              ? "text-white !opacity-100"
+                              : "text-zinc-700 hover:text-white"
+                          }`}
+                          title={itemHasAlert ? "Alert active" : "Set alert"}
+                        >
+                          <Bell className={`w-3 h-3 ${itemHasAlert ? "fill-current" : ""}`} />
+                        </button>
+                        <button
+                          onClick={() => toggleWatch({
+                            condition_id: item.condition_id,
+                            token_id: item.token_id,
+                            market_question: item.market_question || "",
+                          })}
+                          className="p-1 text-zinc-700 hover:text-red-400 transition-colors"
+                          title="Remove"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* ═══ Footer ═══ */}
@@ -145,6 +227,26 @@ export function RightSidebar() {
             onRefreshBalance={refresh}
           />
         </>
+      )}
+      <WatchlistSearchModal
+        isOpen={isWatchlistSearchOpen}
+        onClose={() => setIsWatchlistSearchOpen(false)}
+        onToggleWatch={toggleWatch}
+        isWatching={isWatching}
+      />
+      {alertModalItem && (
+        <CreateAlertModal
+          isOpen={true}
+          onClose={() => setAlertModalItem(null)}
+          onCreateAlert={createAlert}
+          marketData={{
+            conditionId: alertModalItem.conditionId,
+            question: alertModalItem.question,
+            yesTokenId: alertModalItem.tokenId,
+            yesPrice: alertModalItem.price,
+            noPrice: alertModalItem.price != null ? 1 - alertModalItem.price : null,
+          }}
+        />
       )}
     </>
   );

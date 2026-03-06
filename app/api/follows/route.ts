@@ -7,6 +7,9 @@ import { RL, rateLimitResponse } from "@/lib/rate-limit";
 // GET: public — returns counts + isFollowing
 export async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    if (!RL.readPublic(ip)) return rateLimitResponse();
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("user_id");
     const viewerId = searchParams.get("viewer_id");

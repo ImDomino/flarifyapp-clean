@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { ArrowLeft, AlertCircle, Fingerprint, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { FollowButton } from "@/components/FollowButton";
+import { FollowListModal } from "@/components/FollowListModal";
 import type { PostWithUser } from "@/lib/types";
 
 export function UserProfileClient() {
@@ -18,6 +19,7 @@ export function UserProfileClient() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [followListType, setFollowListType] = useState<"followers" | "following" | null>(null);
 
   const userId = decodeURIComponent(id as string);
   const isOwnProfile = ready && user?.id === userId;
@@ -182,11 +184,12 @@ export function UserProfileClient() {
       {/* ═══ STATS ═══ */}
       <section className="grid grid-cols-3 gap-px bg-zinc-800/60 border border-zinc-800/60 animate-fade-up stagger-3">
         {[
-          { value: posts.length, label: "Posts" },
-          { value: followersCount, label: "Followers" },
-          { value: followingCount, label: "Following" },
+          { value: posts.length, label: "Posts", onClick: undefined },
+          { value: followersCount, label: "Followers", onClick: () => setFollowListType("followers") },
+          { value: followingCount, label: "Following", onClick: () => setFollowListType("following") },
         ].map((stat) => (
-          <div key={stat.label} className="bg-[#0a0a0a] py-4 px-2 text-center group hover:bg-white/[0.02] transition-all duration-300">
+          <div key={stat.label} onClick={stat.onClick}
+            className={`bg-[#0a0a0a] py-4 px-2 text-center group hover:bg-white/[0.02] transition-all duration-300 ${stat.onClick ? "cursor-pointer" : "cursor-default"}`}>
             <div className="text-xl sm:text-2xl font-black text-white leading-none mb-1 group-hover:scale-105 transition-transform duration-200">{stat.value}</div>
             <div className="text-[9px] text-zinc-600 uppercase tracking-[0.15em] font-bold">{stat.label}</div>
           </div>
@@ -217,6 +220,15 @@ export function UserProfileClient() {
           </div>
         )}
       </section>
+
+      {/* Follow List Modal */}
+      <FollowListModal
+        isOpen={followListType !== null}
+        onClose={() => setFollowListType(null)}
+        userId={userId}
+        type={followListType || "followers"}
+        count={followListType === "following" ? followingCount : followersCount}
+      />
     </div>
   );
 }

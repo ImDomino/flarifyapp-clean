@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { ExternalLink, TrendingUp, Lock, CheckCircle, XCircle } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { ExternalLink, TrendingUp, Lock, CheckCircle, XCircle, Bell } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
 import { TradingModal } from "./TradingModal";
+import { CreateAlertModal } from "./CreateAlertModal";
+import { useAlerts } from "@/hooks/useAlerts";
 
 interface MarketCardProps {
   marketData: {
@@ -19,10 +22,14 @@ interface MarketCardProps {
 }
 
 export function MarketCard({ marketData, marketId }: MarketCardProps) {
+  const { authenticated } = usePrivy();
+  const { createAlert, hasActiveAlert } = useAlerts();
   const [tradingModal, setTradingModal] = useState<{
     isOpen: boolean;
     side: "yes" | "no";
   }>({ isOpen: false, side: "yes" });
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
+  const hasAlert = hasActiveAlert(marketId);
 
   const cachedYes = marketData.prices?.[0] ?? null;
   const cachedNo = marketData.prices?.[1] ?? null;
@@ -150,12 +157,25 @@ export function MarketCard({ marketData, marketId }: MarketCardProps) {
                 {marketData.question}
               </h3>
             </div>
-            {marketData.url && (
-              <a href={marketData.url} target="_blank" rel="noopener noreferrer"
-                className="p-2 text-zinc-600 hover:text-white border border-transparent hover:border-zinc-700 transition-all flex-shrink-0">
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            )}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {authenticated && !isResolved && (
+                <button
+                  onClick={() => setAlertModalOpen(true)}
+                  className={`p-2 border border-transparent hover:border-zinc-700 transition-all ${
+                    hasAlert ? "text-white" : "text-zinc-600 hover:text-white"
+                  }`}
+                  title={hasAlert ? "Alert active" : "Set price alert"}
+                >
+                  <Bell className={`w-4 h-4 ${hasAlert ? "fill-current" : ""}`} />
+                </button>
+              )}
+              {marketData.url && (
+                <a href={marketData.url} target="_blank" rel="noopener noreferrer"
+                  className="p-2 text-zinc-600 hover:text-white border border-transparent hover:border-zinc-700 transition-all">
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              )}
+            </div>
           </div>
         </div>
 
@@ -245,6 +265,20 @@ export function MarketCard({ marketData, marketId }: MarketCardProps) {
           negRisk={marketData.negRisk}
         />
       )}
+
+      <CreateAlertModal
+        isOpen={alertModalOpen}
+        onClose={() => setAlertModalOpen(false)}
+        onCreateAlert={createAlert}
+        marketData={{
+          conditionId: marketId,
+          question: marketData.question,
+          yesTokenId: marketData.yesTokenId,
+          noTokenId: marketData.noTokenId,
+          yesPrice,
+          noPrice,
+        }}
+      />
     </>
   );
 }

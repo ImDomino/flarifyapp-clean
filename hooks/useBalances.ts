@@ -70,7 +70,7 @@ export const useBalances = (
           error instanceof Error ? error.message.slice(0, 80) : "unknown"
         );
         if (i === RPC_URLS.length - 1) {
-          console.error("All RPCs failed for balance fetch");
+          console.warn("All RPCs failed for balance fetch — will retry");
         }
         // continue to next RPC
       }

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
 import { MarketCard } from "./MarketCard";
+import { FollowButton } from "./FollowButton";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import { toast } from "sonner";
 
@@ -304,6 +305,11 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
                 </span>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                {!isOwnPost && user && (
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                    <FollowButton targetUserId={post.user_id} currentUserId={user.id} size="small" />
+                  </div>
+                )}
                 <span className="text-zinc-600 text-[10px] font-mono tracking-wide">
                   {timeAgo.toUpperCase()}
                 </span>

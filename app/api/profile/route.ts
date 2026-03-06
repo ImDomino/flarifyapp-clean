@@ -50,7 +50,23 @@ export async function PATCH(request: NextRequest) {
       updates.username = uname;
     }
     if (body.display_name !== undefined) updates.display_name = sanitizeText(body.display_name, 50) || "";
-    if (body.avatar_url !== undefined) updates.avatar_url = body.avatar_url;
+    if (body.avatar_url !== undefined) {
+      if (body.avatar_url === null || body.avatar_url === "") {
+        updates.avatar_url = null;
+      } else if (typeof body.avatar_url === "string" && body.avatar_url.length <= 2048) {
+        try {
+          const parsed = new URL(body.avatar_url);
+          if (parsed.protocol !== "https:") {
+            return NextResponse.json({ error: "Avatar URL must be HTTPS" }, { status: 400 });
+          }
+          updates.avatar_url = body.avatar_url;
+        } catch {
+          return NextResponse.json({ error: "Invalid avatar URL" }, { status: 400 });
+        }
+      } else {
+        return NextResponse.json({ error: "Invalid avatar URL" }, { status: 400 });
+      }
+    }
     if (body.bio !== undefined) updates.bio = sanitizeText(body.bio, 300) || "";
 
     // PnL visibility toggle

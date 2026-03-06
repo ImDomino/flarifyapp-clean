@@ -278,6 +278,7 @@ export async function GET(request: NextRequest) {
             market.condition_id ||
             market.id ||
             slug,
+          conditionId: market.conditionId || market.condition_id || null,
           question: market.question || market.title || 'Unknown Market',
           description: market.description || '',
           url,

@@ -11,6 +11,7 @@ import {
 import { PostCard } from "@/components/PostCard";
 import { PositionsTab } from "@/components/PositionsTab";
 import { EditProfileModal } from "@/components/EditProfileModal";
+import { FollowListModal } from "@/components/FollowListModal";
 import { PnlSummaryCard } from "@/components/PnlSummaryCard";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import type { PostWithUser } from "@/lib/types";
@@ -30,6 +31,7 @@ export default function ProfilePage() {
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [followListType, setFollowListType] = useState<"followers" | "following" | null>(null);
   const [showPnlPublic, setShowPnlPublic] = useState(true);
   const authFetch = useAuthFetch();
 
@@ -210,13 +212,14 @@ export default function ProfilePage() {
       {/* ═══ STATS BAR ═══ */}
       <section className="grid grid-cols-4 gap-px bg-zinc-800/60 border border-zinc-800/60 animate-fade-up stagger-3">
         {[
-          { value: posts.length, label: "Posts" },
-          { value: followersCount, label: "Followers" },
-          { value: followingCount, label: "Following" },
-          { value: "—", label: "Trades" },
-        ].map((stat, i) => (
+          { value: posts.length, label: "Posts", onClick: undefined },
+          { value: followersCount, label: "Followers", onClick: () => setFollowListType("followers") },
+          { value: followingCount, label: "Following", onClick: () => setFollowListType("following") },
+          { value: "—", label: "Trades", onClick: undefined },
+        ].map((stat) => (
           <div key={stat.label}
-            className="bg-[#0a0a0a] py-4 px-2 text-center group cursor-default hover:bg-white/[0.02] transition-all duration-300">
+            onClick={stat.onClick}
+            className={`bg-[#0a0a0a] py-4 px-2 text-center group hover:bg-white/[0.02] transition-all duration-300 ${stat.onClick ? "cursor-pointer" : "cursor-default"}`}>
             <div className="text-xl sm:text-2xl font-black text-white leading-none mb-1 group-hover:scale-105 transition-transform duration-200">
               {stat.value}
             </div>
@@ -305,6 +308,17 @@ export default function ProfilePage() {
             </div>
           )}
         </section>
+      )}
+
+      {/* Follow List Modal */}
+      {user && (
+        <FollowListModal
+          isOpen={followListType !== null}
+          onClose={() => setFollowListType(null)}
+          userId={user.id}
+          type={followListType || "followers"}
+          count={followListType === "following" ? followingCount : followersCount}
+        />
       )}
 
       {/* Edit Profile Modal */}

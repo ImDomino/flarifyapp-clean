@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { createServiceClient } from "@/lib/supabase/server";
 import { MarketPageClient } from "./MarketPageClient";
@@ -52,5 +53,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default function MarketPage() {
-  return <MarketPageClient />;
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-zinc-700 border-t-white animate-spin" /></div>}>
+      <MarketPageClient />
+    </Suspense>
+  );
 }

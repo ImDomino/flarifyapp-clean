@@ -6,15 +6,16 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import {
   Heart, MessageCircle, UserPlus, Bell,
-  CheckCheck, Shield, Loader2,
+  CheckCheck, Shield, Loader2, TrendingUp,
 } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { formatDistanceToNow } from "date-fns";
 
 interface NotificationItem {
   id: string;
-  type: string; // "like" | "comment" | "follow"
+  type: string; // "like" | "comment" | "follow" | "price_alert"
   post_id: string | null;
+  content: string | null;
   read: boolean;
   created_at: string;
   actor_id: string;
@@ -33,6 +34,7 @@ const typeConfig: Record<string, { icon: typeof Heart; label: string; color: str
   like: { icon: Heart, label: "liked your post", color: "text-pink-400" },
   comment: { icon: MessageCircle, label: "commented on your post", color: "text-blue-400" },
   follow: { icon: UserPlus, label: "started following you", color: "text-emerald-400" },
+  price_alert: { icon: TrendingUp, label: "Price alert triggered", color: "text-yellow-400" },
 };
 
 export default function NotificationsPage() {
@@ -92,6 +94,12 @@ export default function NotificationsPage() {
     }
 
     // Navigate based on type
+    if (notif.type === "price_alert" && notif.content) {
+      try {
+        const data = JSON.parse(notif.content);
+        if (data.condition_id) { router.push(`/market/${data.condition_id}`); return; }
+      } catch {}
+    }
     if (notif.type === "follow") {
       router.push(`/user/${notif.actor_id}`);
     } else if (notif.post_id) {
@@ -241,6 +249,12 @@ export default function NotificationsPage() {
                 addSuffix: false,
               });
 
+              // Parse price_alert content
+              let alertData: any = null;
+              if (notif.type === "price_alert" && notif.content) {
+                try { alertData = JSON.parse(notif.content); } catch {}
+              }
+
               // Truncate post content for preview
               const postPreview = notif.post?.content
                 ? notif.post.content.length > 60
@@ -267,41 +281,62 @@ export default function NotificationsPage() {
                     <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-white/40 accent-pulse" />
                   )}
 
-                  {/* Actor Avatar */}
-                  <div className="w-9 h-9 flex-shrink-0 border border-zinc-700/60 overflow-hidden group-hover:border-zinc-600 transition-colors">
-                    {notif.actor?.avatar_url ? (
-                      <img
-                        src={notif.actor.avatar_url}
-                        alt={actorName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
-                        <span className="text-[10px] font-black text-white uppercase">
-                          {actorName[0]}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                  {/* Actor Avatar / Alert Icon */}
+                  {notif.type === "price_alert" ? (
+                    <div className="w-9 h-9 flex-shrink-0 border border-yellow-500/30 bg-yellow-500/5 flex items-center justify-center">
+                      <TrendingUp className="w-4 h-4 text-yellow-400" />
+                    </div>
+                  ) : (
+                    <div className="w-9 h-9 flex-shrink-0 border border-zinc-700/60 overflow-hidden group-hover:border-zinc-600 transition-colors">
+                      {notif.actor?.avatar_url ? (
+                        <img
+                          src={notif.actor.avatar_url}
+                          alt={actorName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
+                          <span className="text-[10px] font-black text-white uppercase">
+                            {actorName[0]}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm leading-snug">
-                          <span className={`font-black uppercase text-[12px] tracking-wide ${notif.read ? "text-zinc-400" : "text-white"}`}>
-                            {actorName}
-                          </span>{" "}
-                          <span className={`${notif.read ? "text-zinc-600" : "text-zinc-400"} text-[12px]`}>
-                            {config.label}
-                          </span>
-                        </p>
+                        {notif.type === "price_alert" && alertData ? (
+                          <>
+                            <p className={`text-[12px] font-bold leading-snug ${notif.read ? "text-zinc-400" : "text-white"}`}>
+                              {alertData.message || "Price alert triggered"}
+                            </p>
+                            {alertData.market_question && (
+                              <p className="text-[11px] text-zinc-600 mt-1 truncate leading-relaxed">
+                                {alertData.market_question}
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm leading-snug">
+                              <span className={`font-black uppercase text-[12px] tracking-wide ${notif.read ? "text-zinc-400" : "text-white"}`}>
+                                {actorName}
+                              </span>{" "}
+                              <span className={`${notif.read ? "text-zinc-600" : "text-zinc-400"} text-[12px]`}>
+                                {config.label}
+                              </span>
+                            </p>
 
-                        {/* Post preview */}
-                        {postPreview && (
-                          <p className="text-[11px] text-zinc-600 mt-1 truncate leading-relaxed">
-                            "{postPreview}"
-                          </p>
+                            {/* Post preview */}
+                            {postPreview && (
+                              <p className="text-[11px] text-zinc-600 mt-1 truncate leading-relaxed">
+                                "{postPreview}"
+                              </p>
+                            )}
+                          </>
                         )}
 
                         <span className="text-[10px] text-zinc-700 font-mono mt-1 inline-block">

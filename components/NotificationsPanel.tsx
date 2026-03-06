@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Bell, Heart, MessageCircle, UserPlus, Check, Loader2 } from "lucide-react";
+import { Bell, Heart, MessageCircle, UserPlus, Check, Loader2, TrendingUp } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
@@ -11,8 +11,9 @@ interface Notification {
   id: string;
   user_id: string;
   actor_id: string;
-  type: "like" | "comment" | "follow";
+  type: "like" | "comment" | "follow" | "price_alert" | "message";
   post_id: string | null;
+  content: string | null;
   read: boolean;
   created_at: string;
   actor?: { id: string; username: string | null; display_name: string | null; avatar_url: string | null };
@@ -62,6 +63,15 @@ export function NotificationsPanel() {
   };
 
   const handleNotificationClick = (n: Notification) => {
+    if (n.type === "price_alert" && n.content) {
+      try {
+        const data = JSON.parse(n.content);
+        if (data.condition_id) {
+          router.push(`/market/${data.condition_id}`);
+          return;
+        }
+      } catch {}
+    }
     if (n.type === "follow") router.push(`/user/${n.actor_id}`);
     else if (n.post_id) router.push(`/post/${n.post_id}`);
   };
@@ -71,11 +81,19 @@ export function NotificationsPanel() {
       case "like": return <Heart className="w-3 h-3 fill-current" />;
       case "comment": return <MessageCircle className="w-3 h-3" />;
       case "follow": return <UserPlus className="w-3 h-3" />;
+      case "price_alert": return <TrendingUp className="w-3 h-3" />;
       default: return <Bell className="w-3 h-3" />;
     }
   };
 
   const getMessage = (n: Notification) => {
+    if (n.type === "price_alert" && n.content) {
+      try {
+        const data = JSON.parse(n.content);
+        return <span className="text-zinc-400">{data.message || "Price alert triggered"}</span>;
+      } catch {}
+      return <span className="text-zinc-400">Price alert triggered</span>;
+    }
     const name = n.actor?.display_name || n.actor?.username || "Someone";
     switch (n.type) {
       case "like": return <><span className="text-white font-bold">{name}</span><span className="text-zinc-500"> liked your post</span></>;

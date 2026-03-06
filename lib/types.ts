@@ -98,4 +98,29 @@ export interface User extends Profile {
   wallet?: string | null;
 }
 
+// Signals & Alerts
+export interface PriceAlert {
+  id: string;
+  user_id: string;
+  condition_id: string;
+  token_id: string;
+  outcome: string;
+  direction: "above" | "below";
+  threshold: number;
+  market_question: string | null;
+  is_active: boolean;
+  triggered_at: string | null;
+  created_at: string;
+}
+
+export interface WatchlistItem {
+  id: string;
+  user_id: string;
+  condition_id: string;
+  token_id: string;
+  market_question: string | null;
+  image_url: string | null;
+  created_at: string;
+}
+
 export type { Profile as DBProfile, Post as DBPost };

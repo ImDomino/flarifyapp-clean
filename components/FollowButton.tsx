@@ -8,9 +8,10 @@ interface FollowButtonProps {
   targetUserId: string;
   currentUserId: string;
   onFollowChange?: () => void;
+  size?: "default" | "small";
 }
 
-export function FollowButton({ targetUserId, currentUserId, onFollowChange }: FollowButtonProps) {
+export function FollowButton({ targetUserId, currentUserId, onFollowChange, size = "default" }: FollowButtonProps) {
   const [isFollowing, setIsFollowing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const authFetch = useAuthFetch();
@@ -43,9 +44,12 @@ export function FollowButton({ targetUserId, currentUserId, onFollowChange }: Fo
     finally { setIsLoading(false); }
   };
 
+  const smallClass = "px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border transition-colors disabled:opacity-50";
+  const defaultClass = "px-5 py-2.5 text-xs font-black uppercase tracking-widest border-2 transition-colors disabled:opacity-50";
+
   return (
     <button onClick={handleToggle} disabled={isLoading}
-      className={`px-5 py-2.5 text-xs font-black uppercase tracking-widest border-2 transition-colors disabled:opacity-50 ${
+      className={`${size === "small" ? smallClass : defaultClass} ${
         isFollowing
           ? "bg-transparent text-white border-zinc-700 hover:border-red-800 hover:text-red-400"
           : "bg-white text-black border-white hover:bg-black hover:text-white"
