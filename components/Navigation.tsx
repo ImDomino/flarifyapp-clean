@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, User, Search, Bookmark, LogOut, MessageCircle, Bell } from "lucide-react";
+import { Home, User, Search, Bookmark, LogOut, MessageCircle, Bell, Settings } from "lucide-react";
 import { useMessages } from "@/providers/MessagesProvider";
 import { usePrivy } from "@privy-io/react-auth";
 import { NotificationsPanel } from "./NotificationsPanel";
@@ -20,6 +20,7 @@ export function NavigationSidebar() {
     { href: "/alerts", icon: Bell, label: "Alerts" },
     { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
     { href: "/profile", icon: User, label: "Profile" },
+    { href: "/settings", icon: Settings, label: "Settings" },
   ];
 
   const handleLogout = async () => {

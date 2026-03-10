@@ -140,32 +140,32 @@ export default function Home() {
     <PageTransition>
     <div className="space-y-6">
       {/* ═══ ANIMATED HERO ═══ */}
-      <div className="mb-8 lg:mb-12 relative overflow-hidden">
+      <div className="mb-5 sm:mb-8 lg:mb-12 relative overflow-hidden">
         {/* Geometric background elements */}
-        <div className="absolute top-0 right-0 w-40 h-40 border-r border-t border-zinc-800/50 opacity-60 animate-fade-in stagger-2" />
-        <div className="absolute bottom-0 left-1/2 w-20 h-20 border border-zinc-800/30 opacity-40 animate-fade-in stagger-4" style={{ transform: "rotate(45deg) translate(-50%, 50%)" }} />
+        <div className="absolute top-0 right-0 w-40 h-40 border-r border-t border-zinc-800/50 opacity-60 animate-fade-in stagger-2 hidden sm:block" />
+        <div className="absolute bottom-0 left-1/2 w-20 h-20 border border-zinc-800/30 opacity-40 animate-fade-in stagger-4 hidden sm:block" style={{ transform: "rotate(45deg) translate(-50%, 50%)" }} />
         {/* Animated grid in background */}
         <div className="absolute inset-0 grid-bg-animated opacity-20" />
 
         <div className="relative z-10">
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white uppercase tracking-tighter leading-[0.9] mb-4">
+          <h1 className="text-3xl sm:text-6xl lg:text-7xl font-black text-white uppercase tracking-tighter leading-[0.9] mb-3 sm:mb-4">
             <span className="inline-block animate-fade-up stagger-1">Connect</span>
             <br />
             <span className="inline-block text-zinc-600 animate-fade-up stagger-2">Through</span>
             <br />
             <span className="inline-block animate-fade-up stagger-3">Flarify</span>
           </h1>
-          <p className="text-zinc-500 uppercase tracking-widest text-xs sm:text-sm font-bold border-l-2 border-white pl-4 py-1 max-w-md animate-fade-up stagger-4">
+          <p className="text-zinc-500 uppercase tracking-widest text-[10px] sm:text-sm font-bold border-l-2 border-white pl-3 sm:pl-4 py-1 max-w-md animate-fade-up stagger-4">
             The signal in the noise. Share ideas, discover perspectives, trade insights.
           </p>
         </div>
       </div>
 
       {/* ═══ COMPOSE CARD ═══ */}
-      <div className="bg-[#0a0a0a] border border-zinc-800/70 p-5 sm:p-6 card-hover corner-accent animate-fade-up stagger-5 relative overflow-hidden">
-        <div className="flex gap-4 sm:gap-5">
+      <div className="bg-[#0a0a0a] border border-zinc-800/70 p-4 sm:p-6 card-hover corner-accent animate-fade-up stagger-5 relative overflow-hidden">
+        <div className="flex gap-3 sm:gap-5">
           <div
-            className="w-11 h-11 flex-shrink-0 border border-white/80 p-0.5 cursor-pointer hover:border-white transition-colors"
+            className="w-9 sm:w-11 h-9 sm:h-11 flex-shrink-0 border border-white/80 p-0.5 cursor-pointer hover:border-white transition-colors"
             onClick={() => router.push(authenticated ? "/profile" : "#")}
           >
             <div className="w-full h-full bg-white flex items-center justify-center overflow-hidden">
@@ -173,35 +173,35 @@ export default function Home() {
                 avatarUrl ? (
                   <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-sm font-black text-black uppercase">{displayName[0]}</span>
+                  <span className="text-xs sm:text-sm font-black text-black uppercase">{displayName[0]}</span>
                 )
               ) : (
-                <span className="text-sm font-black text-black uppercase">?</span>
+                <span className="text-xs sm:text-sm font-black text-black uppercase">?</span>
               )}
             </div>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div onClick={() => router.push("/create")} className="cursor-pointer">
-              <div className="text-zinc-700 text-base sm:text-lg font-bold uppercase tracking-wide pb-4 mb-4 border-b border-zinc-800/50 hover:text-zinc-500 transition-colors">
+              <div className="text-zinc-700 text-sm sm:text-lg font-bold uppercase tracking-wide pb-3 sm:pb-4 mb-3 sm:mb-4 border-b border-zinc-800/50 hover:text-zinc-500 transition-colors">
                 What is happening?
               </div>
             </div>
             <div className="flex justify-between items-center">
-              <div className="flex gap-3 sm:gap-4">
+              <div className="flex gap-2 sm:gap-4">
                 <button onClick={() => router.push("/create")}
-                  className="text-zinc-600 hover:text-white transition-all duration-200 p-2 border border-transparent hover:border-zinc-700 action-glow">
-                  <ImageIcon className="w-5 h-5" />
+                  className="text-zinc-600 hover:text-white transition-all duration-200 p-1.5 sm:p-2 border border-transparent hover:border-zinc-700 action-glow">
+                  <ImageIcon className="w-4 sm:w-5 h-4 sm:h-5" />
                 </button>
-                <button className="text-zinc-600 p-2 border border-transparent opacity-30 cursor-not-allowed">
+                <button className="text-zinc-600 p-1.5 sm:p-2 border border-transparent opacity-30 cursor-not-allowed hidden sm:block">
                   <BarChart2 className="w-5 h-5" />
                 </button>
-                <button className="text-zinc-600 p-2 border border-transparent opacity-30 cursor-not-allowed">
+                <button className="text-zinc-600 p-1.5 sm:p-2 border border-transparent opacity-30 cursor-not-allowed hidden sm:block">
                   <Calendar className="w-5 h-5" />
                 </button>
               </div>
               <button
                 onClick={() => router.push("/create")}
-                className="px-6 sm:px-8 py-2.5 bg-white text-black font-black uppercase tracking-wider text-sm hover:bg-zinc-100 transition-all duration-200 border-2 border-white hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                className="px-4 sm:px-8 py-2 sm:py-2.5 bg-white text-black font-black uppercase tracking-wider text-xs sm:text-sm hover:bg-zinc-100 transition-all duration-200 border-2 border-white hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]"
               >
                 Post
               </button>
@@ -211,7 +211,7 @@ export default function Home() {
       </div>
 
       {/* ═══ FEED TABS — with animated indicator ═══ */}
-      <div className="flex border-b border-zinc-800/60 sticky top-20 bg-[#050505]/95 backdrop-blur-md z-40 animate-fade-down stagger-3">
+      <div className="flex border-b border-zinc-800/60 sticky top-14 sm:top-20 bg-[#050505]/95 backdrop-blur-md z-40 animate-fade-down stagger-3">
         {(["foryou", "following"] as const).map((tab) => {
           const labels: Record<FeedTab, string> = { foryou: "For You", following: "Following" };
           const isActive = feedTab === tab;

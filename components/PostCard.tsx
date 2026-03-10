@@ -274,11 +274,11 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
         </div>
       )}
 
-      <div className="p-5 sm:p-6">
-        <div className="flex gap-4">
+      <div className="p-4 sm:p-6">
+        <div className="flex gap-3 sm:gap-4">
           {/* Avatar */}
           <div
-            className="w-11 h-11 flex-shrink-0 border border-zinc-700 group-hover:border-zinc-500 transition-all duration-300 overflow-hidden cursor-pointer relative"
+            className="w-9 sm:w-11 h-9 sm:h-11 flex-shrink-0 border border-zinc-700 group-hover:border-zinc-500 transition-all duration-300 overflow-hidden cursor-pointer relative"
             onClick={navigateToProfile}
           >
             {avatarUrl ? (
@@ -292,25 +292,25 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
 
           <div className="flex-1 min-w-0">
             {/* Header */}
-            <div className="flex items-baseline justify-between mb-2.5">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-baseline justify-between mb-2 sm:mb-2.5">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
                 <h3
-                  className="font-black text-white uppercase text-[13px] tracking-wide truncate cursor-pointer hover:underline decoration-zinc-600 underline-offset-2"
+                  className="font-black text-white uppercase text-[12px] sm:text-[13px] tracking-wide truncate cursor-pointer hover:underline decoration-zinc-600 underline-offset-2"
                   onClick={navigateToProfile}
                 >
                   {displayName}
                 </h3>
-                <span className="text-zinc-600 text-xs font-bold uppercase flex-shrink-0">
+                <span className="text-zinc-600 text-[10px] sm:text-xs font-bold uppercase flex-shrink-0 hidden xs:inline">
                   @{username}
                 </span>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ml-1 sm:ml-2">
                 {!isOwnPost && user && (
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block" onClick={(e) => e.stopPropagation()}>
                     <FollowButton targetUserId={post.user_id} currentUserId={user.id} size="small" />
                   </div>
                 )}
-                <span className="text-zinc-600 text-[10px] font-mono tracking-wide">
+                <span className="text-zinc-600 text-[9px] sm:text-[10px] font-mono tracking-wide">
                   {timeAgo.toUpperCase()}
                 </span>
                 {isOwnPost && (
@@ -411,7 +411,7 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
             )}
 
             {/* Actions */}
-            <div className="flex items-center gap-5 pt-3 border-t border-zinc-800/40 mt-1" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 sm:gap-5 pt-3 border-t border-zinc-800/40 mt-1" onClick={(e) => e.stopPropagation()}>
               {/* Like */}
               <button
                 onClick={handleLike}

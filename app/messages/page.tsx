@@ -117,8 +117,8 @@ export default function MessagesPage() {
       {/* Page Header */}
       <div className="animate-fade-up stagger-1">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight">Messages</h1>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-3xl font-black uppercase tracking-tight">Messages</h1>
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mt-1">
               {conversations.length > 0
                 ? `${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}`
@@ -275,7 +275,7 @@ export default function MessagesPage() {
                   const otherId = conv.user1_id === user?.id ? conv.user2_id : conv.user1_id;
                   router.push(`/messages/${encodeURIComponent(otherId)}`);
                 }}
-                className={`w-full flex items-center gap-4 p-4 sm:p-5 bg-[#0a0a0a] border border-zinc-800/60 hover:bg-[#0d0d0d] hover:border-zinc-700/60 transition-all duration-300 text-left group relative overflow-hidden ${
+                className={`w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-5 bg-[#0a0a0a] border border-zinc-800/60 hover:bg-[#0d0d0d] hover:border-zinc-700/60 transition-all duration-300 text-left group relative overflow-hidden ${
                   hasUnread ? "border-l-2 border-l-white" : ""
                 }`}
                 style={{ animationDelay: `${i * 0.04}s` }}

@@ -14,6 +14,7 @@ import { EditProfileModal } from "@/components/EditProfileModal";
 import { FollowListModal } from "@/components/FollowListModal";
 import { PnlSummaryCard } from "@/components/PnlSummaryCard";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
+import { useSettings } from "@/hooks/useSettings";
 import type { PostWithUser } from "@/lib/types";
 import { useWallet } from "@/providers/WalletProvider";
 
@@ -32,8 +33,8 @@ export default function ProfilePage() {
   const [followingCount, setFollowingCount] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [followListType, setFollowListType] = useState<"followers" | "following" | null>(null);
-  const [showPnlPublic, setShowPnlPublic] = useState(true);
   const authFetch = useAuthFetch();
+  const { settings, updatePrivacy } = useSettings();
 
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
@@ -42,7 +43,6 @@ export default function ProfilePage() {
       const data = await res.json();
       if (data.profile) {
         setProfileData(data.profile);
-        setShowPnlPublic(data.profile.show_pnl_public !== false);
       }
     } catch (err) { console.error("Error loading profile:", err); }
   }, [user?.id]);
@@ -99,19 +99,8 @@ export default function ProfilePage() {
     loadUserPosts();
   };
 
-  const togglePnlVisibility = async () => {
-    const newValue = !showPnlPublic;
-    setShowPnlPublic(newValue);
-    try {
-      await authFetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ show_pnl_public: newValue }),
-      });
-    } catch (err) {
-      console.error("Failed to save PnL visibility:", err);
-      setShowPnlPublic(!newValue);
-    }
+  const togglePnlVisibility = () => {
+    updatePrivacy({ show_pnl_public: !settings.privacy.show_pnl_public });
   };
 
   // ── Not authenticated ──
@@ -164,10 +153,10 @@ export default function ProfilePage() {
           <div className="absolute inset-0 gradient-bottom opacity-60" />
         </div>
 
-        <div className="px-5 sm:px-6 pb-5">
+        <div className="px-4 sm:px-6 pb-4 sm:pb-5">
           {/* Avatar + Edit row */}
-          <div className="flex items-end justify-between -mt-10 mb-4 relative z-10">
-            <div className="w-20 h-20 border-[3px] border-[#0a0a0a] bg-white flex items-center justify-center overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.08)]">
+          <div className="flex items-end justify-between -mt-8 sm:-mt-10 mb-3 sm:mb-4 relative z-10">
+            <div className="w-16 sm:w-20 h-16 sm:h-20 border-[3px] border-[#0a0a0a] bg-white flex items-center justify-center overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.08)]">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
@@ -193,7 +182,7 @@ export default function ProfilePage() {
           )}
 
           {/* Meta row */}
-          <div className="flex flex-wrap items-center gap-3 text-[10px] text-zinc-600 uppercase tracking-widest font-bold animate-fade-up stagger-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[9px] sm:text-[10px] text-zinc-600 uppercase tracking-widest font-bold animate-fade-up stagger-4">
             {walletAddress && (
               <button onClick={handleCopyAddress}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-zinc-800/60 bg-white/[0.02] hover:border-zinc-600 hover:bg-white/[0.04] transition-all duration-200">
@@ -219,11 +208,11 @@ export default function ProfilePage() {
         ].map((stat) => (
           <div key={stat.label}
             onClick={stat.onClick}
-            className={`bg-[#0a0a0a] py-4 px-2 text-center group hover:bg-white/[0.02] transition-all duration-300 ${stat.onClick ? "cursor-pointer" : "cursor-default"}`}>
-            <div className="text-xl sm:text-2xl font-black text-white leading-none mb-1 group-hover:scale-105 transition-transform duration-200">
+            className={`bg-[#0a0a0a] py-3 sm:py-4 px-1 sm:px-2 text-center group hover:bg-white/[0.02] transition-all duration-300 ${stat.onClick ? "cursor-pointer" : "cursor-default"}`}>
+            <div className="text-lg sm:text-2xl font-black text-white leading-none mb-1 group-hover:scale-105 transition-transform duration-200">
               {stat.value}
             </div>
-            <div className="text-[9px] text-zinc-600 uppercase tracking-[0.15em] font-bold">{stat.label}</div>
+            <div className="text-[8px] sm:text-[9px] text-zinc-600 uppercase tracking-[0.1em] sm:tracking-[0.15em] font-bold">{stat.label}</div>
           </div>
         ))}
       </section>
@@ -232,7 +221,7 @@ export default function ProfilePage() {
       {eoaAddress && (
         <div className="animate-fade-up stagger-4">
           <PnlSummaryCard
-            isPublic={showPnlPublic}
+            isPublic={settings.privacy.show_pnl_public}
             onTogglePublic={togglePnlVisibility}
           />
         </div>

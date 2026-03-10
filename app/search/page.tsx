@@ -118,7 +118,7 @@ function SearchContent() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search posts, users, markets..."
-          className="w-full bg-[#0a0a0a] border border-zinc-800 text-white text-sm font-medium pl-12 pr-10 py-4 focus:outline-none focus:border-zinc-600 transition-colors placeholder:text-zinc-600"
+          className="w-full bg-[#0a0a0a] border border-zinc-800 text-white text-sm font-medium pl-10 sm:pl-12 pr-10 py-3 sm:py-4 focus:outline-none focus:border-zinc-600 transition-colors placeholder:text-zinc-600"
         />
         {query && (
           <button
