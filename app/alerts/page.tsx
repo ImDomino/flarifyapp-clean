@@ -1,16 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, BellOff, Trash2, TrendingUp, TrendingDown, Check } from "lucide-react";
+import { Bell, BellOff, Trash2, TrendingUp, TrendingDown, Check, Plus, Search } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { useAlerts } from "@/hooks/useAlerts";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
+import { MarketSearchInput } from "@/components/MarketSearchInput";
+import { CreateAlertModal } from "@/components/CreateAlertModal";
+
+interface SelectedMarket {
+  id: string;
+  question: string;
+  outcomePrices: number[] | null;
+  yesTokenId?: string;
+  noTokenId?: string;
+}
 
 export default function AlertsPage() {
   const { authenticated, login } = usePrivy();
   const router = useRouter();
-  const { alerts, isLoading, toggleAlert, deleteAlert } = useAlerts();
+  const { alerts, isLoading, toggleAlert, deleteAlert, createAlert } = useAlerts();
+  const [showSearch, setShowSearch] = useState(false);
+  const [alertMarket, setAlertMarket] = useState<SelectedMarket | null>(null);
 
   const activeAlerts = alerts.filter((a) => a.is_active && !a.triggered_at);
   const triggeredAlerts = alerts.filter((a) => a.triggered_at);
@@ -60,6 +72,67 @@ export default function AlertsPage() {
           </div>
         </div>
 
+        {/* Create Alert */}
+        <div className="animate-fade-up stagger-1 relative z-30">
+          {!showSearch ? (
+            <button
+              onClick={() => setShowSearch(true)}
+              className="w-full py-3.5 border-2 border-dashed border-zinc-800 hover:border-zinc-600 text-zinc-500 hover:text-white flex items-center justify-center gap-2 transition-all duration-200 group"
+            >
+              <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-200" />
+              <span className="text-xs font-black uppercase tracking-widest">
+                Create Alert
+              </span>
+            </button>
+          ) : (
+            <div className="border border-zinc-800 bg-[#0a0a0a] p-4 space-y-3 relative z-20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Search className="w-3.5 h-3.5 text-zinc-500" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                    Search Market
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowSearch(false)}
+                  className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+              <MarketSearchInput
+                onSelectMarket={(market) => {
+                  setAlertMarket({
+                    id: market.id,
+                    question: market.question,
+                    outcomePrices: market.outcomePrices,
+                    yesTokenId: market.yesTokenId,
+                    noTokenId: market.noTokenId,
+                  });
+                  setShowSearch(false);
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Alert Modal */}
+        {alertMarket && (
+          <CreateAlertModal
+            isOpen={true}
+            onClose={() => setAlertMarket(null)}
+            onCreateAlert={createAlert}
+            marketData={{
+              conditionId: alertMarket.id,
+              question: alertMarket.question,
+              yesTokenId: alertMarket.yesTokenId,
+              noTokenId: alertMarket.noTokenId,
+              yesPrice: alertMarket.outcomePrices?.[0] ?? null,
+              noPrice: alertMarket.outcomePrices?.[1] ?? null,
+            }}
+          />
+        )}
+
         {/* Loading */}
         {isLoading && (
           <div className="space-y-3">
@@ -89,7 +162,7 @@ export default function AlertsPage() {
                 No Alerts Yet
               </h3>
               <p className="text-sm text-zinc-500 uppercase tracking-wide mb-6">
-                Create alerts from market cards in your feed
+                Search for a market above to create your first alert
               </p>
             </div>
           </div>
@@ -113,7 +186,7 @@ export default function AlertsPage() {
                   status="active"
                   onToggle={() => toggleAlert(alert.id)}
                   onDelete={() => deleteAlert(alert.id)}
-                  onClick={() => router.push(`/market/${alert.condition_id}`)}
+                  onClick={() => router.push(`/market/${alert.condition_id}?token_id=${alert.token_id}`)}
                 />
               ))}
             </div>
@@ -138,7 +211,7 @@ export default function AlertsPage() {
                   status="paused"
                   onToggle={() => toggleAlert(alert.id)}
                   onDelete={() => deleteAlert(alert.id)}
-                  onClick={() => router.push(`/market/${alert.condition_id}`)}
+                  onClick={() => router.push(`/market/${alert.condition_id}?token_id=${alert.token_id}`)}
                 />
               ))}
             </div>
@@ -163,7 +236,7 @@ export default function AlertsPage() {
                   status="triggered"
                   triggeredAt={alert.triggered_at}
                   onDelete={() => deleteAlert(alert.id)}
-                  onClick={() => router.push(`/market/${alert.condition_id}`)}
+                  onClick={() => router.push(`/market/${alert.condition_id}?token_id=${alert.token_id}`)}
                 />
               ))}
             </div>

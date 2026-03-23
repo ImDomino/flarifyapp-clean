@@ -3,6 +3,7 @@
 import { WalletProvider, useWallet } from '@/providers/WalletProvider';
 import { BetaGateProvider } from '@/providers/BetaGateProvider';
 import { MessagesProvider } from '@/providers/MessagesProvider';
+import { NotificationsProvider } from '@/providers/NotificationsProvider';
 import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { createClient } from '@/lib/supabase/client';
@@ -101,9 +102,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WalletProvider>
       <ProfileSync>
-        <MessagesProvider>
-          <BetaGateProvider>{children}</BetaGateProvider>
-        </MessagesProvider>
+        <NotificationsProvider>
+          <MessagesProvider>
+            <BetaGateProvider>{children}</BetaGateProvider>
+          </MessagesProvider>
+        </NotificationsProvider>
       </ProfileSync>
     </WalletProvider>
   );

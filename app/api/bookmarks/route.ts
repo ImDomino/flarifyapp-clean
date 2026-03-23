@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
     const likeCounts: Record<string, number> = {};
     const commentCounts: Record<string, number> = {};
     const userLikedSet = new Set<string>();
+    const userRepostedSet = new Set<string>();
 
     const { data: likesData } = await supabase.from("likes").select("post_id").in("post_id", postIds);
     for (const l of likesData || []) likeCounts[l.post_id] = (likeCounts[l.post_id] || 0) + 1;
@@ -95,11 +96,15 @@ export async function GET(request: NextRequest) {
     const { data: userLikes } = await supabase.from("likes").select("post_id").eq("user_id", userId).in("post_id", postIds);
     for (const l of userLikes || []) userLikedSet.add(l.post_id);
 
+    const { data: userReposts } = await supabase.from("reposts").select("post_id").eq("user_id", userId).in("post_id", postIds);
+    for (const r of userReposts || []) userRepostedSet.add(r.post_id);
+
     const enriched = orderedPosts.map((post: any) => ({
       ...post,
       likes_count: likeCounts[post.id] || 0,
       comments_count: commentCounts[post.id] || 0,
       user_has_liked: userLikedSet.has(post.id),
+      user_has_reposted: userRepostedSet.has(post.id),
       user_has_bookmarked: true,
     }));
 

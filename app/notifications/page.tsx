@@ -8,6 +8,7 @@ import {
   Heart, MessageCircle, UserPlus, Bell,
   CheckCheck, Shield, Loader2, TrendingUp,
 } from "lucide-react";
+import { stopTitleFlash } from "@/lib/notification-effects";
 import { PageTransition } from "@/components/PageTransition";
 import { formatDistanceToNow } from "date-fns";
 
@@ -72,6 +73,7 @@ export default function NotificationsPage() {
       });
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
+      stopTitleFlash();
     } catch (err) {
       console.error("Error marking read:", err);
     }

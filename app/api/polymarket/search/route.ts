@@ -50,9 +50,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query') || searchParams.get('q');
 
-    if (!query || query.length < 3) {
+    if (!query || query.length < 2) {
       return NextResponse.json({ markets: [] });
     }
+
+    // Helper: fuzzy match — all query words must appear in text (any order)
+    const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+    const fuzzyMatch = (text: string) => {
+      const lower = text.toLowerCase();
+      return queryWords.every(word => lower.includes(word));
+    };
 
     // 1) public-search
     const searchUrl = `https://gamma-api.polymarket.com/public-search?q=${encodeURIComponent(
@@ -81,11 +88,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 2) /markets fallback, если мало результатов
+    // 2) /markets fallback with fuzzy word matching
     if (markets.length < 5) {
-      console.log('📊 Trying /markets endpoint...');
+      console.log('📊 Trying /markets endpoint with fuzzy match...');
+
+      // Use first significant keyword for API-side filtering
+      const keyword = queryWords.find(w => w.length >= 3) || queryWords[0] || '';
       const marketsUrl =
-        'https://gamma-api.polymarket.com/markets?closed=false&order=volumeNum&ascending=false&limit=50';
+        `https://gamma-api.polymarket.com/markets?closed=false&order=volumeNum&ascending=false&limit=100${
+          keyword ? `&tag=${encodeURIComponent(keyword)}` : ''
+        }`;
 
       response = await fetch(marketsUrl, {
         headers: { Accept: 'application/json' },
@@ -95,10 +107,33 @@ export async function GET(request: NextRequest) {
         const allMarkets = await response.json();
 
         const filtered = allMarkets.filter((m: any) => {
-          const searchText = `${m.question || ''} ${
-            m.description || ''
-          }`.toLowerCase();
-          return searchText.includes(query.toLowerCase());
+          const searchText = `${m.question || ''} ${m.description || ''}`;
+          return fuzzyMatch(searchText);
+        });
+
+        markets = [...markets, ...filtered];
+      }
+    }
+
+    // 3) If still not enough, try broader /markets without tag filter
+    if (markets.length < 3 && queryWords.length > 0) {
+      console.log('📊 Trying broad /markets search...');
+      const broadUrl =
+        'https://gamma-api.polymarket.com/markets?closed=false&order=volumeNum&ascending=false&limit=100';
+
+      response = await fetch(broadUrl, {
+        headers: { Accept: 'application/json' },
+      });
+
+      if (response.ok) {
+        const allMarkets = await response.json();
+        const existingIds = new Set(markets.map((m: any) => m.conditionId || m.condition_id || m.id));
+
+        const filtered = allMarkets.filter((m: any) => {
+          const id = m.conditionId || m.condition_id || m.id;
+          if (existingIds.has(id)) return false;
+          const searchText = `${m.question || ''} ${m.description || ''}`;
+          return fuzzyMatch(searchText);
         });
 
         markets = [...markets, ...filtered];

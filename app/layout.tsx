@@ -5,17 +5,21 @@ import { AppShell } from "@/components/AppShell";
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
-  title: "Flarify — Social Network for Prediction Market Traders",
+  title: "Flarify",
   description: "The first social network for Polymarket predictors",
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
   openGraph: {
-    title: "Flarify — Social Network for Prediction Market Traders",
+    title: "Flarify - Social Network for Prediction Market Traders",
     description: "The first social network for Polymarket predictors",
     type: "website",
     siteName: "Flarify",
   },
   twitter: {
     card: "summary",
-    title: "Flarify — Social Network for Prediction Market Traders",
+    title: "Flarify - Social Network for Prediction Market Traders",
     description: "The first social network for Polymarket predictors",
   },
 };

@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     // Check which alerts should trigger
     const triggeredIds: string[] = [];
-    const notifications: Array<{ user_id: string; type: string; content: string }> = [];
+    const triggeredAlerts: Array<{ alert: any; price: number }> = [];
 
     for (const alert of alerts) {
       const price = prices.get(alert.token_id);
@@ -119,35 +119,73 @@ export async function POST(request: NextRequest) {
 
       if (shouldTrigger) {
         triggeredIds.push(alert.id);
+        triggeredAlerts.push({ alert, price });
+      }
+    }
+
+    // Insert notifications FIRST, then mark alerts as triggered
+    // This way if notification insert fails, alert stays active and will retry
+    if (triggeredIds.length > 0) {
+      const successfullyNotified: string[] = [];
+
+      for (const { alert, price } of triggeredAlerts) {
         const pricePercent = Math.round(price * 100);
         const thresholdPercent = Math.round(alert.threshold * 100);
-        notifications.push({
-          user_id: alert.user_id,
-          type: "price_alert",
-          content: JSON.stringify({
-            market_question: alert.market_question,
-            outcome: alert.outcome,
-            direction: alert.direction,
-            threshold: alert.threshold,
-            current_price: price,
-            condition_id: alert.condition_id,
-            message: `${alert.outcome} ${alert.direction === "above" ? "went above" : "dropped below"} ${thresholdPercent}¢ (now ${pricePercent}¢)`,
-          }),
-        });
+
+        const { error: notifError } = await supabase
+          .from("notifications")
+          .insert({
+            user_id: alert.user_id,
+            actor_id: alert.user_id,
+            type: "price_alert",
+            post_id: null,
+            content: JSON.stringify({
+              market_question: alert.market_question,
+              outcome: alert.outcome,
+              direction: alert.direction,
+              threshold: alert.threshold,
+              current_price: price,
+              condition_id: alert.condition_id,
+              message: `${alert.outcome} ${alert.direction === "above" ? "went above" : "dropped below"} ${thresholdPercent}¢ (now ${pricePercent}¢)`,
+            }),
+          });
+
+        if (notifError) {
+          console.error("Failed to insert alert notification:", notifError, {
+            user_id: alert.user_id,
+            alert_id: alert.id,
+            market: alert.market_question,
+          });
+          // Don't mark this alert as triggered — it will retry next check
+        } else {
+          successfullyNotified.push(alert.id);
+        }
+      }
+
+      // Only mark alerts as triggered if notification was successfully created
+      if (successfullyNotified.length > 0) {
+        const { error: updateError } = await supabase
+          .from("price_alerts")
+          .update({ triggered_at: new Date().toISOString() })
+          .in("id", successfullyNotified);
+
+        if (updateError) {
+          console.error("Failed to update triggered alerts:", updateError);
+        }
       }
     }
 
-    // Update triggered alerts and insert notifications
-    if (triggeredIds.length > 0) {
-      await supabase
-        .from("price_alerts")
-        .update({ triggered_at: new Date().toISOString() })
-        .in("id", triggeredIds);
-
-      if (notifications.length > 0) {
-        await supabase.from("notifications").insert(notifications);
-      }
-    }
+    // Debug: log what was checked
+    const priceEntries = Array.from(prices.entries()).map(([tid, p]) => ({
+      token: tid.slice(0, 12) + "...",
+      price: Math.round(p * 100),
+    }));
+    console.log("Alert check results:", {
+      checked: alerts.length,
+      triggered: triggeredIds.length,
+      pricesFound: prices.size,
+      prices: priceEntries,
+    });
 
     return NextResponse.json({
       checked: alerts.length,

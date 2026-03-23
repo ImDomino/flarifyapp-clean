@@ -84,6 +84,8 @@ export async function GET(req: NextRequest) {
     let followedUserIds = new Set<string>();
     let likedAuthorIds = new Set<string>();
     let userLikedPostIds = new Set<string>();
+    let userRepostedPostIds = new Set<string>();
+    let userBookmarkedPostIds = new Set<string>();
 
     if (currentUserId) {
       // Who this user follows
@@ -103,6 +105,26 @@ export async function GET(req: NextRequest) {
         .in("post_id", allPostIds);
       if (userLikes) {
         userLikedPostIds = new Set(userLikes.map((l: any) => l.post_id));
+      }
+
+      // Which of these posts the user has reposted
+      const { data: userReposts } = await supabase
+        .from("reposts")
+        .select("post_id")
+        .eq("user_id", currentUserId)
+        .in("post_id", allPostIds);
+      if (userReposts) {
+        userRepostedPostIds = new Set(userReposts.map((r: any) => r.post_id));
+      }
+
+      // Which of these posts the user has bookmarked
+      const { data: userBookmarks } = await supabase
+        .from("bookmarks")
+        .select("post_id")
+        .eq("user_id", currentUserId)
+        .in("post_id", allPostIds);
+      if (userBookmarks) {
+        userBookmarkedPostIds = new Set(userBookmarks.map((b: any) => b.post_id));
       }
 
       // Find authors user has engaged with (liked their posts)
@@ -193,6 +215,8 @@ export async function GET(req: NextRequest) {
       likes_count: _lc,
       comments_count: _cc,
       user_has_liked: currentUserId ? userLikedPostIds.has(post.id) : false,
+      user_has_reposted: currentUserId ? userRepostedPostIds.has(post.id) : false,
+      user_has_bookmarked: currentUserId ? userBookmarkedPostIds.has(post.id) : false,
     }));
 
     return NextResponse.json({

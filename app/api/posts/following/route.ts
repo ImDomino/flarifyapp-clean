@@ -33,6 +33,8 @@ export async function GET(request: NextRequest) {
     const likeCounts: Record<string, number> = {};
     const commentCounts: Record<string, number> = {};
     const userLikedSet = new Set<string>();
+    const userRepostedSet = new Set<string>();
+    const userBookmarkedSet = new Set<string>();
 
     if (postIds.length > 0) {
       const { data: likesData } = await supabase
@@ -53,6 +55,20 @@ export async function GET(request: NextRequest) {
       for (const like of userLikes || []) {
         userLikedSet.add(like.post_id);
       }
+
+      // Current user's reposts
+      const { data: userReposts } = await supabase
+        .from("reposts").select("post_id").eq("user_id", userId).in("post_id", postIds);
+      for (const r of userReposts || []) {
+        userRepostedSet.add(r.post_id);
+      }
+
+      // Current user's bookmarks
+      const { data: userBookmarks } = await supabase
+        .from("bookmarks").select("post_id").eq("user_id", userId).in("post_id", postIds);
+      for (const b of userBookmarks || []) {
+        userBookmarkedSet.add(b.post_id);
+      }
     }
 
     const postsWithCounts = (posts || []).map((post) => ({
@@ -60,6 +76,8 @@ export async function GET(request: NextRequest) {
       likes_count: likeCounts[post.id] || 0,
       comments_count: commentCounts[post.id] || 0,
       user_has_liked: userLikedSet.has(post.id),
+      user_has_reposted: userRepostedSet.has(post.id),
+      user_has_bookmarked: userBookmarkedSet.has(post.id),
     }));
 
     return NextResponse.json({

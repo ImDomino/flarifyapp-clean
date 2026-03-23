@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
+import { stopTitleFlash } from "@/lib/notification-effects";
 
 interface Notification {
   id: string;
@@ -64,6 +65,7 @@ export function NotificationsDropdown() {
       });
       setUnreadCount(0);
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      stopTitleFlash();
     } catch {}
   };
 
