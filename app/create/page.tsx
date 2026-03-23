@@ -34,18 +34,66 @@ export default function CreatePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { authenticated, login, user } = usePrivy();
   const authFetch = useAuthFetch();
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processImageFile = (file: File) => {
+    const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (!allowed.includes(file.type) || file.size > 5 * 1024 * 1024) return;
     setImageFile(file);
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result as string);
     reader.readAsDataURL(file);
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processImageFile(file);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) processImageFile(file);
+        return;
+      }
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes("Files")) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) processImageFile(file);
   };
 
   const removeImage = () => {
@@ -148,15 +196,37 @@ export default function CreatePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-[#0a0a0a] border border-zinc-800 interact-border">
+        <div
+          className={`bg-[#0a0a0a] border interact-border relative transition-all duration-200 ${
+            isDragging ? "border-white ring-1 ring-white/20" : "border-zinc-800"
+          }`}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Drag overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 z-10 bg-black/80 flex flex-col items-center justify-center pointer-events-none">
+              <div className="w-14 h-14 border-2 border-dashed border-zinc-500 flex items-center justify-center mb-3 animate-pulse">
+                <ImageIcon className="w-6 h-6 text-zinc-400" />
+              </div>
+              <p className="text-sm font-bold uppercase tracking-wider text-zinc-400">
+                Drop image here
+              </p>
+            </div>
+          )}
+
           <textarea value={content} onChange={(e) => setContent(e.target.value)}
+            onPaste={handlePaste}
             placeholder="WHAT IS HAPPENING?" rows={6}
             className="w-full bg-transparent p-5 sm:p-6 text-white text-lg font-medium placeholder-zinc-700 placeholder:uppercase placeholder:tracking-wider focus:outline-none resize-none" />
           {imagePreview && (
             <div className="px-5 pb-4 relative">
-              <div className="border border-zinc-800 relative overflow-hidden">
+              <div className="border border-zinc-800 relative overflow-hidden group">
                 <Image src={imagePreview} alt="Preview" width={690} height={400} className="w-full h-auto object-cover max-h-64" unoptimized />
-                <button type="button" onClick={removeImage} className="absolute top-3 right-3 w-8 h-8 bg-black border border-zinc-700 flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors">
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                <button type="button" onClick={removeImage} className="absolute top-3 right-3 w-8 h-8 bg-black border border-zinc-700 flex items-center justify-center text-white hover:bg-red-600 hover:border-red-600 transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -174,11 +244,16 @@ export default function CreatePage() {
             </div>
           )}
           <div className="flex items-center justify-between px-5 py-4 border-t border-zinc-800">
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
               <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-zinc-500 hover:text-white border border-transparent hover:border-zinc-800 transition-all">
                 <ImageIcon className="w-5 h-5" />
               </button>
+              {!imagePreview && (
+                <span className="text-[11px] text-zinc-700 uppercase tracking-wider font-bold hidden sm:inline">
+                  Drag & drop or Ctrl+V
+                </span>
+              )}
             </div>
             <span className="text-xs font-mono text-zinc-600">{content.length}/500</span>
           </div>

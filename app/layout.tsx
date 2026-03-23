@@ -34,15 +34,19 @@ export default function RootLayout({
             theme="dark"
             position="bottom-right"
             toastOptions={{
-              style: {
-                background: "#0a0a0a",
-                border: "1px solid rgba(63, 63, 70, 0.5)",
-                color: "#e4e4e7",
-                fontFamily: "var(--font-body)",
-                fontSize: "13px",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                fontWeight: 700,
+              unstyled: true,
+              classNames: {
+                toast:
+                  "bg-[#0a0a0a] border border-zinc-800 px-4 py-3 rounded-none flex items-center gap-3 w-full font-body shadow-[0_4px_20px_rgba(0,0,0,0.5)]",
+                title:
+                  "text-zinc-200 text-[13px] font-bold uppercase tracking-wider",
+                description: "text-zinc-500 text-[11px] uppercase tracking-wider mt-0.5",
+                success: "border-zinc-700",
+                error: "border-red-900/50",
+                actionButton:
+                  "bg-white text-black text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 hover:bg-zinc-200 transition-colors",
+                cancelButton:
+                  "bg-transparent text-zinc-500 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border border-zinc-800 hover:text-white hover:border-zinc-600 transition-colors",
               },
             }}
           />
