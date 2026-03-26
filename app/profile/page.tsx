@@ -64,8 +64,8 @@ export default function ProfilePage() {
     try {
       setIsLoading(true);
       const [postsRes, repostsRes] = await Promise.all([
-        fetch(`/api/posts?user_id=${encodeURIComponent(user.id)}&page=1&limit=50`),
-        fetch(`/api/reposts/list?user_id=${encodeURIComponent(user.id)}`),
+        authFetch(`/api/posts?user_id=${encodeURIComponent(user.id)}&page=1&limit=50`),
+        authFetch(`/api/reposts/list?user_id=${encodeURIComponent(user.id)}`),
       ]);
       const postsData = await postsRes.json();
       const repostsData = await repostsRes.json();

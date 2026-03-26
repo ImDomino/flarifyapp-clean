@@ -8,11 +8,13 @@ import { PostCard } from "@/components/PostCard";
 import { FollowButton } from "@/components/FollowButton";
 import { FollowListModal } from "@/components/FollowListModal";
 import type { PostWithUser } from "@/lib/types";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
 
 export function UserProfileClient() {
   const { id } = useParams();
   const router = useRouter();
   const { user, ready } = usePrivy();
+  const authFetch = useAuthFetch();
   const [profileData, setProfileData] = useState<any>(null);
   const [posts, setPosts] = useState<PostWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,8 +51,8 @@ export function UserProfileClient() {
   const loadPosts = useCallback(async () => {
     try {
       const [postsRes, repostsRes] = await Promise.all([
-        fetch(`/api/posts?user_id=${encodeURIComponent(userId)}&page=1&limit=50`),
-        fetch(`/api/reposts/list?user_id=${encodeURIComponent(userId)}`),
+        authFetch(`/api/posts?user_id=${encodeURIComponent(userId)}&page=1&limit=50`),
+        authFetch(`/api/reposts/list?user_id=${encodeURIComponent(userId)}`),
       ]);
       const postsData = await postsRes.json();
       const repostsData = await repostsRes.json();
