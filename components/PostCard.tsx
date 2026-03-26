@@ -344,22 +344,65 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
               )}
             </div>
 
-            {/* Image */}
-            {post.image_url && (
-              <div
-                className="border border-zinc-800/60 mb-4 group-hover:border-zinc-700/60 transition-all duration-300 overflow-hidden img-hover-zoom"
-                style={{ maxHeight: "35rem" }}
-              >
-                <Image
-                  src={post.image_url}
-                  alt="Post image"
-                  width={690}
-                  height={288}
-                  className="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-all duration-500"
-                  unoptimized
-                />
-              </div>
-            )}
+            {/* Images */}
+            {post.image_url && (() => {
+              // Parse image_url: JSON array string → array, or plain URL → [url]
+              let imageUrls: string[] = [];
+              try {
+                if (post.image_url.startsWith("[")) {
+                  imageUrls = JSON.parse(post.image_url);
+                } else {
+                  imageUrls = [post.image_url];
+                }
+              } catch {
+                imageUrls = [post.image_url];
+              }
+
+              if (imageUrls.length === 1) {
+                return (
+                  <div
+                    className="border border-zinc-800/60 mb-4 group-hover:border-zinc-700/60 transition-all duration-300 overflow-hidden img-hover-zoom"
+                    style={{ maxHeight: "35rem" }}
+                  >
+                    <Image
+                      src={imageUrls[0]}
+                      alt="Post image"
+                      width={690}
+                      height={288}
+                      className="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-all duration-500"
+                      unoptimized
+                    />
+                  </div>
+                );
+              }
+
+              return (
+                <div className={`grid gap-1 mb-4 ${
+                  imageUrls.length === 2 ? "grid-cols-2" : "grid-cols-2"
+                }`}>
+                  {imageUrls.map((url, i) => (
+                    <div
+                      key={i}
+                      className={`border border-zinc-800/60 group-hover:border-zinc-700/60 transition-all duration-300 overflow-hidden ${
+                        imageUrls.length === 3 && i === 0 ? "col-span-2" : ""
+                      }`}
+                    >
+                      <Image
+                        src={url}
+                        alt={`Post image ${i + 1}`}
+                        width={345}
+                        height={200}
+                        className={`w-full object-cover opacity-85 group-hover:opacity-100 transition-all duration-500 ${
+                          imageUrls.length === 2 ? "h-48" :
+                          imageUrls.length === 3 && i === 0 ? "h-48" : "h-36"
+                          }`}
+                        unoptimized
+                      />
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
 
             {post.polymarket_market_id && post.market_data && (
               <div onClick={(e) => e.stopPropagation()}>

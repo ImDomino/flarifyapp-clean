@@ -3,12 +3,14 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { Image as ImageIcon, X, ArrowLeft } from "lucide-react";
+import { Image as ImageIcon, X, ArrowLeft, Plus } from "lucide-react";
 import Image from "next/image";
 import { MarketSearchInput } from "@/components/MarketSearchInput";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import { toast } from "sonner";
 import { PageTransition } from "@/components/PageTransition";
+
+const MAX_IMAGES = 4;
 
 interface Market {
   id: string;
@@ -26,10 +28,14 @@ interface Market {
   tokens?: Array<{ token_id: string; outcome: string }>;
 }
 
+interface ImageEntry {
+  file: File;
+  preview: string;
+}
+
 export default function CreatePage() {
   const [content, setContent] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>("");
+  const [images, setImages] = useState<ImageEntry[]>([]);
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -42,17 +48,30 @@ export default function CreatePage() {
   const authFetch = useAuthFetch();
 
   const processImageFile = (file: File) => {
+    if (images.length >= MAX_IMAGES) {
+      toast.error(`Maximum ${MAX_IMAGES} images per post`);
+      return;
+    }
     const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    if (!allowed.includes(file.type) || file.size > 5 * 1024 * 1024) return;
-    setImageFile(file);
+    if (!allowed.includes(file.type)) { toast.error("Unsupported image format"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
     const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.onloadend = () => {
+      setImages((prev) => [...prev, { file, preview: reader.result as string }]);
+    };
     reader.readAsDataURL(file);
   };
 
+  const processMultipleFiles = (files: FileList | File[]) => {
+    const arr = Array.from(files);
+    for (const file of arr) {
+      if (file.type.startsWith("image/")) processImageFile(file);
+    }
+  };
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) processImageFile(file);
+    if (e.target.files) processMultipleFiles(e.target.files);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -92,14 +111,11 @@ export default function CreatePage() {
     e.stopPropagation();
     setIsDragging(false);
     dragCounterRef.current = 0;
-    const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith("image/")) processImageFile(file);
+    if (e.dataTransfer.files?.length) processMultipleFiles(e.dataTransfer.files);
   };
 
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const removeImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -108,16 +124,18 @@ export default function CreatePage() {
     setIsLoading(true);
 
     try {
-      let imageUrl = null;
-      if (imageFile) {
+      // Upload all images
+      let imageUrls: string[] = [];
+      if (images.length > 0) {
         setIsUploading(true);
-        const formData = new FormData();
-        formData.append("file", imageFile);
-        // SECURITY: user_id removed — server extracts from JWT
-        const uploadResponse = await authFetch("/api/upload", { method: "POST", body: formData });
-        const uploadData = await uploadResponse.json();
-        if (!uploadData.success) throw new Error(uploadData.error || "Failed to upload image");
-        imageUrl = uploadData.url;
+        for (const img of images) {
+          const formData = new FormData();
+          formData.append("file", img.file);
+          const uploadResponse = await authFetch("/api/upload", { method: "POST", body: formData });
+          const uploadData = await uploadResponse.json();
+          if (!uploadData.success) throw new Error(uploadData.error || "Failed to upload image");
+          imageUrls.push(uploadData.url);
+        }
         setIsUploading(false);
       }
 
@@ -146,13 +164,19 @@ export default function CreatePage() {
         };
       }
 
-      // SECURITY: user_id removed from body — server extracts from JWT
+      // Send image_url as JSON array for multiple, or single string for one (backward compat)
+      const imageUrlField = imageUrls.length === 0
+        ? null
+        : imageUrls.length === 1
+          ? imageUrls[0]
+          : JSON.stringify(imageUrls);
+
       const response = await authFetch("/api/posts/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content,
-          image_url: imageUrl,
+          image_url: imageUrlField,
           polymarket_market_id: selectedMarket?.id || null,
           market_data: marketData,
         }),
@@ -212,7 +236,7 @@ export default function CreatePage() {
                 <ImageIcon className="w-6 h-6 text-zinc-400" />
               </div>
               <p className="text-sm font-bold uppercase tracking-wider text-zinc-400">
-                Drop image here
+                Drop images here
               </p>
             </div>
           )}
@@ -221,17 +245,60 @@ export default function CreatePage() {
             onPaste={handlePaste}
             placeholder="WHAT IS HAPPENING?" rows={6}
             className="w-full bg-transparent p-5 sm:p-6 text-white text-lg font-medium placeholder-zinc-700 placeholder:uppercase placeholder:tracking-wider focus:outline-none resize-none" />
-          {imagePreview && (
-            <div className="px-5 pb-4 relative">
-              <div className="border border-zinc-800 relative overflow-hidden group">
-                <Image src={imagePreview} alt="Preview" width={690} height={400} className="w-full h-auto object-cover max-h-64" unoptimized />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
-                <button type="button" onClick={removeImage} className="absolute top-3 right-3 w-8 h-8 bg-black border border-zinc-700 flex items-center justify-center text-white hover:bg-red-600 hover:border-red-600 transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
+
+          {/* Image Previews */}
+          {images.length > 0 && (
+            <div className="px-5 pb-4">
+              <div className={`grid gap-2 ${
+                images.length === 1 ? "grid-cols-1" :
+                images.length === 2 ? "grid-cols-2" :
+                "grid-cols-2"
+              }`}>
+                {images.map((img, i) => (
+                  <div
+                    key={i}
+                    className={`border border-zinc-800 relative overflow-hidden group ${
+                      images.length === 3 && i === 0 ? "col-span-2" : ""
+                    }`}
+                  >
+                    <Image
+                      src={img.preview}
+                      alt={`Preview ${i + 1}`}
+                      width={690}
+                      height={400}
+                      className={`w-full object-cover ${
+                        images.length === 1 ? "max-h-64" : "h-40"
+                      }`}
+                      unoptimized
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute top-2 right-2 w-7 h-7 bg-black/80 border border-zinc-700 flex items-center justify-center text-white hover:bg-red-600 hover:border-red-600 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                {images.length < MAX_IMAGES && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border border-dashed border-zinc-800 hover:border-zinc-600 flex items-center justify-center transition-colors ${
+                      images.length === 3 ? "h-40" : images.length === 1 ? "h-20" : "h-40"
+                    }`}
+                  >
+                    <Plus className="w-5 h-5 text-zinc-600" />
+                  </button>
+                )}
               </div>
+              <p className="text-[10px] text-zinc-700 font-bold uppercase tracking-widest mt-2">
+                {images.length}/{MAX_IMAGES} images
+              </p>
             </div>
           )}
+
           {selectedMarket && (
             <div className="px-5 pb-4">
               <div className="border border-zinc-800 p-4 bg-[#111] relative">
@@ -245,11 +312,11 @@ export default function CreatePage() {
           )}
           <div className="flex items-center justify-between px-5 py-4 border-t border-zinc-800">
             <div className="flex items-center gap-3">
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+              <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" />
               <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-zinc-500 hover:text-white border border-transparent hover:border-zinc-800 transition-all">
                 <ImageIcon className="w-5 h-5" />
               </button>
-              {!imagePreview && (
+              {images.length === 0 && (
                 <span className="text-[11px] text-zinc-700 uppercase tracking-wider font-bold hidden sm:inline">
                   Drag & drop or Ctrl+V
                 </span>
@@ -264,9 +331,9 @@ export default function CreatePage() {
             <MarketSearchInput onSelectMarket={setSelectedMarket} />
           </div>
         )}
-        <button type="submit" disabled={isLoading || (!content.trim() && !imageFile)}
+        <button type="submit" disabled={isLoading || (!content.trim() && images.length === 0)}
           className="w-full py-4 bg-white text-black font-black uppercase tracking-widest text-sm border-2 border-white hover:bg-black hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-          {isUploading ? "Uploading Image..." : isLoading ? "Creating Post..." : "Publish Post"}
+          {isUploading ? `Uploading ${images.length} image${images.length > 1 ? "s" : ""}...` : isLoading ? "Creating Post..." : "Publish Post"}
         </button>
       </form>
     </div>
