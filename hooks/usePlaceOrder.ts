@@ -93,7 +93,7 @@ export const usePlaceOrder = () => {
         price,
         size,
         side,
-        feeRateBps: 0,
+        feeRateBps: 1000,
         expiration: 0,
         taker: "0x0000000000000000000000000000000000000000",
       };

@@ -181,15 +181,21 @@ export default function SettingsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const toggleSection = (key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleLogout = async () => {
-    if (confirm("Are you sure you want to logout?")) {
+    setIsLoggingOut(true);
+    try {
       await logout();
       router.push("/");
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
     }
   };
 
@@ -353,7 +359,7 @@ export default function SettingsPage() {
                       </div>
                       <div className="flex flex-wrap gap-3">
                         <button
-                          onClick={handleLogout}
+                          onClick={() => setShowLogoutModal(true)}
                           className="flex items-center gap-2 px-4 py-2.5 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600 transition-all text-xs font-bold uppercase tracking-wider"
                         >
                           <LogOut className="w-3.5 h-3.5" />
@@ -673,6 +679,41 @@ export default function SettingsPage() {
                   >
                     {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     Delete Forever
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* ═══════ LOGOUT MODAL ═══════ */}
+        {showLogoutModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-[#0a0a0a] border border-zinc-800/60 w-full max-w-sm relative overflow-hidden animate-scale-in">
+              <div className="absolute inset-0 grid-bg-animated opacity-5 pointer-events-none" />
+              <div className="relative z-10 p-6">
+                <div className="w-12 h-12 mx-auto mb-4 border-2 border-zinc-700/50 flex items-center justify-center">
+                  <LogOut className="w-6 h-6 text-zinc-400" />
+                </div>
+                <h3 className="text-lg font-black uppercase tracking-wider text-center mb-2">
+                  Log Out
+                </h3>
+                <p className="text-sm text-zinc-500 text-center mb-6">
+                  Are you sure you want to log out of your account?
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowLogoutModal(false)}
+                    className="flex-1 py-3 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600 transition-all text-xs font-bold uppercase tracking-wider"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="flex-1 py-3 bg-white text-black font-black uppercase tracking-wider text-xs border-2 border-white hover:bg-black hover:text-white transition-all duration-300 flex items-center justify-center gap-2"
+                  >
+                    {isLoggingOut && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Log Out
                   </button>
                 </div>
               </div>

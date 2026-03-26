@@ -12,6 +12,7 @@ interface PnlSummaryCardProps {
   onTogglePublic: () => void;
   viewOnly?: boolean;
   positions?: UserPosition[];
+  onRefresh?: () => Promise<UserPosition[] | void>;
 }
 
 interface RedeemedTotals {
@@ -34,13 +35,14 @@ function aggregateOpenPositions(positions: UserPosition[]) {
   return { pnl, value, cost, count: positions.length, wins, losses };
 }
 
-export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: externalPositions }: PnlSummaryCardProps) {
-  const { positions: ownPositions, isLoading, error, fetchPositions } = usePositions();
+export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: externalPositions, onRefresh }: PnlSummaryCardProps) {
+  const { positions: ownPositions, isLoading, error, fetchPositions: ownFetchPositions } = usePositions();
   const authFetch = useAuthFetch();
   const [refreshing, setRefreshing] = useState(false);
   const [redeemed, setRedeemed] = useState<RedeemedTotals>({ pnl: 0, wins: 0, losses: 0, count: 0 });
 
   const positions = externalPositions ?? ownPositions;
+  const fetchPositions = onRefresh ?? ownFetchPositions;
 
   /**
    * Fetch redeemed positions PnL from our DB.

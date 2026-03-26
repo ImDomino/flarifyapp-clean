@@ -28,8 +28,17 @@ function isResolved(pos: UserPosition): boolean {
   return false;
 }
 
-export function PositionsTab() {
-  const { positions, isLoading: posLoading, error: posError, fetchPositions } = usePositions();
+interface PositionsTabProps {
+  positions?: UserPosition[];
+  fetchPositions?: () => Promise<UserPosition[] | void>;
+  positionsLoading?: boolean;
+}
+
+export function PositionsTab({ positions: extPositions, fetchPositions: extFetch, positionsLoading }: PositionsTabProps = {}) {
+  const { positions: ownPositions, isLoading: ownLoading, error: posError, fetchPositions: ownFetch } = usePositions();
+  const positions = extPositions ?? ownPositions;
+  const fetchPositions = extFetch ?? ownFetch;
+  const posLoading = positionsLoading ?? ownLoading;
   const { orders, isLoading: ordLoading, error: ordError, fetchOrders, cancelOrder, cancelAllOrders } = useOpenOrders();
   const { isRedeeming, error: redeemError, redeemPosition } = useRedeemPosition();
 
@@ -41,7 +50,7 @@ export function PositionsTab() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancellingAll, setCancellingAll] = useState(false);
 
-  useEffect(() => { fetchPositions(); fetchOrders(); }, [fetchPositions, fetchOrders]);
+  useEffect(() => { if (!extPositions) fetchPositions(); fetchOrders(); }, [fetchPositions, fetchOrders, extPositions]);
 
   const handleRefresh = async () => {
     if (refreshing) return;

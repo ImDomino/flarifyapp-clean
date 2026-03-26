@@ -17,6 +17,7 @@ import { useAuthFetch } from "@/hooks/useAuthFetch";
 import { useSettings } from "@/hooks/useSettings";
 import type { PostWithUser } from "@/lib/types";
 import { useWallet } from "@/providers/WalletProvider";
+import { usePositions } from "@/hooks/usePositions";
 
 type ProfileSection = "posts" | "positions";
 
@@ -24,6 +25,7 @@ export default function ProfilePage() {
   const { authenticated, user, login } = usePrivy();
   const router = useRouter();
   const { eoaAddress, safeAddress } = useWallet();
+  const { positions, isLoading: positionsLoading, fetchPositions } = usePositions();
   const [posts, setPosts] = useState<PostWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<ProfileSection>("posts");
@@ -87,6 +89,12 @@ export default function ProfilePage() {
     loadFollowCounts();
     loadUserPosts();
   }, [authenticated, user, loadProfile, loadFollowCounts, loadUserPosts]);
+
+  // Fetch positions separately when wallet is ready
+  useEffect(() => {
+    if (eoaAddress) fetchPositions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eoaAddress]);
 
   const handleCopyAddress = () => {
     const value = safeAddress || user?.wallet?.address || "—";
@@ -223,6 +231,8 @@ export default function ProfilePage() {
           <PnlSummaryCard
             isPublic={settings.privacy.show_pnl_public}
             onTogglePublic={togglePnlVisibility}
+            positions={positions}
+            onRefresh={fetchPositions}
           />
         </div>
       )}
@@ -283,7 +293,7 @@ export default function ProfilePage() {
       {activeSection === "positions" && (
         <section className="animate-fade-up">
           {eoaAddress ? (
-            <PositionsTab />
+            <PositionsTab positions={positions} fetchPositions={fetchPositions} positionsLoading={positionsLoading} />
           ) : (
             <div className="bg-[#0a0a0a] border border-zinc-800/60 p-10 text-center corner-accent relative overflow-hidden">
               <div className="absolute inset-0 grid-bg-animated opacity-10" />
