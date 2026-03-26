@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
 import { isValidUUID } from "@/lib/validate";
+import { notifyUser } from "@/lib/realtime";
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
           type: "repost",
           post_id: body.post_id,
         });
+        notifyUser(post.user_id, { type: "repost", actorId: userId });
       }
     } catch {}
 

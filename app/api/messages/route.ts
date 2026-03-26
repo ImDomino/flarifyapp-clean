@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
+import { notifyUser } from "@/lib/realtime";
 
 export const dynamic = "force-dynamic";
 
@@ -250,6 +251,7 @@ export async function POST(request: NextRequest) {
         actor_id: userId,
         content: preview,
       });
+      notifyUser(recipient_id, { type: "message", actorId: userId });
     } catch { /* non-critical */ }
 
     return NextResponse.json({ success: true, message, conversation_id: conv!.id });

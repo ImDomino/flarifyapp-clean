@@ -1,0 +1,3 @@
+-- No RLS needed for Broadcast approach.
+-- This migration is kept as a placeholder.
+-- Realtime notifications use Supabase Broadcast channels (server → client push).

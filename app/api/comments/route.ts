@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
 import { validateCommentContent, isValidUUID } from "@/lib/validate";
 import { RL, rateLimitResponse } from "@/lib/rate-limit";
+import { notifyUser } from "@/lib/realtime";
 
 export async function GET(request: NextRequest) {
   try {
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
             type: "comment",
             post_id: body.post_id,
           });
+          notifyUser(parentComment.user_id, { type: "comment", actorId: userId });
         }
       } else {
         // Top-level comment — notify the post author
@@ -97,6 +99,7 @@ export async function POST(request: NextRequest) {
             type: "comment",
             post_id: body.post_id,
           });
+          notifyUser(post.user_id, { type: "comment", actorId: userId });
         }
       }
     } catch {}

@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
 import { isValidUserId } from "@/lib/validate";
 import { RL, rateLimitResponse } from "@/lib/rate-limit";
+import { notifyUser } from "@/lib/realtime";
 
 // GET: public — returns counts + isFollowing
 export async function GET(request: NextRequest) {
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     } else {
       const { error } = await supabase.from("follows").insert({ follower_id: userId, following_id });
       if (error) throw error;
-      try { await supabase.from("notifications").insert({ user_id: following_id, actor_id: userId, type: "follow" }); } catch {}
+      try { await supabase.from("notifications").insert({ user_id: following_id, actor_id: userId, type: "follow" }); notifyUser(following_id, { type: "follow", actorId: userId }); } catch {}
       return NextResponse.json({ success: true, action: "followed" });
     }
   } catch (error: any) {

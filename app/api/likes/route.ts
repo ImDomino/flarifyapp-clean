@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
 import { isValidUUID } from "@/lib/validate";
 import { RL, rateLimitResponse } from "@/lib/rate-limit";
+import { notifyUser } from "@/lib/realtime";
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,8 +30,10 @@ export async function POST(request: NextRequest) {
       // Notification
       try {
         const { data: post } = await supabase.from("posts").select("user_id").eq("id", post_id).single();
-        if (post && post.user_id !== userId)
+        if (post && post.user_id !== userId) {
           await supabase.from("notifications").insert({ user_id: post.user_id, actor_id: userId, type: "like", post_id });
+          notifyUser(post.user_id, { type: "like", actorId: userId });
+        }
       } catch {}
 
       return NextResponse.json({ success: true, action: "liked" });

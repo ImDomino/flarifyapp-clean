@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { RL, rateLimitResponse } from "@/lib/rate-limit";
 import { timingSafeEqual } from "crypto";
+import { notifyUser } from "@/lib/realtime";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -159,6 +160,8 @@ export async function POST(request: NextRequest) {
           // Don't mark this alert as triggered — it will retry next check
         } else {
           successfullyNotified.push(alert.id);
+          const alertMsg = `${alert.outcome} ${alert.direction === "above" ? "went above" : "dropped below"} ${thresholdPercent}¢ (now ${pricePercent}¢) — ${alert.market_question}`;
+          notifyUser(alert.user_id, { type: "price_alert", extra: alertMsg });
         }
       }
 

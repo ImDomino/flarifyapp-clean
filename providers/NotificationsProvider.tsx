@@ -5,10 +5,9 @@ import {
 } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
+import { createClient } from "@/lib/supabase/client";
 import {
   playNotificationSound,
-  startTitleFlash,
-  stopTitleFlash,
   initAudioOnInteraction,
 } from "@/lib/notification-effects";
 
@@ -35,7 +34,6 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const authFetch = useAuthFetch();
   const [unreadCount, setUnreadCount] = useState(0);
   const fetchingRef = useRef(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const prevUnreadRef = useRef(0);
   const initialFetchDoneRef = useRef(false);
 
@@ -47,15 +45,9 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       const data = await res.json();
       const newCount = data.unread_count || 0;
 
-      // Detect NEW notifications (count went up, not first fetch)
-      if (
-        initialFetchDoneRef.current &&
-        newCount > prevUnreadRef.current
-      ) {
+      // Play sound when new notifications arrive (not on first fetch)
+      if (initialFetchDoneRef.current && newCount > prevUnreadRef.current) {
         playNotificationSound();
-        if (document.hidden) {
-          startTitleFlash(newCount);
-        }
       }
 
       prevUnreadRef.current = newCount;
@@ -74,7 +66,6 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       });
       setUnreadCount(0);
       prevUnreadRef.current = 0;
-      stopTitleFlash();
     } catch {}
   }, [authFetch]);
 
@@ -89,74 +80,50 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       setUnreadCount((prev) => {
         const next = Math.max(0, prev - ids.length);
         prevUnreadRef.current = next;
-        if (next === 0) stopTitleFlash();
         return next;
       });
     } catch {}
   }, [authFetch]);
 
-  // Init audio on first user interaction & stop flashing on focus
+  // Init audio on first user interaction
   useEffect(() => {
     initAudioOnInteraction();
-
-    const handleFocus = () => {
-      stopTitleFlash();
-    };
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
-  // Background alert price checking — runs every 2 min regardless of page
-  const alertCheckRef = useRef<NodeJS.Timeout | null>(null);
-  const alertCheckingRef = useRef(false);
+  // ── Supabase Realtime subscription (instant in-app notifications) ──
+  useEffect(() => {
+    if (!authenticated || !user?.id) return;
 
-  const checkAlerts = useCallback(async () => {
-    if (!user?.id || alertCheckingRef.current) return;
-    alertCheckingRef.current = true;
-    try {
-      await authFetch("/api/alerts/check", { method: "POST" });
-    } catch {}
-    finally { alertCheckingRef.current = false; }
-  }, [user?.id, authFetch]);
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on("broadcast", { event: "new_notification" }, () => {
+        refreshUnread();
+      })
+      .subscribe();
 
-  // Polling: 60s when active, 3min when background
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authenticated, user?.id, refreshUnread]);
+
+  // ── Fetch on mount + refresh when tab becomes visible (no polling) ──
   useEffect(() => {
     if (!authenticated) return;
 
-    const ACTIVE_INTERVAL = 60_000;    // 60s
-    const BACKGROUND_INTERVAL = 180_000; // 3min
-    const ALERT_CHECK_INTERVAL = 120_000; // 2min
-
     refreshUnread();
-    checkAlerts(); // check alerts on load
-
-    const startPolling = (interval: number) => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(refreshUnread, interval);
-    };
-
-    // Alert check runs independently at a fixed 2min interval
-    alertCheckRef.current = setInterval(checkAlerts, ALERT_CHECK_INTERVAL);
 
     const handleVisibility = () => {
-      if (document.hidden) {
-        startPolling(BACKGROUND_INTERVAL);
-      } else {
+      if (!document.hidden) {
         refreshUnread();
-        checkAlerts(); // also check alerts when tab becomes visible
-        startPolling(ACTIVE_INTERVAL);
       }
     };
 
-    startPolling(ACTIVE_INTERVAL);
     document.addEventListener("visibilitychange", handleVisibility);
-
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (alertCheckRef.current) clearInterval(alertCheckRef.current);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [authenticated, refreshUnread, checkAlerts]);
+  }, [authenticated, refreshUnread]);
 
   return (
     <NotificationsContext.Provider value={{ unreadCount, refreshUnread, markAllRead, markRead }}>
