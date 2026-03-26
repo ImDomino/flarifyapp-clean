@@ -8,6 +8,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { MarketSearchInput } from "@/components/MarketSearchInput";
 import { CreateAlertModal } from "@/components/CreateAlertModal";
+import { TelegramHint } from "@/components/TelegramHint";
 
 interface SelectedMarket {
   id: string;
@@ -71,6 +72,8 @@ export default function AlertsPage() {
             </p>
           </div>
         </div>
+
+        <TelegramHint />
 
         {/* Create Alert */}
         <div className="animate-fade-up stagger-1 relative z-30">

@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         const { data: post } = await supabase.from("posts").select("user_id").eq("id", post_id).single();
         if (post && post.user_id !== userId) {
           await supabase.from("notifications").insert({ user_id: post.user_id, actor_id: userId, type: "like", post_id });
-          notifyUser(post.user_id, { type: "like", actorId: userId });
+          notifyUser(post.user_id, { type: "like", actorId: userId, postId: post_id });
         }
       } catch {}
 

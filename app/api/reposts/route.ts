@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
           type: "repost",
           post_id: body.post_id,
         });
-        notifyUser(post.user_id, { type: "repost", actorId: userId });
+        notifyUser(post.user_id, { type: "repost", actorId: userId, postId: body.post_id });
       }
     } catch {}
 

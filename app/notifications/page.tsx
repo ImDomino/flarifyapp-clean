@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { stopTitleFlash } from "@/lib/notification-effects";
 import { PageTransition } from "@/components/PageTransition";
+import { TelegramHint } from "@/components/TelegramHint";
 import { formatDistanceToNow } from "date-fns";
 
 interface NotificationItem {
@@ -169,6 +170,8 @@ export default function NotificationsPage() {
   return (
     <PageTransition>
     <div className="space-y-4">
+      <TelegramHint />
+
       {/* Header */}
       <div className="flex items-center justify-between animate-fade-up">
         <div>

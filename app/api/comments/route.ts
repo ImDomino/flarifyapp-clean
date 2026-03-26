@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
             type: "comment",
             post_id: body.post_id,
           });
-          notifyUser(parentComment.user_id, { type: "comment", actorId: userId });
+          notifyUser(parentComment.user_id, { type: "comment", actorId: userId, postId: body.post_id });
         }
       } else {
         // Top-level comment — notify the post author
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
             type: "comment",
             post_id: body.post_id,
           });
-          notifyUser(post.user_id, { type: "comment", actorId: userId });
+          notifyUser(post.user_id, { type: "comment", actorId: userId, postId: body.post_id });
         }
       }
     } catch {}
