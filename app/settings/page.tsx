@@ -1,15 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Settings, Bell, Shield, ArrowLeft, Loader2,
   Heart, MessageCircle, UserPlus, Repeat, Mail, TrendingUp,
   Eye, EyeOff, Lock, Users, Globe,
+  Copy, Check, LogOut, Trash2, ChevronDown, ChevronRight,
+  User, Wallet, Link2, Send,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
+import { toast } from "sonner";
 import { PageTransition } from "@/components/PageTransition";
 import { useSettings } from "@/hooks/useSettings";
+import { useWallet } from "@/providers/WalletProvider";
+import { useAuthFetch } from "@/hooks/useAuthFetch";
+import { useTelegramLink } from "@/hooks/useTelegramLink";
+
+/* ── Shared UI ─────────────────────────────────────────── */
 
 function ToggleSwitch({
   enabled,
@@ -76,12 +84,133 @@ function SettingRow({
   );
 }
 
+function SectionHeader({
+  icon,
+  title,
+  isOpen,
+  onToggle,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 border border-zinc-800/60 flex items-center justify-center">
+          {icon}
+        </div>
+        <span className="text-sm font-black uppercase tracking-widest text-zinc-200">
+          {title}
+        </span>
+      </div>
+      {isOpen ? (
+        <ChevronDown className="w-4 h-4 text-zinc-500" />
+      ) : (
+        <ChevronRight className="w-4 h-4 text-zinc-500" />
+      )}
+    </button>
+  );
+}
+
+function CopyableAddress({ label, address }: { label: string; address: string | null }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    if (!address) return;
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    toast.success("Address copied");
+    setTimeout(() => setCopied(false), 2000);
+  }, [address]);
+
+  if (!address) {
+    return (
+      <div className="flex items-center justify-between py-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{label}</p>
+          <p className="text-sm text-zinc-500 font-mono mt-0.5">Not connected</p>
+        </div>
+      </div>
+    );
+  }
+
+  const truncated = `${address.slice(0, 6)}...${address.slice(-4)}`;
+
+  return (
+    <div className="flex items-center justify-between py-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{label}</p>
+        <p className="text-sm text-zinc-300 font-mono mt-0.5" title={address}>{truncated}</p>
+      </div>
+      <button
+        onClick={handleCopy}
+        className="w-8 h-8 border border-zinc-800/60 flex items-center justify-center hover:border-zinc-600 transition-colors flex-shrink-0"
+      >
+        {copied ? (
+          <Check className="w-3.5 h-3.5 text-emerald-400" />
+        ) : (
+          <Copy className="w-3.5 h-3.5 text-zinc-500" />
+        )}
+      </button>
+    </div>
+  );
+}
+
+/* ── Main Page ─────────────────────────────────────────── */
+
 export default function SettingsPage() {
   const router = useRouter();
-  const { authenticated, login } = usePrivy();
+  const { authenticated, user, logout, login } = usePrivy();
   const { settings, isLoading, isSaving, updateNotifications, updatePrivacy } = useSettings();
-  const [activeSection, setActiveSection] = useState<"notifications" | "privacy">("notifications");
+  const { eoaAddress, safeAddress } = useWallet();
+  const authFetch = useAuthFetch();
+  const telegram = useTelegramLink();
 
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    account: true,
+    notifications: true,
+    privacy: false,
+    linked: false,
+  });
+
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const toggleSection = (key: string) => {
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleLogout = async () => {
+    if (confirm("Are you sure you want to logout?")) {
+      await logout();
+      router.push("/");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== "DELETE") return;
+    setIsDeleting(true);
+    try {
+      const res = await authFetch("/api/account", { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete account");
+      await logout();
+      router.push("/");
+      toast.success("Account deleted");
+    } catch {
+      toast.error("Failed to delete account");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  /* ── Not authenticated ─── */
   if (!authenticated) {
     return (
       <PageTransition>
@@ -116,6 +245,10 @@ export default function SettingsPage() {
     );
   }
 
+  /* ── Authenticated ─── */
+  const googleEmail = user?.google?.email || user?.email?.address || null;
+  const memberSince = user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : null;
+
   return (
     <PageTransition>
       <div className="space-y-5">
@@ -141,66 +274,118 @@ export default function SettingsPage() {
             Settings
           </h1>
           <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mt-1">
-            Manage your preferences
+            Manage your account & preferences
           </p>
         </div>
 
-        {/* Section Tabs */}
-        <div className="flex items-center gap-1 bg-[#0a0a0a] border border-zinc-800/60 p-1 animate-fade-up stagger-2">
-          {([
-            { id: "notifications" as const, label: "Notifications", icon: <Bell className="w-3.5 h-3.5" /> },
-            { id: "privacy" as const, label: "Privacy", icon: <Shield className="w-3.5 h-3.5" /> },
-          ]).map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveSection(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-black uppercase tracking-widest transition-all duration-300 ${
-                activeSection === tab.id
-                  ? "bg-white text-black"
-                  : "text-zinc-500 hover:text-white hover:bg-white/[0.03]"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Loading */}
         {isLoading ? (
-          <div className="bg-[#0a0a0a] border border-zinc-800/60 p-8 animate-fade-up stagger-3">
-            <div className="space-y-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="flex items-center justify-between py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 shimmer-bg" />
-                    <div className="space-y-1.5">
-                      <div className="h-3 w-28 shimmer-bg" />
-                      <div className="h-2.5 w-44 shimmer-bg" />
-                    </div>
-                  </div>
-                  <div className="w-11 h-6 shimmer-bg" />
+          <div className="space-y-4 animate-fade-up stagger-2">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-[#0a0a0a] border border-zinc-800/60 p-5">
+                <div className="space-y-3">
+                  <div className="h-4 w-32 shimmer-bg" />
+                  <div className="h-3 w-48 shimmer-bg" />
+                  <div className="h-3 w-40 shimmer-bg" />
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         ) : (
-          <>
-            {/* Notification Settings */}
-            {activeSection === "notifications" && (
-              <div className="bg-[#0a0a0a] border border-zinc-800/60 animate-fade-up stagger-3 relative overflow-hidden">
-                <div className="absolute inset-0 grid-bg-animated opacity-5 pointer-events-none" />
-                <div className="relative z-10">
-                  <div className="px-5 py-4 border-b border-zinc-800/40">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1 h-3.5 bg-white/15" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                        Notification Preferences
-                      </span>
+          <div className="space-y-3 animate-fade-up stagger-2">
+
+            {/* ═══════ ACCOUNT ═══════ */}
+            <div className="bg-[#0a0a0a] border border-zinc-800/60 relative overflow-hidden">
+              <div className="absolute inset-0 grid-bg-animated opacity-5 pointer-events-none" />
+              <div className="relative z-10">
+                <SectionHeader
+                  icon={<User className="w-4 h-4 text-zinc-400" />}
+                  title="Account"
+                  isOpen={openSections.account}
+                  onToggle={() => toggleSection("account")}
+                />
+
+                {openSections.account && (
+                  <div className="border-t border-zinc-800/40">
+                    {/* Connected Account */}
+                    <div className="px-5 py-4 border-b border-zinc-800/30">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1 h-3.5 bg-white/15" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                          Connected Account
+                        </span>
+                      </div>
+                      {googleEmail && (
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 border border-zinc-800/60 flex items-center justify-center">
+                            <Globe className="w-4 h-4 text-zinc-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-zinc-200">{googleEmail}</p>
+                            {memberSince && (
+                              <p className="text-[10px] text-zinc-600 font-medium mt-0.5">
+                                Member since {memberSince}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Wallet Addresses */}
+                    <div className="px-5 py-4 border-b border-zinc-800/30">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-1 h-3.5 bg-white/15" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                          Wallet Addresses
+                        </span>
+                      </div>
+                      <CopyableAddress label="Safe (Trading)" address={safeAddress} />
+                      <CopyableAddress label="EOA (Signer)" address={eoaAddress} />
+                    </div>
+
+                    {/* Danger Zone */}
+                    <div className="px-5 py-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-1 h-3.5 bg-red-500/30" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                          Danger Zone
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          onClick={handleLogout}
+                          className="flex items-center gap-2 px-4 py-2.5 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600 transition-all text-xs font-bold uppercase tracking-wider"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          Log Out
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteModal(true)}
+                          className="flex items-center gap-2 px-4 py-2.5 border border-red-900/40 text-red-400/70 hover:text-red-400 hover:border-red-800/60 hover:bg-red-500/5 transition-all text-xs font-bold uppercase tracking-wider"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete Account
+                        </button>
+                      </div>
                     </div>
                   </div>
+                )}
+              </div>
+            </div>
 
-                  <div className="px-5 py-2">
+            {/* ═══════ NOTIFICATIONS ═══════ */}
+            <div className="bg-[#0a0a0a] border border-zinc-800/60 relative overflow-hidden">
+              <div className="absolute inset-0 grid-bg-animated opacity-5 pointer-events-none" />
+              <div className="relative z-10">
+                <SectionHeader
+                  icon={<Bell className="w-4 h-4 text-zinc-400" />}
+                  title="Notifications"
+                  isOpen={openSections.notifications}
+                  onToggle={() => toggleSection("notifications")}
+                />
+
+                {openSections.notifications && (
+                  <div className="border-t border-zinc-800/40 px-5 py-2">
                     <SettingRow
                       icon={<Heart className="w-4 h-4 text-zinc-400" />}
                       label="Likes"
@@ -250,27 +435,31 @@ export default function SettingsPage() {
                       disabled={isSaving}
                     />
                   </div>
-                </div>
+                )}
               </div>
-            )}
+            </div>
 
-            {/* Privacy Settings */}
-            {activeSection === "privacy" && (
-              <div className="space-y-4 animate-fade-up stagger-3">
-                {/* Visibility */}
-                <div className="bg-[#0a0a0a] border border-zinc-800/60 relative overflow-hidden">
-                  <div className="absolute inset-0 grid-bg-animated opacity-5 pointer-events-none" />
-                  <div className="relative z-10">
-                    <div className="px-5 py-4 border-b border-zinc-800/40">
-                      <div className="flex items-center gap-2">
+            {/* ═══════ PRIVACY ═══════ */}
+            <div className="bg-[#0a0a0a] border border-zinc-800/60 relative overflow-hidden">
+              <div className="absolute inset-0 grid-bg-animated opacity-5 pointer-events-none" />
+              <div className="relative z-10">
+                <SectionHeader
+                  icon={<Shield className="w-4 h-4 text-zinc-400" />}
+                  title="Privacy"
+                  isOpen={openSections.privacy}
+                  onToggle={() => toggleSection("privacy")}
+                />
+
+                {openSections.privacy && (
+                  <div className="border-t border-zinc-800/40">
+                    {/* Visibility */}
+                    <div className="px-5 py-2">
+                      <div className="flex items-center gap-2 py-3">
                         <div className="w-1 h-3.5 bg-white/15" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
                           Profile Visibility
                         </span>
                       </div>
-                    </div>
-
-                    <div className="px-5 py-2">
                       <SettingRow
                         icon={<TrendingUp className="w-4 h-4 text-zinc-400" />}
                         label="Public PnL"
@@ -288,30 +477,21 @@ export default function SettingsPage() {
                         disabled={isSaving}
                       />
                     </div>
-                  </div>
-                </div>
 
-                {/* Messaging */}
-                <div className="bg-[#0a0a0a] border border-zinc-800/60 relative overflow-hidden">
-                  <div className="absolute inset-0 grid-bg-animated opacity-5 pointer-events-none" />
-                  <div className="relative z-10">
-                    <div className="px-5 py-4 border-b border-zinc-800/40">
-                      <div className="flex items-center gap-2">
+                    {/* Messaging */}
+                    <div className="px-5 py-4 border-t border-zinc-800/30">
+                      <div className="flex items-center gap-2 mb-3">
                         <div className="w-1 h-3.5 bg-white/15" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
                           Direct Messages
                         </span>
                       </div>
-                    </div>
-
-                    <div className="px-5 py-4">
                       <p className="text-sm font-bold text-zinc-200 uppercase tracking-wide mb-1">
                         Who can message you
                       </p>
                       <p className="text-[11px] text-zinc-600 font-medium mb-4">
                         Control who can send you direct messages
                       </p>
-
                       <div className="space-y-2">
                         {([
                           { value: "everyone" as const, label: "Everyone", icon: <Globe className="w-4 h-4" />, desc: "Anyone on Flarify can message you" },
@@ -351,10 +531,153 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
+                )}
+              </div>
+            </div>
+
+            {/* ═══════ LINKED ACCOUNTS ═══════ */}
+            <div className="bg-[#0a0a0a] border border-zinc-800/60 relative overflow-hidden">
+              <div className="absolute inset-0 grid-bg-animated opacity-5 pointer-events-none" />
+              <div className="relative z-10">
+                <SectionHeader
+                  icon={<Link2 className="w-4 h-4 text-zinc-400" />}
+                  title="Linked Accounts"
+                  isOpen={openSections.linked}
+                  onToggle={() => toggleSection("linked")}
+                />
+
+                {openSections.linked && (
+                  <div className="border-t border-zinc-800/40 px-5 py-4">
+                    {/* Telegram */}
+                    <div className="border border-zinc-800/60 relative overflow-hidden">
+                      <div className="p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 border border-zinc-800/60 flex items-center justify-center flex-shrink-0">
+                              <Send className="w-5 h-5 text-[#26A5E4]" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-black text-zinc-200 uppercase tracking-wide">
+                                Telegram
+                              </p>
+                              {telegram.isConnected ? (
+                                <p className="text-[11px] text-emerald-400 font-bold mt-0.5">
+                                  Connected as @{telegram.username}
+                                </p>
+                              ) : (
+                                <p className="text-[11px] text-zinc-600 font-medium mt-0.5">
+                                  Receive market alerts via Telegram
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {telegram.isConnected ? (
+                            <button
+                              onClick={telegram.disconnect}
+                              disabled={telegram.isLoading}
+                              className="px-4 py-2 border border-red-900/40 text-red-400/70 hover:text-red-400 hover:border-red-800/60 transition-all text-[10px] font-black uppercase tracking-widest flex-shrink-0 disabled:opacity-50"
+                            >
+                              Disconnect
+                            </button>
+                          ) : telegram.isLinking ? (
+                            <div className="flex items-center gap-2 text-zinc-500">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span className="text-[10px] font-bold uppercase tracking-widest">
+                                Waiting...
+                              </span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={telegram.connect}
+                              disabled={telegram.isLoading}
+                              className="px-4 py-2 bg-white text-black font-black uppercase tracking-widest text-[10px] border-2 border-white hover:bg-black hover:text-white transition-all duration-300 flex-shrink-0 disabled:opacity-50"
+                            >
+                              Connect
+                            </button>
+                          )}
+                        </div>
+
+                        {telegram.isLinking && telegram.linkUrl && (
+                          <div className="mt-4 p-3 border border-zinc-800/40 bg-white/[0.02]">
+                            <p className="text-[11px] text-zinc-400 font-medium mb-2">
+                              Click the link below to connect your Telegram account:
+                            </p>
+                            <a
+                              href={telegram.linkUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-[#26A5E4] hover:text-[#4ab8ef] font-bold transition-colors break-all"
+                            >
+                              {telegram.linkUrl}
+                            </a>
+                            <p className="text-[10px] text-zinc-600 font-medium mt-2">
+                              Press Start in the bot to complete linking. This page will update automatically.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════ DELETE ACCOUNT MODAL ═══════ */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-[#0a0a0a] border border-zinc-800/60 w-full max-w-md relative overflow-hidden animate-scale-in">
+              <div className="absolute inset-0 grid-bg-animated opacity-5 pointer-events-none" />
+              <div className="relative z-10 p-6">
+                <div className="w-12 h-12 mx-auto mb-4 border-2 border-red-900/40 flex items-center justify-center">
+                  <Trash2 className="w-6 h-6 text-red-400" />
+                </div>
+                <h3 className="text-lg font-black uppercase tracking-wider text-center mb-2">
+                  Delete Account
+                </h3>
+                <p className="text-sm text-zinc-500 text-center mb-6">
+                  This action is permanent and cannot be undone. All your data, posts, and positions will be deleted.
+                </p>
+                <div className="mb-4">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 block mb-2">
+                    Type DELETE to confirm
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="DELETE"
+                    className="w-full px-4 py-3 bg-transparent border border-zinc-800 text-white font-mono text-sm focus:outline-none focus:border-red-800/60 placeholder:text-zinc-700"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeleteConfirmText("");
+                    }}
+                    className="flex-1 py-3 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600 transition-all text-xs font-bold uppercase tracking-wider"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deleteConfirmText !== "DELETE" || isDeleting}
+                    className={`flex-1 py-3 border-2 text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 ${
+                      deleteConfirmText === "DELETE"
+                        ? "border-red-600 bg-red-600 text-white hover:bg-red-700"
+                        : "border-zinc-800 text-zinc-700 cursor-not-allowed"
+                    }`}
+                  >
+                    {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Delete Forever
+                  </button>
                 </div>
               </div>
-            )}
-          </>
+            </div>
+          </div>
         )}
       </div>
     </PageTransition>
