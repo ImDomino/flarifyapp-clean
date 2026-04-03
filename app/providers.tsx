@@ -1,7 +1,7 @@
 'use client';
 
 import { WalletProvider, useWallet } from '@/providers/WalletProvider';
-import { BetaGateProvider } from '@/providers/BetaGateProvider';
+
 import { MessagesProvider } from '@/providers/MessagesProvider';
 import { NotificationsProvider } from '@/providers/NotificationsProvider';
 import { useEffect, useState } from 'react';
@@ -104,7 +104,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ProfileSync>
         <NotificationsProvider>
           <MessagesProvider>
-            <BetaGateProvider>{children}</BetaGateProvider>
+            {children}
           </MessagesProvider>
         </NotificationsProvider>
       </ProfileSync>

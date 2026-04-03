@@ -1,22 +1,19 @@
 "use client";
 
-import { useBetaGate } from "@/providers/BetaGateProvider";
 import { usePrivy } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
 import { TopNavBar } from "@/components/TopNavBar";
 import { NavigationSidebar } from "@/components/Navigation";
 import { RightSidebar } from "@/components/RightSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
-import { LandingPage } from "@/components/LandingPage";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { isApproved, isLoading } = useBetaGate();
   const { ready } = usePrivy();
   const pathname = usePathname();
   const isMessagesPage = pathname?.startsWith("/messages");
 
   // Loading state
-  if (!ready || isLoading) {
+  if (!ready) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <div className="text-center">
@@ -29,12 +26,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Not approved — show landing page
-  if (!isApproved) {
-    return <LandingPage />;
-  }
-
-  // Approved — full app chrome
   return (
     <>
       {/* Structural Background Grid */}

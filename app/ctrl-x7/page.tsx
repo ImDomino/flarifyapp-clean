@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import { MarketSearchInput } from "@/components/MarketSearchInput";
-import { Image as ImageIcon, X, Send, Users, PenSquare } from "lucide-react";
+import { Image as ImageIcon, X, Send, Users, PenSquare, Loader2 } from "lucide-react";
 import Image from "next/image";
 
 interface UserProfile {
@@ -30,8 +31,36 @@ interface Market {
 }
 
 export default function AdminPage() {
+  const { authenticated, ready } = usePrivy();
   const authFetch = useAuthFetch();
   const [error, setError] = useState<string | null>(null);
+  const [adminVerified, setAdminVerified] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+
+  // Verify admin access before showing anything
+  useEffect(() => {
+    if (!ready) return;
+    if (!authenticated) {
+      setCheckingAdmin(false);
+      setError("Sign in required");
+      return;
+    }
+    const verify = async () => {
+      try {
+        const res = await authFetch("/api/admin/users?search=&limit=1");
+        if (res.status === 401 || res.status === 403) {
+          setError("Access denied");
+        } else {
+          setAdminVerified(true);
+        }
+      } catch {
+        setError("Access denied");
+      } finally {
+        setCheckingAdmin(false);
+      }
+    };
+    verify();
+  }, [ready, authenticated, authFetch]);
 
   // Create post state
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -261,10 +290,18 @@ export default function AdminPage() {
     }
   };
 
-  if (error) {
+  if (!ready || checkingAdmin) {
+    return (
+      <div className="max-w-4xl mx-auto py-20 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
+      </div>
+    );
+  }
+
+  if (error || !adminVerified) {
     return (
       <div className="max-w-4xl mx-auto py-12 text-center">
-        <p className="text-red-500 text-lg font-medium">{error}</p>
+        <p className="text-red-500 text-lg font-medium">{error || "Access denied"}</p>
       </div>
     );
   }
