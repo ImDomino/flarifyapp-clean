@@ -42,8 +42,9 @@ export async function POST(request: NextRequest) {
     if (body.parent_id && !isValidUUID(body.parent_id))
       return NextResponse.json({ error: "Invalid parent_id" }, { status: 400 });
 
+    const hasImage = body.image_url && typeof body.image_url === "string" && body.image_url.length > 0;
     const v = validateCommentContent(body.content);
-    if (!v.valid) return v.error!;
+    if (!v.valid && !hasImage) return v.error!;
 
     const supabase = createServiceClient();
 
@@ -60,12 +61,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validate optional image_url
+    let imageUrl: string | null = null;
+    if (body.image_url && typeof body.image_url === "string" && body.image_url.length <= 2048) {
+      try {
+        const parsed = new URL(body.image_url);
+        if (parsed.protocol === "https:") imageUrl = body.image_url;
+      } catch {}
+    }
+
     const insertData: any = {
       post_id: body.post_id,
       user_id: userId,
-      content: v.content,
+      content: v.valid ? v.content : "",
     };
     if (body.parent_id) insertData.parent_id = body.parent_id;
+    if (imageUrl) insertData.image_url = imageUrl;
 
     const { data: comment, error } = await supabase
       .from("comments")

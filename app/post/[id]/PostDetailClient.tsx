@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { ArrowLeft, Send, Trash2, Reply, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Send, Trash2, Reply, ChevronDown, ChevronUp, Image as ImageIcon, X } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { formatDistanceToNow } from "date-fns";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
@@ -15,6 +15,7 @@ import { PageTransition } from "@/components/PageTransition";
 interface Comment {
   id: string;
   content: string;
+  image_url?: string | null;
   user_id: string;
   parent_id: string | null;
   created_at: string;
@@ -40,6 +41,27 @@ export function PostDetailClient() {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
   const [collapsedThreads, setCollapsedThreads] = useState<Set<string>>(new Set());
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
+  const [commentImages, setCommentImages] = useState<Array<{ file: File; preview: string }>>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
+  const commentFileRef = useRef<HTMLInputElement>(null);
+  const MAX_COMMENT_IMAGES = 4;
+
+  // Load current user's avatar
+  useEffect(() => {
+    if (!user?.id) return;
+    const loadAvatar = async () => {
+      try {
+        const res = await fetch(`/api/profile?user_id=${encodeURIComponent(user.id)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMyAvatarUrl(data.profile?.avatar_url || null);
+        }
+      } catch {}
+    };
+    loadAvatar();
+  }, [user?.id]);
 
   const loadPost = useCallback(async () => {
     try {
@@ -78,17 +100,105 @@ export function PostDetailClient() {
 
   useEffect(() => { loadPost(); loadComments(); }, [loadPost, loadComments]);
 
+  const addCommentImage = (file: File) => {
+    if (commentImages.length >= MAX_COMMENT_IMAGES) {
+      toast.error(`Maximum ${MAX_COMMENT_IMAGES} images`);
+      return;
+    }
+    const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (!allowed.includes(file.type)) { toast.error("Unsupported format"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Max 5MB"); return; }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setCommentImages((prev) => [...prev, { file, preview: reader.result as string }]);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const addCommentFiles = (files: FileList | File[]) => {
+    for (const f of Array.from(files)) {
+      if (f.type.startsWith("image/")) addCommentImage(f);
+    }
+  };
+
+  const handleCommentFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) addCommentFiles(e.target.files);
+    if (commentFileRef.current) commentFileRef.current.value = "";
+  };
+
+  const handleCommentPaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) addCommentImage(file);
+        return;
+      }
+    }
+  };
+
+  const handleCommentDragEnter = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes("Files")) setIsDragging(true);
+  };
+  const handleCommentDragLeave = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) setIsDragging(false);
+  };
+  const handleCommentDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+  };
+  const handleCommentDrop = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setIsDragging(false); dragCounterRef.current = 0;
+    if (e.dataTransfer.files?.length) addCommentFiles(e.dataTransfer.files);
+  };
+
+  const removeCommentImage = (index: number) => {
+    setCommentImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const clearCommentImages = () => setCommentImages([]);
+
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !newComment.trim()) return;
+    if (!user || (!newComment.trim() && commentImages.length === 0)) return;
     setIsSubmitting(true);
     try {
+      // Upload all images
+      const imageUrls: string[] = [];
+      for (const img of commentImages) {
+        const formData = new FormData();
+        formData.append("file", img.file);
+        const uploadRes = await authFetch("/api/upload", { method: "POST", body: formData });
+        const uploadData = await uploadRes.json();
+        if (!uploadData.success) throw new Error(uploadData.error || "Upload failed");
+        imageUrls.push(uploadData.url);
+      }
+
+      // Single string for 1 image, JSON array for multiple (like posts)
+      const imageUrlField = imageUrls.length === 0
+        ? null
+        : imageUrls.length === 1
+          ? imageUrls[0]
+          : JSON.stringify(imageUrls);
+
       const res = await authFetch("/api/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ post_id: id, content: newComment.trim() }),
+        body: JSON.stringify({ post_id: id, content: newComment.trim(), image_url: imageUrlField }),
       });
-      if (res.ok) { setNewComment(""); loadComments(); loadPost(); toast.success("Comment added"); }
+      if (res.ok) {
+        setNewComment("");
+        clearCommentImages();
+        loadComments();
+        loadPost();
+        toast.success("Comment added");
+      }
     } catch (err) { console.error("Error:", err); toast.error("Failed to add comment"); }
     finally { setIsSubmitting(false); }
   };
@@ -202,7 +312,28 @@ export function PostDetailClient() {
                   )}
                 </div>
               </div>
-              <p className="text-sm text-zinc-300 font-medium leading-relaxed">{comment.content}</p>
+              {comment.content && (
+                <p className="text-sm text-zinc-300 font-medium leading-relaxed">{comment.content}</p>
+              )}
+              {comment.image_url && (() => {
+                let urls: string[] = [];
+                try {
+                  const parsed = JSON.parse(comment.image_url);
+                  if (Array.isArray(parsed)) urls = parsed;
+                  else urls = [comment.image_url];
+                } catch {
+                  urls = [comment.image_url];
+                }
+                return urls.length > 0 ? (
+                  <div className={`mt-2 grid gap-1.5 ${urls.length === 1 ? "grid-cols-1 inline-grid" : "grid-cols-2"}`}>
+                    {urls.map((url, i) => (
+                      <div key={i} className={`border border-zinc-800 overflow-hidden ${urls.length === 3 && i === 0 ? "col-span-2" : ""}`}>
+                        <img src={url} alt="" className={`w-full object-cover ${urls.length === 1 ? "max-h-48" : "h-28"}`} />
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
 
               {hasReplies && (
                 <button
@@ -227,9 +358,13 @@ export function PostDetailClient() {
           >
             <div className="flex gap-3">
               <div className="w-6 h-6 flex-shrink-0 border border-zinc-700 bg-zinc-900 flex items-center justify-center overflow-hidden">
-                <span className="text-[9px] font-black text-white uppercase">
-                  {(user?.google?.name || user?.email?.address || "U")[0]}
-                </span>
+                {myAvatarUrl ? (
+                  <img src={myAvatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[9px] font-black text-white uppercase">
+                    {(user?.google?.name || user?.email?.address || "U")[0]}
+                  </span>
+                )}
               </div>
               <div className="flex-1">
                 <textarea
@@ -300,28 +435,102 @@ export function PostDetailClient() {
       <PostCard post={post} />
 
       {user && (
-        <form onSubmit={handleSubmitComment} className="bg-[#0a0a0a] border border-zinc-800 p-5">
-          <div className="flex gap-4">
-            <div className="w-10 h-10 flex-shrink-0 border border-zinc-700 bg-white flex items-center justify-center">
-              <span className="text-sm font-black text-black uppercase">
-                {(user.google?.name || user.email?.address || "U")[0]}
-              </span>
+        <form
+          onSubmit={handleSubmitComment}
+          onDragEnter={handleCommentDragEnter}
+          onDragLeave={handleCommentDragLeave}
+          onDragOver={handleCommentDragOver}
+          onDrop={handleCommentDrop}
+          className={`bg-[#0a0a0a] border p-5 relative transition-colors ${
+            isDragging ? "border-white" : "border-zinc-800"
+          }`}
+        >
+          {/* Drag overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 z-10 bg-black/80 flex flex-col items-center justify-center pointer-events-none">
+              <div className="w-12 h-12 border-2 border-dashed border-zinc-500 flex items-center justify-center mb-2 animate-pulse">
+                <ImageIcon className="w-5 h-5 text-zinc-400" />
+              </div>
+              <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Drop images here</p>
             </div>
-            <div className="flex-1">
+          )}
+
+          <div className="flex gap-4">
+            <div className="w-10 h-10 flex-shrink-0 border border-zinc-700 bg-zinc-900 flex items-center justify-center overflow-hidden">
+              {myAvatarUrl ? (
+                <img src={myAvatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-sm font-black text-white uppercase">
+                  {(user.google?.name || user.email?.address || "U")[0]}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
+                onPaste={handleCommentPaste}
                 placeholder="WRITE A COMMENT..."
                 rows={3}
                 className="w-full bg-transparent text-sm font-medium text-white placeholder-zinc-700 placeholder:uppercase placeholder:tracking-wider focus:outline-none resize-none mb-3"
               />
-              <div className="flex justify-end">
+
+              {/* Image previews */}
+              {commentImages.length > 0 && (
+                <div className="mb-3">
+                  <div className={`grid gap-1.5 ${
+                    commentImages.length === 1 ? "grid-cols-1" : "grid-cols-2"
+                  }`}>
+                    {commentImages.map((img, i) => (
+                      <div
+                        key={i}
+                        className={`border border-zinc-800 overflow-hidden relative group ${
+                          commentImages.length === 3 && i === 0 ? "col-span-2" : ""
+                        }`}
+                      >
+                        <img src={img.preview} alt="" className={`w-full object-cover ${
+                          commentImages.length === 1 ? "max-h-48" : "h-28"
+                        }`} />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                        <button
+                          type="button"
+                          onClick={() => removeCommentImage(i)}
+                          className="absolute top-1 right-1 w-6 h-6 bg-black/80 border border-zinc-700 flex items-center justify-center text-white hover:bg-red-600 hover:border-red-600 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-zinc-700 font-bold uppercase tracking-widest mt-1.5">
+                    {commentImages.length}/{MAX_COMMENT_IMAGES} images
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <input ref={commentFileRef} type="file" accept="image/*" multiple onChange={handleCommentFileSelect} className="hidden" />
+                  <button
+                    type="button"
+                    onClick={() => commentFileRef.current?.click()}
+                    className="p-1.5 text-zinc-600 hover:text-white transition-colors"
+                    title="Attach images"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                  </button>
+                  {commentImages.length === 0 && (
+                    <span className="text-[10px] text-zinc-700 font-bold uppercase tracking-wider hidden sm:inline">
+                      Drag & drop or Ctrl+V
+                    </span>
+                  )}
+                </div>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !newComment.trim()}
+                  disabled={isSubmitting || (!newComment.trim() && commentImages.length === 0)}
                   className="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-black font-black uppercase tracking-wider text-xs border-2 border-white hover:bg-black hover:text-white transition-colors disabled:opacity-30"
                 >
-                  <Send className="w-3.5 h-3.5" /> Reply
+                  <Send className="w-3.5 h-3.5" /> {isSubmitting ? "..." : "Reply"}
                 </button>
               </div>
             </div>
