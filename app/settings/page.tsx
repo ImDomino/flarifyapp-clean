@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Settings, Bell, Shield, ArrowLeft, Loader2,
   Heart, MessageCircle, UserPlus, Repeat, Mail, TrendingUp,
   Eye, EyeOff, Lock, Users, Globe,
-  Copy, Check, LogOut, Trash2, ChevronDown, ChevronRight,
+  Copy, Check, LogOut, Trash2, ChevronRight,
   User, Wallet, Link2, Send,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -108,12 +108,64 @@ function SectionHeader({
           {title}
         </span>
       </div>
-      {isOpen ? (
-        <ChevronDown className="w-4 h-4 text-zinc-500" />
-      ) : (
-        <ChevronRight className="w-4 h-4 text-zinc-500" />
-      )}
+      <ChevronRight
+        className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ease-out ${
+          isOpen ? "rotate-90" : "rotate-0"
+        }`}
+      />
     </button>
+  );
+}
+
+function AnimatedSection({
+  isOpen,
+  children,
+}: {
+  isOpen: boolean;
+  children: React.ReactNode;
+}) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | undefined>(isOpen ? undefined : 0);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      // On first render, set height immediately without animation
+      setHeight(isOpen ? undefined : 0);
+      return;
+    }
+
+    const el = contentRef.current;
+    if (!el) return;
+
+    if (isOpen) {
+      const scrollHeight = el.scrollHeight;
+      setHeight(0);
+      // Force reflow
+      el.offsetHeight;
+      setHeight(scrollHeight);
+      const onEnd = () => setHeight(undefined);
+      el.addEventListener("transitionend", onEnd, { once: true });
+      return () => el.removeEventListener("transitionend", onEnd);
+    } else {
+      const scrollHeight = el.scrollHeight;
+      setHeight(scrollHeight);
+      el.offsetHeight;
+      setHeight(0);
+    }
+  }, [isOpen]);
+
+  return (
+    <div
+      ref={contentRef}
+      style={{ height: height === undefined ? "auto" : height }}
+      className={`overflow-hidden transition-[height,opacity] duration-300 ease-out ${
+        isOpen ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -310,7 +362,7 @@ export default function SettingsPage() {
                   onToggle={() => toggleSection("account")}
                 />
 
-                {openSections.account && (
+                <AnimatedSection isOpen={openSections.account}>
                   <div className="border-t border-zinc-800/40">
                     {/* Connected Account */}
                     <div className="px-5 py-4 border-b border-zinc-800/30">
@@ -375,7 +427,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
-                )}
+                </AnimatedSection>
               </div>
             </div>
 
@@ -390,7 +442,7 @@ export default function SettingsPage() {
                   onToggle={() => toggleSection("notifications")}
                 />
 
-                {openSections.notifications && (
+                <AnimatedSection isOpen={openSections.notifications}>
                   <div className="border-t border-zinc-800/40 px-5 py-2">
                     <SettingRow
                       icon={<Heart className="w-4 h-4 text-zinc-400" />}
@@ -441,7 +493,7 @@ export default function SettingsPage() {
                       disabled={isSaving}
                     />
                   </div>
-                )}
+                </AnimatedSection>
               </div>
             </div>
 
@@ -456,7 +508,7 @@ export default function SettingsPage() {
                   onToggle={() => toggleSection("privacy")}
                 />
 
-                {openSections.privacy && (
+                <AnimatedSection isOpen={openSections.privacy}>
                   <div className="border-t border-zinc-800/40">
                     {/* Visibility */}
                     <div className="px-5 py-2">
@@ -537,7 +589,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
-                )}
+                </AnimatedSection>
               </div>
             </div>
 
@@ -552,7 +604,7 @@ export default function SettingsPage() {
                   onToggle={() => toggleSection("linked")}
                 />
 
-                {openSections.linked && (
+                <AnimatedSection isOpen={openSections.linked}>
                   <div className="border-t border-zinc-800/40 px-5 py-4">
                     {/* Telegram */}
                     <div className="border border-zinc-800/60 relative overflow-hidden">
@@ -625,7 +677,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
-                )}
+                </AnimatedSection>
               </div>
             </div>
           </div>

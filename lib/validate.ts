@@ -29,11 +29,6 @@ export function isValidUserId(id: unknown): boolean {
   return isValidUUID(id);
 }
 
-export function isValidInviteCode(code: unknown): boolean {
-  if (typeof code !== "string") return false;
-  return /^FL-[A-Z0-9]{6}$/.test(code.toUpperCase());
-}
-
 export function isValidEmail(email: unknown): boolean {
   if (typeof email !== "string") return false;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;

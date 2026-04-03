@@ -1,88 +1,40 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
   TrendingUp, TrendingDown, Eye, EyeOff, RefreshCw, Loader2, AlertCircle,
 } from "lucide-react";
-import { usePositions, UserPosition } from "@/hooks/usePositions";
-import { useAuthFetch } from "@/hooks/useAuthFetch";
+import { usePositions, UserPosition, PnlTotals } from "@/hooks/usePositions";
 
 interface PnlSummaryCardProps {
   isPublic: boolean;
   onTogglePublic: () => void;
   viewOnly?: boolean;
   positions?: UserPosition[];
+  pnlTotals?: PnlTotals;
   onRefresh?: () => Promise<UserPosition[] | void>;
 }
 
-interface RedeemedTotals {
-  pnl: number;
-  wins: number;
-  losses: number;
-  count: number;
-}
-
-function aggregateOpenPositions(positions: UserPosition[]) {
-  let pnl = 0, value = 0, cost = 0, wins = 0, losses = 0;
-  for (const pos of positions) {
-    const c = pos.size * pos.avgPrice;
-    cost += c;
-    value += pos.currentValue || c;
-    pnl += pos.cashPnl;
-    if (pos.cashPnl > 0) wins++;
-    else if (pos.cashPnl < 0) losses++;
-  }
-  return { pnl, value, cost, count: positions.length, wins, losses };
-}
-
-export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: externalPositions, onRefresh }: PnlSummaryCardProps) {
-  const { positions: ownPositions, isLoading, error, fetchPositions: ownFetchPositions } = usePositions();
-  const authFetch = useAuthFetch();
+export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: externalPositions, pnlTotals: externalTotals, onRefresh }: PnlSummaryCardProps) {
+  const { positions: ownPositions, pnlTotals: ownTotals, isLoading, error, fetchPositions: ownFetchPositions } = usePositions();
   const [refreshing, setRefreshing] = useState(false);
-  const [redeemed, setRedeemed] = useState<RedeemedTotals>({ pnl: 0, wins: 0, losses: 0, count: 0 });
 
   const positions = externalPositions ?? ownPositions;
+  const totals = externalTotals ?? ownTotals;
   const fetchPositions = onRefresh ?? ownFetchPositions;
-
-  /**
-   * Fetch redeemed positions PnL from our DB.
-   * These are positions that were claimed through Flarify — 
-   * their PnL was saved before they disappeared from Polymarket API.
-   */
-  const fetchRedeemed = useCallback(async () => {
-    if (viewOnly) return;
-    try {
-      const res = await authFetch("/api/redeemed-positions");
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.totals) {
-        setRedeemed(data.totals);
-      }
-    } catch {}
-  }, [viewOnly, authFetch]);
 
   useEffect(() => {
     if (!externalPositions) fetchPositions();
   }, [fetchPositions, externalPositions]);
 
-  useEffect(() => {
-    fetchRedeemed();
-  }, [fetchRedeemed]);
-
   const handleRefresh = async () => {
     if (refreshing || externalPositions) return;
     setRefreshing(true);
-    await Promise.all([fetchPositions(), fetchRedeemed()]);
+    await fetchPositions();
     setRefreshing(false);
   };
 
-  const open = aggregateOpenPositions(positions);
-
-  // Total PnL = current positions PnL + redeemed positions PnL (from our DB)
-  const totalPnl = open.pnl + redeemed.pnl;
-  const totalWins = open.wins + redeemed.wins;
-  const totalLosses = open.losses + redeemed.losses;
-  const totalPositions = open.count + redeemed.count;
+  const { totalPnl, portfolioValue, totalPositions, wins, losses } = totals;
   const isUp = totalPnl >= 0;
   const hasData = totalPositions > 0;
 
@@ -147,7 +99,7 @@ export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: 
 
         {!hasData ? (
           <div className="text-center py-4">
-            <p className="text-xs text-zinc-600 uppercase tracking-wider font-bold">No open positions</p>
+            <p className="text-xs text-zinc-600 uppercase tracking-wider font-bold">No positions</p>
             <p className="text-[10px] text-zinc-700 mt-1">Trade on markets to see your PnL here</p>
           </div>
         ) : (
@@ -174,9 +126,9 @@ export function PnlSummaryCard({ isPublic, onTogglePublic, viewOnly, positions: 
 
             <div className="grid grid-cols-4 gap-px bg-zinc-800">
               <StatCell label="Positions" value={totalPositions.toString()} />
-              <StatCell label="Portfolio" value={`$${open.value.toFixed(2)}`} />
-              <StatCell label="Winning" value={totalWins.toString()} accent="emerald" />
-              <StatCell label="Losing" value={totalLosses.toString()} accent="red" />
+              <StatCell label="Portfolio" value={`$${portfolioValue.toFixed(2)}`} />
+              <StatCell label="Winning" value={wins.toString()} accent="emerald" />
+              <StatCell label="Losing" value={losses.toString()} accent="red" />
             </div>
           </>
         )}

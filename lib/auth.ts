@@ -33,16 +33,6 @@ export function forbiddenResponse(message = "Forbidden") {
   return NextResponse.json({ error: message }, { status: 403 });
 }
 
-export async function isBetaApproved(userId: string): Promise<boolean> {
-  const supabase = createServiceClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("is_beta_approved")
-    .eq("id", userId)
-    .maybeSingle();
-  return data?.is_beta_approved === true;
-}
-
 export async function isAdmin(userId: string): Promise<boolean> {
   const supabase = createServiceClient();
   const { data } = await supabase
@@ -51,8 +41,4 @@ export async function isAdmin(userId: string): Promise<boolean> {
     .eq("id", userId)
     .maybeSingle();
   return data?.is_admin === true;
-}
-
-export function betaRequiredResponse() {
-  return NextResponse.json({ error: "Beta access required" }, { status: 403 });
 }

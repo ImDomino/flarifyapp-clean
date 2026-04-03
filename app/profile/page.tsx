@@ -25,7 +25,7 @@ export default function ProfilePage() {
   const { authenticated, user, login } = usePrivy();
   const router = useRouter();
   const { eoaAddress, safeAddress } = useWallet();
-  const { positions, isLoading: positionsLoading, fetchPositions } = usePositions();
+  const { positions, pnlTotals, isLoading: positionsLoading, fetchPositions } = usePositions();
   const [posts, setPosts] = useState<PostWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<ProfileSection>("posts");
@@ -232,6 +232,7 @@ export default function ProfilePage() {
             isPublic={settings.privacy.show_pnl_public}
             onTogglePublic={togglePnlVisibility}
             positions={positions}
+            pnlTotals={pnlTotals}
             onRefresh={fetchPositions}
           />
         </div>

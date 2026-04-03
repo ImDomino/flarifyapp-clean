@@ -3,7 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const APP_URL = process.env.NEXT_PUBLIC_VERCEL_URL
   ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-  : "https://flarify.vercel.app";
+  : "https://flarify.app";
 
 /** Map notification type → settings key */
 const TYPE_TO_SETTING: Record<string, string> = {

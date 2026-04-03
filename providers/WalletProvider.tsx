@@ -27,61 +27,41 @@ const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
   const [ethersSigner, setEthersSigner] = useState<ethers.Signer | null>(null);
   const [isReady, setIsReady] = useState(false);
 
+  // Derive a stable key so the effect only re-runs when the wallet list
+  // actually changes, not on every render.
+  const walletsKey = wallets.map((w) => w.address).join(",");
+
   useEffect(() => {
     let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout>;
 
-    const setup = async (attempt = 1) => {
-      if (cancelled) return;
+    if (!ready || !authenticated) {
+      setEthersSigner(null);
+      setEoaAddress(null);
+      setSafeAddress(null);
+      setIsReady(false);
+      return;
+    }
 
-      if (!ready || !authenticated) {
-        setEthersSigner(null);
-        setEoaAddress(null);
-        setSafeAddress(null);
-        setIsReady(false);
-        return;
-      }
+    const wallet = wallets.find((w) => w.walletClientType === "privy");
+    if (!wallet) {
+      // Embedded wallet not available yet — the effect will re-run
+      // automatically when `wallets` updates with the new wallet.
+      return;
+    }
 
-      const wallet = wallets.find((w) => w.walletClientType === "privy");
-      if (!wallet) {
-        if (attempt <= 10) {
-          console.warn(
-            `⚠️ No Privy embedded wallet found, retry ${attempt}/10...`
-          );
-          retryTimer = setTimeout(() => setup(attempt + 1), 500);
-        } else {
-          console.error("❌ Privy embedded wallet not found after 10 retries");
-        }
-        return;
-      }
-
+    const setup = async () => {
       try {
-        // Явно переключаемся на Polygon
+        // Switch to Polygon
         try {
           await wallet.switchChain(polygon.id);
-          console.log("🔗 Switched to Polygon (chainId: 137)");
-        } catch (switchErr: any) {
-          console.warn(
-            "⚠️ Chain switch failed (may already be on Polygon):",
-            switchErr?.message
-          );
+        } catch {
+          // May already be on Polygon
         }
 
         const provider = await wallet.getEthereumProvider();
         const ethersProvider = new ethers.providers.Web3Provider(provider as any);
         const signer = ethersProvider.getSigner();
         const addr = await signer.getAddress();
-
-        const network = await ethersProvider.getNetwork();
-        if (network.chainId !== 137) {
-          console.warn(
-            `⚠️ Expected chainId 137, got ${network.chainId}. Retrying...`
-          );
-          if (attempt <= 5) {
-            retryTimer = setTimeout(() => setup(attempt + 1), 1000);
-            return;
-          }
-        }
 
         const config = getContractConfig(137);
         const safe = deriveSafe(
@@ -91,17 +71,12 @@ const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
 
         if (cancelled) return;
 
-        console.log("🔑 Wallet initialized:");
-        console.log("  EOA (signer):", addr);
-        console.log("  Safe (funder):", safe);
-        console.log("  Chain ID:", network.chainId);
-
         setEthersSigner(signer);
         setEoaAddress(addr);
         setSafeAddress(safe);
         setIsReady(true);
       } catch (e) {
-        console.error("❌ Wallet setup error:", e);
+        console.error("Wallet setup error:", e);
         if (!cancelled) {
           setEthersSigner(null);
           setEoaAddress(null);
@@ -115,9 +90,8 @@ const WalletProviderInner = ({ children }: { children: React.ReactNode }) => {
 
     return () => {
       cancelled = true;
-      clearTimeout(retryTimer);
     };
-  }, [ready, authenticated, wallets]);
+  }, [ready, authenticated, walletsKey]);
 
   const value: WalletContextValue = useMemo(
     () => ({ login, logout, eoaAddress, safeAddress, ethersSigner, isReady }),

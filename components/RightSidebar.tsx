@@ -6,7 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { DepositModal } from "./DepositModal";
 import { WithdrawModal } from "./WithdrawModal";
-import { InviteCodesCard } from "./InviteCodesCard";
+
 import { WatchlistSearchModal } from "./WatchlistSearchModal";
 import { useWallet } from "@/providers/WalletProvider";
 import { useBalances } from "@/hooks/useBalances";
@@ -110,9 +110,6 @@ export function RightSidebar() {
               </div>
             </div>
           </div>
-
-          {/* ═══ Invite Codes ═══ */}
-          <InviteCodesCard />
 
           {/* ═══ Watchlist ═══ */}
           <div className="bg-[#0a0a0a] border border-zinc-800/60 animate-fade-up stagger-2 overflow-hidden">

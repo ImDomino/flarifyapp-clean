@@ -5,25 +5,8 @@ export interface Profile {
   username: string | null;
   wallet_address: string | null;
   avatar_url: string | null;
-  is_beta_approved: boolean;
-  invited_by: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface InviteCode {
-  id: string;
-  code: string;
-  owner_id: string;
-  used_by: string | null;
-  used_at: string | null;
-  created_at: string;
-}
-
-export interface WaitlistEntry {
-  id: string;
-  email: string;
-  created_at: string;
 }
 
 export interface Post {
