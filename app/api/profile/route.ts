@@ -68,6 +68,9 @@ export async function PATCH(request: NextRequest) {
       }
     }
     if (body.bio !== undefined) updates.bio = sanitizeText(body.bio, 300) || "";
+    if (body.twitter_handle !== undefined) {
+      updates.twitter_handle = sanitizeText(body.twitter_handle, 50) || null;
+    }
 
     // PnL visibility toggle
     if (body.show_pnl_public !== undefined) {

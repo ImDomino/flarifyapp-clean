@@ -114,7 +114,7 @@ function getPublicClient() {
   return createPublicClient({
     chain: polygon,
     transport: http(
-      process.env.NEXT_PUBLIC_POLYGON_RPC_URL || "https://polygon-rpc.com"
+      process.env.NEXT_PUBLIC_POLYGON_RPC_URL || "https://polygon-bor-rpc.publicnode.com"
     ),
   });
 }

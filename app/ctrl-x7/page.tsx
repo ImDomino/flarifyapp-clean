@@ -134,15 +134,22 @@ export default function AdminPage() {
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
 
-  // Shared image processor
+  // Shared media processor (images + video)
   const processImageFile = (file: File) => {
-    const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    if (!allowed.includes(file.type)) return;
-    if (file.size > 5 * 1024 * 1024) return; // 5MB
+    const allowedImage = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const allowedVideo = ["video/mp4", "video/webm", "video/quicktime"];
+    if (!allowedImage.includes(file.type) && !allowedVideo.includes(file.type)) return;
+    const isVideo = file.type.startsWith("video/");
+    const maxSize = isVideo ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (file.size > maxSize) return;
     setImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
+    if (isVideo) {
+      setImagePreview(URL.createObjectURL(file));
+    } else {
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   // File input handler
@@ -474,14 +481,18 @@ export default function AdminPage() {
             {imagePreview && (
               <div className="px-4 pb-3 relative">
                 <div className="border border-border rounded-lg relative overflow-hidden group">
-                  <Image
-                    src={imagePreview}
-                    alt="Preview"
-                    width={690}
-                    height={400}
-                    className="w-full h-auto object-cover max-h-48"
-                    unoptimized
-                  />
+                  {imageFile?.type.startsWith("video/") ? (
+                    <video src={imagePreview} className="w-full h-auto object-cover max-h-48" controls muted playsInline />
+                  ) : (
+                    <Image
+                      src={imagePreview}
+                      alt="Preview"
+                      width={690}
+                      height={400}
+                      className="w-full h-auto object-cover max-h-48"
+                      unoptimized
+                    />
+                  )}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                   <button
                     type="button"
@@ -521,7 +532,7 @@ export default function AdminPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,video/mp4,video/webm,video/quicktime"
                   onChange={handleImageSelect}
                   className="hidden"
                 />

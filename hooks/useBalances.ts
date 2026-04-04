@@ -19,7 +19,6 @@ const ERC20_ABI = [
 // Multiple RPC endpoints for fallback — publicnode first (fastest/most reliable)
 const RPC_URLS = [
   "https://polygon-bor-rpc.publicnode.com",
-  "https://polygon-rpc.com",
   "https://rpc.ankr.com/polygon",
   process.env.NEXT_PUBLIC_POLYGON_RPC_URL, // Alchemy (often times out)
 ].filter(Boolean) as string[];

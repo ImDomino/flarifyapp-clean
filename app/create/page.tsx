@@ -28,14 +28,15 @@ interface Market {
   tokens?: Array<{ token_id: string; outcome: string }>;
 }
 
-interface ImageEntry {
+interface MediaEntry {
   file: File;
   preview: string;
+  type: "image" | "video";
 }
 
 export default function CreatePage() {
   const [content, setContent] = useState("");
-  const [images, setImages] = useState<ImageEntry[]>([]);
+  const [images, setImages] = useState<MediaEntry[]>([]);
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -47,17 +48,32 @@ export default function CreatePage() {
   const { authenticated, login, user } = usePrivy();
   const authFetch = useAuthFetch();
 
-  const processImageFile = (file: File) => {
+  const processMediaFile = (file: File) => {
     if (images.length >= MAX_IMAGES) {
-      toast.error(`Maximum ${MAX_IMAGES} images per post`);
+      toast.error(`Maximum ${MAX_IMAGES} files per post`);
       return;
     }
-    const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    if (!allowed.includes(file.type)) { toast.error("Unsupported image format"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
+    const isVideo = file.type.startsWith("video/");
+    const allowedImage = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const allowedVideo = ["video/mp4", "video/webm", "video/quicktime"];
+    if (!allowedImage.includes(file.type) && !allowedVideo.includes(file.type)) {
+      toast.error("Supported: JPEG, PNG, GIF, WebP, MP4, WebM, MOV");
+      return;
+    }
+    const maxSize = isVideo ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error(isVideo ? "Video must be under 50MB" : "Image must be under 5MB");
+      return;
+    }
+    // For video: can't use FileReader preview as img, use object URL
+    if (isVideo) {
+      const url = URL.createObjectURL(file);
+      setImages((prev) => [...prev, { file, preview: url, type: "video" }]);
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => {
-      setImages((prev) => [...prev, { file, preview: reader.result as string }]);
+      setImages((prev) => [...prev, { file, preview: reader.result as string, type: "image" }]);
     };
     reader.readAsDataURL(file);
   };
@@ -65,7 +81,7 @@ export default function CreatePage() {
   const processMultipleFiles = (files: FileList | File[]) => {
     const arr = Array.from(files);
     for (const file of arr) {
-      if (file.type.startsWith("image/")) processImageFile(file);
+      if (file.type.startsWith("image/") || file.type.startsWith("video/")) processMediaFile(file);
     }
   };
 
@@ -81,7 +97,7 @@ export default function CreatePage() {
       if (item.type.startsWith("image/")) {
         e.preventDefault();
         const file = item.getAsFile();
-        if (file) processImageFile(file);
+        if (file) processMediaFile(file);
         return;
       }
     }
@@ -261,16 +277,29 @@ export default function CreatePage() {
                       images.length === 3 && i === 0 ? "col-span-2" : ""
                     }`}
                   >
-                    <Image
-                      src={img.preview}
-                      alt={`Preview ${i + 1}`}
-                      width={690}
-                      height={400}
-                      className={`w-full object-cover ${
-                        images.length === 1 ? "max-h-64" : "h-40"
-                      }`}
-                      unoptimized
-                    />
+                    {img.type === "video" ? (
+                      <video
+                        src={img.preview}
+                        className={`w-full object-cover ${
+                          images.length === 1 ? "max-h-64" : "h-40"
+                        }`}
+                        muted
+                        playsInline
+                        onMouseOver={(e) => (e.target as HTMLVideoElement).play()}
+                        onMouseOut={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
+                      />
+                    ) : (
+                      <Image
+                        src={img.preview}
+                        alt={`Preview ${i + 1}`}
+                        width={690}
+                        height={400}
+                        className={`w-full object-cover ${
+                          images.length === 1 ? "max-h-64" : "h-40"
+                        }`}
+                        unoptimized
+                      />
+                    )}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
                     <button
                       type="button"
@@ -312,13 +341,13 @@ export default function CreatePage() {
           )}
           <div className="flex items-center justify-between px-5 py-4 border-t border-zinc-800">
             <div className="flex items-center gap-3">
-              <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" />
+              <input ref={fileInputRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" multiple onChange={handleImageSelect} className="hidden" />
               <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-zinc-500 hover:text-white border border-transparent hover:border-zinc-800 transition-all">
                 <ImageIcon className="w-5 h-5" />
               </button>
               {images.length === 0 && (
                 <span className="text-[11px] text-zinc-700 uppercase tracking-wider font-bold hidden sm:inline">
-                  Drag & drop or Ctrl+V
+                  Images or video — drag & drop or Ctrl+V
                 </span>
               )}
             </div>

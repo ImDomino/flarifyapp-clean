@@ -217,7 +217,7 @@ function CopyableAddress({ label, address }: { label: string; address: string | 
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { authenticated, user, logout, login } = usePrivy();
+  const { authenticated, user, logout, login, linkTwitter, unlinkTwitter } = usePrivy();
   const { settings, isLoading, isSaving, updateNotifications, updatePrivacy } = useSettings();
   const { eoaAddress, safeAddress } = useWallet();
   const authFetch = useAuthFetch();
@@ -235,6 +235,49 @@ export default function SettingsPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLinkingTwitter, setIsLinkingTwitter] = useState(false);
+
+  const twitterAccount = user?.twitter;
+  const twitterHandle = twitterAccount?.username || null;
+
+  // Sync twitter handle to DB whenever it changes
+  useEffect(() => {
+    if (!authenticated || !user?.id) return;
+    const handle = user?.twitter?.username;
+    if (handle) {
+      authFetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ twitter_handle: handle }),
+      }).catch(() => {});
+    }
+  }, [twitterHandle, authenticated, user?.id]);
+
+  const handleLinkTwitter = async () => {
+    setIsLinkingTwitter(true);
+    try {
+      await linkTwitter();
+    } catch (err: any) {
+      if (!err?.message?.includes("closed")) toast.error("Failed to link Twitter");
+    } finally {
+      setIsLinkingTwitter(false);
+    }
+  };
+
+  const handleUnlinkTwitter = async () => {
+    try {
+      if (twitterAccount) await unlinkTwitter(twitterAccount.subject);
+      await authFetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ twitter_handle: "" }),
+      });
+      toast.success("Twitter disconnected");
+    } catch {
+      toast.error("Failed to unlink Twitter");
+    }
+  };
+
   const toggleSection = (key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -604,7 +647,53 @@ export default function SettingsPage() {
                 />
 
                 <AnimatedSection isOpen={openSections.linked}>
-                  <div className="border-t border-zinc-800/40 px-5 py-4">
+                  <div className="border-t border-zinc-800/40 px-5 py-4 space-y-3">
+                    {/* Twitter/X */}
+                    <div className="border border-zinc-800/60 relative overflow-hidden">
+                      <div className="p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 border border-zinc-800/60 flex items-center justify-center flex-shrink-0">
+                              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                              </svg>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-black text-zinc-200 uppercase tracking-wide">
+                                Twitter / X
+                              </p>
+                              {twitterHandle ? (
+                                <p className="text-[11px] text-emerald-400 font-bold mt-0.5">
+                                  Verified as @{twitterHandle}
+                                </p>
+                              ) : (
+                                <p className="text-[11px] text-zinc-600 font-medium mt-0.5">
+                                  Link your X account to verify your profile
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {twitterHandle ? (
+                            <button
+                              onClick={handleUnlinkTwitter}
+                              className="px-4 py-2 border border-red-900/40 text-red-400/70 hover:text-red-400 hover:border-red-800/60 transition-all text-[10px] font-black uppercase tracking-widest flex-shrink-0"
+                            >
+                              Disconnect
+                            </button>
+                          ) : (
+                            <button
+                              onClick={handleLinkTwitter}
+                              disabled={isLinkingTwitter}
+                              className="px-4 py-2 bg-white text-black font-black uppercase tracking-widest text-[10px] border-2 border-white hover:bg-black hover:text-white transition-all duration-300 flex-shrink-0 disabled:opacity-50"
+                            >
+                              {isLinkingTwitter ? "Linking..." : "Connect"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Telegram */}
                     <div className="border border-zinc-800/60 relative overflow-hidden">
                       <div className="p-4">

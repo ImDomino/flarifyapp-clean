@@ -80,7 +80,7 @@ export function MarketSearchInput({ onSelectMarket }: MarketSearchInputProps) {
           value={query}
           onChange={handleInputChange}
           onFocus={() => results.length > 0 && setShowResults(true)}
-          placeholder="SEARCH POLYMARKET..."
+          placeholder="SEARCH OR PASTE POLYMARKET LINK..."
           className="w-full bg-[#0a0a0a] border border-zinc-800 py-3 pl-12 pr-10 text-sm font-bold uppercase tracking-wider text-white placeholder-zinc-700 focus:outline-none focus:border-white transition-all"
         />
         {query && (

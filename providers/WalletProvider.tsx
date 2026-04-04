@@ -116,7 +116,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       config={{
         defaultChain: polygon,
         supportedChains: [polygon],
-        loginMethods: ["google"],
+        loginMethods: ["google", "twitter"],
         appearance: {
           theme: "dark",
           accentColor: "#3b82f6",

@@ -12,6 +12,32 @@ import { FollowButton } from "./FollowButton";
 import { useAuthFetch } from "@/hooks/useAuthFetch";
 import { toast } from "sonner";
 
+function Linkify({ text }: { text: string }) {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s<]+)/g;
+  const parts = text.split(urlRegex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        urlRegex.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-blue-400 hover:text-blue-300 hover:underline transition-colors break-all"
+          >
+            {part.length > 50 ? part.slice(0, 47) + "..." : part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
 interface PostCardProps {
   post: PostWithUser & { 
     user_has_reposted?: boolean;
@@ -268,7 +294,7 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
           </div>
           {(post as any).quote_content && (
             <p className="text-sm text-zinc-400 font-medium mt-1.5 pl-5 border-l-2 border-zinc-800 ml-0.5">
-              {(post as any).quote_content}
+              <Linkify text={(post as any).quote_content} />
             </p>
           )}
         </div>
@@ -335,7 +361,7 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
               <p className={`text-zinc-300 text-sm leading-7 font-medium whitespace-pre-wrap ${
                 isLongContent ? "line-clamp-4" : ""
               }`}>
-                {post.content}
+                <Linkify text={post.content} />
               </p>
               {isLongContent && (
                 <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider hover:text-white transition-colors mt-1 inline-block">
@@ -347,57 +373,68 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
             {/* Images */}
             {post.image_url && (() => {
               // Parse image_url: JSON array string → array, or plain URL → [url]
-              let imageUrls: string[] = [];
+              let mediaUrls: string[] = [];
               try {
                 if (post.image_url.startsWith("[")) {
-                  imageUrls = JSON.parse(post.image_url);
+                  mediaUrls = JSON.parse(post.image_url);
                 } else {
-                  imageUrls = [post.image_url];
+                  mediaUrls = [post.image_url];
                 }
               } catch {
-                imageUrls = [post.image_url];
+                mediaUrls = [post.image_url];
               }
 
-              if (imageUrls.length === 1) {
+              const isVideo = (url: string) => /\.(mp4|webm|mov)(\?|$)/i.test(url);
+
+              const renderMedia = (url: string, className: string, key?: number) =>
+                isVideo(url) ? (
+                  <video
+                    key={key}
+                    src={url}
+                    className={className}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <Image
+                    key={key}
+                    src={url}
+                    alt="Post media"
+                    width={690}
+                    height={288}
+                    className={className}
+                    unoptimized
+                  />
+                );
+
+              if (mediaUrls.length === 1) {
                 return (
                   <div
                     className="border border-zinc-800/60 mb-4 group-hover:border-zinc-700/60 transition-all duration-300 overflow-hidden img-hover-zoom"
                     style={{ maxHeight: "35rem" }}
                   >
-                    <Image
-                      src={imageUrls[0]}
-                      alt="Post image"
-                      width={690}
-                      height={288}
-                      className="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-all duration-500"
-                      unoptimized
-                    />
+                    {renderMedia(mediaUrls[0], "w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-all duration-500")}
                   </div>
                 );
               }
 
               return (
                 <div className={`grid gap-1 mb-4 ${
-                  imageUrls.length === 2 ? "grid-cols-2" : "grid-cols-2"
+                  mediaUrls.length === 2 ? "grid-cols-2" : "grid-cols-2"
                 }`}>
-                  {imageUrls.map((url, i) => (
+                  {mediaUrls.map((url, i) => (
                     <div
                       key={i}
                       className={`border border-zinc-800/60 group-hover:border-zinc-700/60 transition-all duration-300 overflow-hidden ${
-                        imageUrls.length === 3 && i === 0 ? "col-span-2" : ""
+                        mediaUrls.length === 3 && i === 0 ? "col-span-2" : ""
                       }`}
                     >
-                      <Image
-                        src={url}
-                        alt={`Post image ${i + 1}`}
-                        width={345}
-                        height={200}
-                        className={`w-full object-cover opacity-85 group-hover:opacity-100 transition-all duration-500 ${
-                          imageUrls.length === 2 ? "h-48" :
-                          imageUrls.length === 3 && i === 0 ? "h-48" : "h-36"
-                          }`}
-                        unoptimized
-                      />
+                      {renderMedia(url, `w-full object-cover opacity-85 group-hover:opacity-100 transition-all duration-500 ${
+                        mediaUrls.length === 2 ? "h-48" :
+                        mediaUrls.length === 3 && i === 0 ? "h-48" : "h-36"
+                      }`, i)}
                     </div>
                   ))}
                 </div>

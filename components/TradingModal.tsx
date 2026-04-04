@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { X, TrendingUp, TrendingDown, Info, AlertCircle, Loader2, CheckCircle } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Side } from "@polymarket/clob-client";
 import { usePlaceOrder } from "@/hooks/usePlaceOrder";
+import { useTokenApprovals } from "@/hooks/useTokenApprovals";
+import { useWallet } from "@/providers/WalletProvider";
+import { useRelayClient } from "@/hooks/useRelayClient";
 
 interface TradingModalProps {
   isOpen: boolean;
@@ -30,6 +34,9 @@ export function TradingModal({
 }: TradingModalProps) {
   const { authenticated, login } = usePrivy();
   const { placeOrder } = usePlaceOrder();
+  const { ensureApprovals, isApproving } = useTokenApprovals();
+  const { safeAddress } = useWallet();
+  const relayClient = useRelayClient();
 
   const [side, setSide] = useState<"yes" | "no">(initialSide);
   const [tradeType, setTradeType] = useState<TradeType>("buy");
@@ -77,6 +84,34 @@ export function TradingModal({
 
     setIsProcessing(true);
     try {
+      // Deploy Safe if needed, then ensure approvals (one-time setup)
+      if (safeAddress && relayClient) {
+        try {
+          // Step 1: Deploy Safe if not yet deployed
+          try {
+            await relayClient.deploy();
+            console.log("✅ Safe deploy completed");
+          } catch (deployErr: any) {
+            // "safe already deployed!" is fine — ignore it
+            if (!deployErr?.message?.includes("already deployed")) {
+              throw deployErr;
+            }
+          }
+
+          // Step 2: Set token approvals
+          const approved = await ensureApprovals(safeAddress);
+          if (!approved) {
+            setError("Failed to set token approvals. Please try again.");
+            setIsProcessing(false);
+            return;
+          }
+        } catch (err: any) {
+          setError("Setup failed: " + (err?.message?.slice(0, 100) || "Unknown error"));
+          setIsProcessing(false);
+          return;
+        }
+      }
+
       let orderSize = tradeType === "buy" ? shares : amountNum;
       if (tradeType === "buy") {
         const dollarAmount = orderSize * price;
@@ -116,7 +151,7 @@ export function TradingModal({
 
   if (!isOpen) return null;
 
-  return (
+  const modal = (
     <>
       <div className="fixed inset-0 bg-black/80 z-[9999]" onClick={onClose} />
       <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-none px-4">
@@ -262,7 +297,7 @@ export function TradingModal({
                   disabled={!amountNum || amountNum <= 0 || isProcessing || price <= 0 || isBuyBelowMin || isSellBelowMin}
                   className="w-full py-4 bg-white text-black font-black uppercase tracking-widest text-sm border-2 border-white hover:bg-black hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                   {isProcessing ? (
-                    <span className="flex items-center justify-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Placing Order...</span>
+                    <span className="flex items-center justify-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />{isApproving ? "Setting Up Wallet..." : "Placing Order..."}</span>
                   ) : tradeType === "buy" ? (
                     isBuyBelowMin ? `Min $${minBuyAmount.toFixed(2)}` : `Buy ${side.toUpperCase()} — $${amountNum.toFixed(2)}`
                   ) : isSellBelowMin ? (
@@ -291,4 +326,8 @@ export function TradingModal({
       </div>
     </>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(modal, document.body)
+    : null;
 }

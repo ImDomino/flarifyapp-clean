@@ -54,6 +54,45 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ markets: [] });
     }
 
+    let markets: any[] = [];
+    let resolvedFromUrl = false;
+    let originalUrl: string | null = null;
+
+    // Check if query is a Polymarket URL — extract the last path segment as slug
+    const polymarketUrlMatch = query.match(/polymarket\.com\/(.+?)(?:\?|$)/i);
+    if (polymarketUrlMatch) {
+      const pathSegments = polymarketUrlMatch[1].replace(/\/+$/, '').split('/');
+      const slug = pathSegments[pathSegments.length - 1];
+      // Preserve the original URL (with ref codes etc)
+      originalUrl = query.trim();
+      try {
+        // Try event endpoint first (most common URL format)
+        let res = await fetch(
+          `https://gamma-api.polymarket.com/events/slug/${slug}`,
+          { headers: { Accept: 'application/json' } }
+        );
+        if (res.ok) {
+          const event = await res.json();
+          if (event.markets?.length) markets = event.markets;
+        }
+        // Fallback to market slug
+        if (markets.length === 0) {
+          res = await fetch(
+            `https://gamma-api.polymarket.com/markets/slug/${slug}`,
+            { headers: { Accept: 'application/json' } }
+          );
+          if (res.ok) {
+            const market = await res.json();
+            if (market?.question) markets = [market];
+          }
+        }
+        if (markets.length > 0) resolvedFromUrl = true;
+      } catch {}
+    }
+
+    // Regular search (skip if already resolved from URL)
+    if (!resolvedFromUrl) {
+
     // Helper: fuzzy match — all query words must appear in text (any order)
     const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
     const fuzzyMatch = (text: string) => {
@@ -71,8 +110,6 @@ export async function GET(request: NextRequest) {
     let response = await fetch(searchUrl, {
       headers: { Accept: 'application/json' },
     });
-
-    let markets: any[] = [];
 
     if (response.ok) {
       const data = await response.json();
@@ -139,6 +176,8 @@ export async function GET(request: NextRequest) {
         markets = [...markets, ...filtered];
       }
     }
+
+    } // end if (!resolvedFromUrl)
 
     console.log('📊 Raw markets count:', markets.length);
 
@@ -213,9 +252,9 @@ export async function GET(request: NextRequest) {
           );
         }
 
-        // Slug / URL
+        // Slug / URL — use original pasted URL if available (preserves ref codes)
         const slug = market.slug || market.marketSlug || market.id;
-        const url = `https://polymarket.com/event/${slug}`;
+        const url = originalUrl || `https://polymarket.com/event/${slug}`;
 
         // Token IDs
         let yesTokenId: string | undefined;

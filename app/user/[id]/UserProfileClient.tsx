@@ -119,6 +119,7 @@ export function UserProfileClient() {
   const username = profileData?.username || "user";
   const avatarUrl = profileData?.avatar_url || null;
   const bioText = profileData?.bio || "";
+  const twitterHandle = profileData?.twitter_handle || null;
   const walletAddress = profileData?.wallet_address || "";
   const shortWallet = walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "";
   const memberSince = profileData?.created_at
@@ -167,6 +168,19 @@ export function UserProfileClient() {
           )}
 
           <div className="flex flex-wrap items-center gap-3 text-[10px] text-zinc-600 uppercase tracking-widest font-bold animate-fade-up stagger-4">
+            {twitterHandle && (
+              <a
+                href={`https://x.com/${twitterHandle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-zinc-800/60 bg-white/[0.02] hover:border-zinc-600 hover:bg-white/[0.04] transition-all duration-200"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+                <span className="text-zinc-400">@{twitterHandle}</span>
+              </a>
+            )}
             {shortWallet && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-zinc-800/60 bg-white/[0.02]">
                 <Fingerprint className="w-3 h-3" />
