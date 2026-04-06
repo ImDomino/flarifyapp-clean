@@ -9,11 +9,11 @@ export const dynamic = "force-dynamic";
  * Protected by CRON_SECRET header.
  */
 export async function GET(request: NextRequest) {
-  // Verify cron secret
+  // Verify cron secret — always required
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const supabase = createServiceClient();
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     .limit(50);
 
   if (fetchError || !pending || pending.length === 0) {
-    return NextResponse.json({ processed: 0 });
+    return NextResponse.json({ ok: true });
   }
 
   let inserted = 0;
@@ -51,5 +51,5 @@ export async function GET(request: NextRequest) {
       .in("id", processedIds);
   }
 
-  return NextResponse.json({ processed: processedIds.length, inserted });
+  return NextResponse.json({ ok: true });
 }
