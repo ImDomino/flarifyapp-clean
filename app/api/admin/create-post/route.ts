@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser, unauthorizedResponse, forbiddenResponse } from "@/lib/auth";
 import { isAdmin } from "@/lib/auth";
 import { validatePostContent } from "@/lib/validate";
+import { autoEngage } from "@/lib/auto-engage";
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,6 +58,11 @@ export async function POST(request: NextRequest) {
       console.error("Error creating admin post:", error);
       return NextResponse.json({ error: "Failed to create post" }, { status: 500 });
     }
+
+    // Auto-engagement
+    try {
+      await autoEngage(post.id, target_user_id);
+    } catch {}
 
     return NextResponse.json({ success: true, post, targetUsername: targetUser.username });
   } catch (error: any) {
