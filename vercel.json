@@ -9,7 +9,7 @@
   "crons": [
     {
       "path": "/api/cron/engage",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
