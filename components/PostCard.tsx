@@ -269,6 +269,7 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
   };
 
   const isLongContent = (post.content?.length || 0) > 280;
+  const [isExpanded, setIsExpanded] = useState(false);
   const staggerClass = index <= 8 ? `stagger-${Math.min(index + 1, 8)}` : "";
 
   return (
@@ -359,14 +360,17 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
             {/* Content */}
             <div className="mb-4">
               <p className={`text-zinc-300 text-sm leading-7 font-medium whitespace-pre-wrap ${
-                isLongContent ? "line-clamp-4" : ""
+                isLongContent && !isExpanded ? "line-clamp-4" : ""
               }`}>
                 <Linkify text={post.content} />
               </p>
               {isLongContent && (
-                <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider hover:text-white transition-colors mt-1 inline-block">
-                  Show more
-                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
+                  className="text-xs text-zinc-500 font-bold uppercase tracking-wider hover:text-white transition-colors mt-1"
+                >
+                  {isExpanded ? "Show less" : "Show more"}
+                </button>
               )}
             </div>
 
