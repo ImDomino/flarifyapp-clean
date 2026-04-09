@@ -107,7 +107,7 @@ export function PostDetailClient() {
     }
     const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
     if (!allowed.includes(file.type)) { toast.error("Unsupported format"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Max 5MB"); return; }
+    if (file.size > 4.5 * 1024 * 1024) { toast.error(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 4.5MB.`); return; }
     const reader = new FileReader();
     reader.onloadend = () => {
       setCommentImages((prev) => [...prev, { file, preview: reader.result as string }]);

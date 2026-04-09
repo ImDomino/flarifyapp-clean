@@ -140,7 +140,7 @@ export default function AdminPage() {
     const allowedVideo = ["video/mp4", "video/webm", "video/quicktime"];
     if (!allowedImage.includes(file.type) && !allowedVideo.includes(file.type)) return;
     const isVideo = file.type.startsWith("video/");
-    const maxSize = isVideo ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+    const maxSize = 4.5 * 1024 * 1024;
     if (file.size > maxSize) return;
     setImageFile(file);
     if (isVideo) {

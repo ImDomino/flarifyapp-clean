@@ -60,9 +60,9 @@ export default function CreatePage() {
       toast.error("Supported: JPEG, PNG, GIF, WebP, MP4, WebM, MOV");
       return;
     }
-    const maxSize = isVideo ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+    const maxSize = 4.5 * 1024 * 1024; // 4.5MB Vercel limit
     if (file.size > maxSize) {
-      toast.error(isVideo ? "Video must be under 50MB" : "Image must be under 5MB");
+      toast.error(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum 4.5MB.`);
       return;
     }
     // For video: can't use FileReader preview as img, use object URL
@@ -148,6 +148,7 @@ export default function CreatePage() {
           const formData = new FormData();
           formData.append("file", img.file);
           const uploadResponse = await authFetch("/api/upload", { method: "POST", body: formData });
+          if (uploadResponse.status === 413) throw new Error("File too large. Maximum 4.5MB per file.");
           const uploadData = await uploadResponse.json();
           if (!uploadData.success) throw new Error(uploadData.error || "Failed to upload image");
           imageUrls.push(uploadData.url);
