@@ -69,8 +69,7 @@ export default function AdminPage() {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [postContent, setPostContent] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState("");
+  const [images, setImages] = useState<Array<{ file: File; preview: string; type: "image" | "video" }>>([]);
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [isPosting, setIsPosting] = useState(false);
   const [postSuccess, setPostSuccess] = useState<string | null>(null);
@@ -134,106 +133,90 @@ export default function AdminPage() {
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
 
-  // Shared media processor (images + video)
-  const processImageFile = (file: File) => {
+  const MAX_IMAGES = 4;
+
+  const addMediaFile = (file: File) => {
+    if (images.length >= MAX_IMAGES) return;
     const allowedImage = ["image/jpeg", "image/png", "image/gif", "image/webp"];
     const allowedVideo = ["video/mp4", "video/webm", "video/quicktime"];
     if (!allowedImage.includes(file.type) && !allowedVideo.includes(file.type)) return;
+    if (file.size > 3.5 * 1024 * 1024) return;
     const isVideo = file.type.startsWith("video/");
-    const maxSize = 3.5 * 1024 * 1024;
-    if (file.size > maxSize) return;
-    setImageFile(file);
     if (isVideo) {
-      setImagePreview(URL.createObjectURL(file));
+      setImages((prev) => [...prev, { file, preview: URL.createObjectURL(file), type: "video" }]);
     } else {
       const reader = new FileReader();
-      reader.onloadend = () => setImagePreview(reader.result as string);
+      reader.onloadend = () => {
+        setImages((prev) => [...prev, { file, preview: reader.result as string, type: "image" }]);
+      };
       reader.readAsDataURL(file);
     }
   };
 
-  // File input handler
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) processImageFile(file);
+  const addMultipleFiles = (files: FileList | File[]) => {
+    for (const f of Array.from(files)) {
+      if (f.type.startsWith("image/") || f.type.startsWith("video/")) addMediaFile(f);
+    }
   };
 
-  // Paste handler (Ctrl+V)
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) addMultipleFiles(e.target.files);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
     for (const item of Array.from(items)) {
-      if (item.type.startsWith("image/")) {
+      if (item.type.startsWith("image/") || item.type.startsWith("video/")) {
         e.preventDefault();
         const file = item.getAsFile();
-        if (file) processImageFile(file);
+        if (file) addMediaFile(file);
         return;
       }
     }
   };
 
-  // Drag & drop handlers
   const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dragCounterRef.current++;
-    if (e.dataTransfer.types.includes("Files")) {
-      setIsDragging(true);
-    }
+    if (e.dataTransfer.types.includes("Files")) setIsDragging(true);
   };
-
   const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dragCounterRef.current--;
-    if (dragCounterRef.current === 0) {
-      setIsDragging(false);
-    }
+    if (dragCounterRef.current === 0) setIsDragging(false);
   };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    dragCounterRef.current = 0;
-    const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith("image/")) {
-      processImageFile(file);
-    }
+    e.preventDefault(); e.stopPropagation();
+    setIsDragging(false); dragCounterRef.current = 0;
+    if (e.dataTransfer.files?.length) addMultipleFiles(e.dataTransfer.files);
   };
 
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const removeImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Submit post as user
   const handlePostSubmit = async () => {
-    if (!selectedUser || (!postContent.trim() && !imageFile)) return;
+    if (!selectedUser || (!postContent.trim() && images.length === 0)) return;
     setIsPosting(true);
     setPostSuccess(null);
 
     try {
-      // Upload image if present
-      let imageUrl = null;
-      if (imageFile) {
+      // Upload all images
+      let imageUrls: string[] = [];
+      for (const img of images) {
         const formData = new FormData();
-        formData.append("file", imageFile);
-        const uploadRes = await authFetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
+        formData.append("file", img.file);
+        const uploadRes = await authFetch("/api/upload", { method: "POST", body: formData });
+        if (uploadRes.status === 413) throw new Error("File too large. Maximum 3.5MB.");
         const uploadData = await uploadRes.json();
-        if (!uploadData.success)
-          throw new Error(uploadData.error || "Upload failed");
-        imageUrl = uploadData.url;
+        if (!uploadData.success) throw new Error(uploadData.error || "Upload failed");
+        imageUrls.push(uploadData.url);
       }
+      const imageUrl = imageUrls.length === 0 ? null : imageUrls.length === 1 ? imageUrls[0] : JSON.stringify(imageUrls);
 
       // Build market data
       let marketData = null;
@@ -284,8 +267,7 @@ export default function AdminPage() {
         `Post published as @${data.targetUsername || selectedUser.username}`
       );
       setPostContent("");
-      setImageFile(null);
-      setImagePreview("");
+      setImages([]);
       setSelectedMarket(null);
       setSelectedUser(null);
       setUserSearch("");
@@ -477,31 +459,25 @@ export default function AdminPage() {
               className="w-full bg-transparent p-4 text-foreground text-sm placeholder-muted-foreground focus:outline-none resize-none"
             />
 
-            {/* Image preview */}
-            {imagePreview && (
-              <div className="px-4 pb-3 relative">
-                <div className="border border-border rounded-lg relative overflow-hidden group">
-                  {imageFile?.type.startsWith("video/") ? (
-                    <video src={imagePreview} className="w-full h-auto object-cover max-h-48" controls muted playsInline />
-                  ) : (
-                    <Image
-                      src={imagePreview}
-                      alt="Preview"
-                      width={690}
-                      height={400}
-                      className="w-full h-auto object-cover max-h-48"
-                      unoptimized
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                  <button
-                    type="button"
-                    onClick={removeImage}
-                    className="absolute top-2 right-2 w-7 h-7 bg-background/80 backdrop-blur border border-border rounded-full flex items-center justify-center text-foreground hover:bg-red-500 hover:border-red-500 hover:text-white transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+            {/* Media previews */}
+            {images.length > 0 && (
+              <div className="px-4 pb-3">
+                <div className={`grid gap-2 ${images.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+                  {images.map((img, i) => (
+                    <div key={i} className={`border border-border rounded-lg relative overflow-hidden group ${images.length === 3 && i === 0 ? "col-span-2" : ""}`}>
+                      {img.type === "video" ? (
+                        <video src={img.preview} className={`w-full object-cover ${images.length === 1 ? "max-h-48" : "h-36"}`} controls muted playsInline />
+                      ) : (
+                        <Image src={img.preview} alt={`Preview ${i + 1}`} width={690} height={400} className={`w-full object-cover ${images.length === 1 ? "max-h-48" : "h-36"}`} unoptimized />
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                      <button type="button" onClick={() => removeImage(i)} className="absolute top-2 right-2 w-7 h-7 bg-background/80 backdrop-blur border border-border rounded-full flex items-center justify-center text-foreground hover:bg-red-500 hover:border-red-500 hover:text-white transition-colors">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-2">{images.length}/{MAX_IMAGES} files</p>
               </div>
             )}
 
@@ -533,6 +509,7 @@ export default function AdminPage() {
                   ref={fileInputRef}
                   type="file"
                   accept="image/*,video/mp4,video/webm,video/quicktime"
+                  multiple
                   onChange={handleImageSelect}
                   className="hidden"
                 />
@@ -544,7 +521,7 @@ export default function AdminPage() {
                 >
                   <ImageIcon className="w-4 h-4" />
                 </button>
-                {!imagePreview && (
+                {images.length === 0 && (
                   <span className="text-[11px] text-muted-foreground/50 hidden sm:inline">
                     Drag & drop or Ctrl+V to add image
                   </span>
@@ -573,7 +550,7 @@ export default function AdminPage() {
           disabled={
             isPosting ||
             !selectedUser ||
-            (!postContent.trim() && !imageFile)
+            (!postContent.trim() && images.length === 0)
           }
           className="w-full flex items-center justify-center gap-2 py-3 bg-foreground text-background font-medium text-sm rounded-lg hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
         >
