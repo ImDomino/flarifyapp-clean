@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Heart, MessageCircle, Repeat, Share, Trash2, Check, Bookmark } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { Heart, MessageCircle, Repeat, Share, Trash2, Check, Bookmark, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { PostWithUser } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -36,6 +37,66 @@ function Linkify({ text }: { text: string }) {
       )}
     </>
   );
+}
+
+function Lightbox({ urls, initialIndex, onClose }: { urls: string[]; initialIndex: number; onClose: () => void }) {
+  const [index, setIndex] = useState(initialIndex);
+  const url = urls[index];
+  const hasMultiple = urls.length > 1;
+
+  const prev = useCallback(() => setIndex((i) => (i - 1 + urls.length) % urls.length), [urls.length]);
+  const next = useCallback(() => setIndex((i) => (i + 1) % urls.length), [urls.length]);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose, prev, next]);
+
+  const content = (
+    <>
+      <div className="fixed inset-0 bg-black/95 z-[9999]" onClick={onClose} />
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-none">
+        {/* Close button */}
+        <button onClick={onClose} className="absolute top-4 right-4 w-10 h-10 border border-zinc-700 bg-black/80 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white transition-colors pointer-events-auto z-10">
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Counter */}
+        {hasMultiple && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-widest text-zinc-500 pointer-events-none">
+            {index + 1} / {urls.length}
+          </div>
+        )}
+
+        {/* Nav arrows */}
+        {hasMultiple && (
+          <button onClick={(e) => { e.stopPropagation(); prev(); }} className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 border border-zinc-700 bg-black/80 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white transition-colors pointer-events-auto">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+        )}
+        {hasMultiple && (
+          <button onClick={(e) => { e.stopPropagation(); next(); }} className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 border border-zinc-700 bg-black/80 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white transition-colors pointer-events-auto">
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        )}
+
+        {/* Image */}
+        <img
+          src={url}
+          alt=""
+          className="max-w-[90vw] max-h-[90vh] object-contain pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+    </>
+  );
+
+  return typeof document !== "undefined" ? createPortal(content, document.body) : null;
 }
 
 interface PostCardProps {
@@ -270,9 +331,11 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
 
   const isLongContent = (post.content?.length || 0) > 280;
   const [isExpanded, setIsExpanded] = useState(false);
+  const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
   const staggerClass = index <= 8 ? `stagger-${Math.min(index + 1, 8)}` : "";
 
   return (
+    <>
     <article
       ref={cardRef}
       className={`
@@ -376,7 +439,6 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
 
             {/* Images */}
             {post.image_url && (() => {
-              // Parse image_url: JSON array string → array, or plain URL → [url]
               let mediaUrls: string[] = [];
               try {
                 if (post.image_url.startsWith("[")) {
@@ -389,6 +451,12 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
               }
 
               const isVideo = (url: string) => /\.(mp4|webm|mov)(\?|$)/i.test(url);
+              const imageUrls = mediaUrls.filter((u) => !isVideo(u));
+
+              const openLightbox = (url: string) => {
+                const idx = imageUrls.indexOf(url);
+                setLightbox({ urls: imageUrls, index: idx >= 0 ? idx : 0 });
+              };
 
               const renderMedia = (url: string, className: string, key?: number) =>
                 isVideo(url) ? (
@@ -408,8 +476,9 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
                     alt="Post media"
                     width={690}
                     height={288}
-                    className={className}
+                    className={`${className} cursor-zoom-in`}
                     unoptimized
+                    onClick={(e) => { e.stopPropagation(); openLightbox(url); }}
                   />
                 );
 
@@ -605,5 +674,9 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
         </div>
       </div>
     </article>
+    {lightbox && (
+      <Lightbox urls={lightbox.urls} initialIndex={lightbox.index} onClose={() => setLightbox(null)} />
+    )}
+    </>
   );
 }
