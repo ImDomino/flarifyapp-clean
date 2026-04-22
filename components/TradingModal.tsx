@@ -29,25 +29,27 @@ type TradeType = "buy" | "sell";
 const MIN_SHARES = 5;
 const MIN_BUY_AMOUNT_USD = 1.01;
 
-/**
- * Fetch a price aggressive enough to cross the orderbook immediately.
- *
- *   BUY  → best ask × (1 + SLIPPAGE), rounded UP to tick   (eat the ask)
- *   SELL → best bid × (1 - SLIPPAGE), rounded DOWN to tick (hit the bid)
- *
- * The aggression absorbs race conditions where other takers eat the top
- * level between our snapshot and our submit. Worst case we overpay by
- * SLIPPAGE; best case the order fills at the true best level (exchange
- * always matches at the maker's price, not ours).
- *
- * Returns null if the book is empty / unreachable.
- */
-const SLIPPAGE = 0.02; // 2%
-const TICK = 0.001;    // Polymarket's smallest tick
+const TICK = 0.001;
+// Extra slack on top of the walked price so another taker eating a level
+// between fetch and submit doesn't leave us sitting as a limit again.
+const SAFETY_TICKS = 2;
 
+/**
+ * Walk the orderbook to find a price that can fully cover `desiredShares`.
+ *
+ *   BUY  → walk asks cheapest→most expensive until cumulative size ≥ desiredShares.
+ *          Limit the order at that worst-covered ask price (+ safety ticks up).
+ *          Exchange matches at maker prices, so we only pay the best that was
+ *          actually available — the limit is just a ceiling.
+ *   SELL → mirror, walk bids best→worst, limit at worst-covered bid (− safety).
+ *
+ * Returns null if the book is empty / doesn't have enough size / network fails.
+ * In the "not enough size" case the caller falls back to the displayed price.
+ */
 async function fetchExecutablePrice(
   tokenId: string,
-  side: "buy" | "sell"
+  side: "buy" | "sell",
+  desiredShares: number
 ): Promise<number | null> {
   try {
     const res = await fetch(`${CLOB_HOST}/book?token_id=${tokenId}`, {
@@ -55,21 +57,34 @@ async function fetchExecutablePrice(
     });
     if (!res.ok) return null;
     const data = await res.json();
-    const levels: Array<{ price: string; size: string }> =
+    const raw: Array<{ price: string; size: string }> =
       side === "buy" ? data.asks || [] : data.bids || [];
-    if (!levels.length) return null;
-    const prices = levels.map((l) => parseFloat(l.price));
+    if (!raw.length) return null;
 
-    if (side === "buy") {
-      const bestAsk = Math.min(...prices);
-      const aggressive = bestAsk * (1 + SLIPPAGE);
-      // round UP to the nearest tick so we're strictly ≥ best ask
-      return Math.min(0.999, Math.ceil(aggressive / TICK) * TICK);
+    const levels = raw
+      .map((l) => ({ price: parseFloat(l.price), size: parseFloat(l.size) }))
+      .filter((l) => Number.isFinite(l.price) && Number.isFinite(l.size));
+
+    // Sort cheapest-first for BUY (asks), highest-first for SELL (bids).
+    levels.sort((a, b) => (side === "buy" ? a.price - b.price : b.price - a.price));
+
+    let cumulative = 0;
+    let worstPrice = levels[0].price;
+    for (const lvl of levels) {
+      cumulative += lvl.size;
+      worstPrice = lvl.price;
+      if (cumulative >= desiredShares) break;
     }
 
-    const bestBid = Math.max(...prices);
-    const aggressive = bestBid * (1 - SLIPPAGE);
-    return Math.max(0.001, Math.floor(aggressive / TICK) * TICK);
+    if (cumulative < desiredShares) {
+      // Book can't fully cover the trade; fall back to signal that to caller.
+      return null;
+    }
+
+    if (side === "buy") {
+      return Math.min(0.999, worstPrice + SAFETY_TICKS * TICK);
+    }
+    return Math.max(0.001, worstPrice - SAFETY_TICKS * TICK);
   } catch {
     return null;
   }
@@ -159,14 +174,20 @@ export function TradingModal({
         }
       }
 
-      // Snapshot the executable price from the orderbook right before submit.
-      // Using best ask (BUY) / best bid (SELL) makes the order take liquidity
-      // immediately instead of sitting as a limit that never fills.
-      const executablePrice = await fetchExecutablePrice(tokenId, tradeType);
+      // Estimate needed shares at the displayed price — used as the walk
+      // target. Then walk the orderbook to find a limit price aggressive
+      // enough to cover the full fill, even if top-of-book moves between
+      // fetch and submit.
+      const estShares = tradeType === "buy" ? amountNum / price : amountNum;
+      const executablePrice = await fetchExecutablePrice(tokenId, tradeType, estShares);
       const orderPrice = executablePrice ?? price;
       if (executablePrice != null && executablePrice !== price) {
         console.log(
-          `[Trade] Using orderbook ${tradeType === "buy" ? "ask" : "bid"} ${executablePrice} instead of displayed ${price}`
+          `[Trade] Walked book → limit ${executablePrice} (displayed ${price}, shares ${estShares.toFixed(2)})`
+        );
+      } else if (executablePrice == null) {
+        console.warn(
+          `[Trade] Book can't cover ${estShares.toFixed(2)} shares — falling back to ${price}`
         );
       }
 
