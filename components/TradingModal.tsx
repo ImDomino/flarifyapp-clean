@@ -30,11 +30,21 @@ const MIN_SHARES = 5;
 const MIN_BUY_AMOUNT_USD = 1.01;
 
 /**
- * Fetch the best executable price for `side` from the CLOB orderbook.
- *   BUY  → best ask (the price we'd pay to match the cheapest seller)
- *   SELL → best bid (the price we'd receive matching the highest buyer)
+ * Fetch a price aggressive enough to cross the orderbook immediately.
+ *
+ *   BUY  → best ask × (1 + SLIPPAGE), rounded UP to tick   (eat the ask)
+ *   SELL → best bid × (1 - SLIPPAGE), rounded DOWN to tick (hit the bid)
+ *
+ * The aggression absorbs race conditions where other takers eat the top
+ * level between our snapshot and our submit. Worst case we overpay by
+ * SLIPPAGE; best case the order fills at the true best level (exchange
+ * always matches at the maker's price, not ours).
+ *
  * Returns null if the book is empty / unreachable.
  */
+const SLIPPAGE = 0.02; // 2%
+const TICK = 0.001;    // Polymarket's smallest tick
+
 async function fetchExecutablePrice(
   tokenId: string,
   side: "buy" | "sell"
@@ -49,7 +59,17 @@ async function fetchExecutablePrice(
       side === "buy" ? data.asks || [] : data.bids || [];
     if (!levels.length) return null;
     const prices = levels.map((l) => parseFloat(l.price));
-    return side === "buy" ? Math.min(...prices) : Math.max(...prices);
+
+    if (side === "buy") {
+      const bestAsk = Math.min(...prices);
+      const aggressive = bestAsk * (1 + SLIPPAGE);
+      // round UP to the nearest tick so we're strictly ≥ best ask
+      return Math.min(0.999, Math.ceil(aggressive / TICK) * TICK);
+    }
+
+    const bestBid = Math.max(...prices);
+    const aggressive = bestBid * (1 - SLIPPAGE);
+    return Math.max(0.001, Math.floor(aggressive / TICK) * TICK);
   } catch {
     return null;
   }
