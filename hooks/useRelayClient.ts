@@ -8,16 +8,15 @@ import { useWallet } from "@/providers/WalletProvider";
 /**
  * Hook: useRelayClient
  *
- * Reference: Section 3 — RelayClient Initialization
+ * RelayClient handles gasless Safe transactions (deployment, approvals,
+ * redeems, wraps, unwraps).
  *
- * RelayClient is used for:
- * - Safe deployment
- * - Token approvals (batch transactions)
- * - CTF operations
- *
- * Requires:
- * - User's EOA signer (from Privy via WalletProvider)
- * - Builder config for authentication (remote signing)
+ * NOTE: V2 removed builder-HMAC headers from the CLOB Exchange *order* API
+ * (builder attribution moved into the signed order struct). But the Relayer
+ * service at relayer-v2.polymarket.com is separate — it still authenticates
+ * via HMAC signatures computed from POLY_BUILDER_* credentials. The signing
+ * happens server-side at /api/polymarket/sign so builder secrets never
+ * touch the browser.
  */
 export const useRelayClient = () => {
   const { ethersSigner } = useWallet();
@@ -35,17 +34,13 @@ export const useRelayClient = () => {
       return null;
     }
 
-    // Builder Config with remote signing
-    // Credentials stay on server, client only gets HMAC signatures
     const builderConfig = new BuilderConfig({
-      remoteBuilderConfig: {
-        url: builderSignUrl,
-      },
+      remoteBuilderConfig: { url: builderSignUrl },
     });
 
     const client = new RelayClient(
       "https://relayer-v2.polymarket.com/",
-      137, // Polygon chain ID
+      137,
       ethersSigner as any,
       builderConfig
     );

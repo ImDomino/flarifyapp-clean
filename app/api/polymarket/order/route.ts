@@ -1,8 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  BuilderApiKeyCreds,
-  buildHmacSignature,
-} from "@polymarket/builder-signing-sdk";
 import { getAuthenticatedUser, unauthorizedResponse } from "@/lib/auth";
 import { RL, rateLimitResponse } from "@/lib/rate-limit";
 import crypto from "crypto";
@@ -10,16 +6,10 @@ import crypto from "crypto";
 export const runtime = "nodejs";
 export const preferredRegion = "dub1";
 
-const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
-  key: process.env.POLY_BUILDER_API_KEY!,
-  secret: process.env.POLY_BUILDER_SECRET!,
-  passphrase: process.env.POLY_BUILDER_PASSPHRASE!,
-};
-
 /**
- * L2 HMAC signature for user credentials.
- * This is what the SDK computes internally in createAndPostOrder().
- * We reproduce it here for the proxy fallback.
+ * L2 HMAC signature for user credentials. The SDK computes the same hash
+ * internally in createAndPostOrder(); we reproduce it here for the proxy
+ * fallback path (used when the browser can't reach CLOB directly).
  */
 function buildL2HmacSignature(
   secret: string,
@@ -37,13 +27,13 @@ function buildL2HmacSignature(
 /**
  * POST /api/polymarket/order
  *
- * Fallback proxy — only used when direct createAndPostOrder() is CORS/geo-blocked.
+ * Fallback proxy for placing orders when the client-side SDK is blocked by
+ * CORS or geo-IP restrictions.
  *
- * Accepts userCreds in body (like the original working code).
- * This is safe because:
- * - Endpoint requires authentication (getAuthenticatedUser)
- * - Credentials are per-user, not builder credentials
- * - Same security model as Polymarket's official example (localStorage)
+ * V2 changes:
+ *   - Builder attribution is now a bytes32 inside the signed order struct.
+ *   - The POLY_BUILDER_* HTTP headers are removed — they no longer exist.
+ *   - Only the user's L2 HMAC auth remains on this route.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -68,7 +58,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Normalize signed order
     let flatOrder: any;
     if (signedOrder.salt && signedOrder.maker && signedOrder.signature) {
       flatOrder = signedOrder;
@@ -86,15 +75,14 @@ export async function POST(request: NextRequest) {
     };
     const clobBody = JSON.stringify(clobPayload);
 
-    const now = Date.now();
-    const userTimestamp = Math.floor(now / 1000);
-    const builderTimestamp = now;
+    const userTimestamp = Math.floor(Date.now() / 1000);
 
     const userSignature = buildL2HmacSignature(
-      userCreds.secret, userTimestamp, "POST", "/order", clobBody
-    );
-    const builderSignature = buildHmacSignature(
-      BUILDER_CREDENTIALS.secret, builderTimestamp, "POST", "/order", clobBody
+      userCreds.secret,
+      userTimestamp,
+      "POST",
+      "/order",
+      clobBody
     );
 
     const clobResponse = await fetch("https://clob.polymarket.com/order", {
@@ -106,10 +94,6 @@ export async function POST(request: NextRequest) {
         POLY_TIMESTAMP: userTimestamp.toString(),
         POLY_API_KEY: userCreds.key,
         POLY_PASSPHRASE: userCreds.passphrase,
-        POLY_BUILDER_SIGNATURE: builderSignature,
-        POLY_BUILDER_TIMESTAMP: builderTimestamp.toString(),
-        POLY_BUILDER_API_KEY: BUILDER_CREDENTIALS.key,
-        POLY_BUILDER_PASSPHRASE: BUILDER_CREDENTIALS.passphrase,
       },
       body: clobBody,
     });

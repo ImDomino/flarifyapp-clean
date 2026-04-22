@@ -1,10 +1,24 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { ClobClient } from "@polymarket/clob-client";
-import { BuilderConfig } from "@polymarket/builder-signing-sdk";
+import {
+  ClobClient,
+  Chain,
+  SignatureTypeV2,
+  type BuilderConfig,
+} from "@polymarket/clob-client-v2";
 import { useWallet } from "@/providers/WalletProvider";
 import { useUserApiCredentials, UserApiCreds } from "./useUserApiCredentials";
+
+// Host switch: defaults to production; set NEXT_PUBLIC_CLOB_HOST=https://clob-v2.polymarket.com
+// to test against the pre-cutover V2 preprod endpoint.
+export const CLOB_HOST =
+  process.env.NEXT_PUBLIC_CLOB_HOST || "https://clob.polymarket.com";
+
+// V2 builder attribution is a bytes32 baked into the signed order struct.
+// The SDK's BuilderConfig only requires `builderCode`; the client stamps it
+// onto every order it signs.
+const BUILDER_ID = process.env.NEXT_PUBLIC_POLYMARKET_BUILDER_ID;
 
 export const useClobClient = () => {
   const { ethersSigner, eoaAddress, safeAddress } = useWallet();
@@ -25,7 +39,6 @@ export const useClobClient = () => {
 
       const creds = await getOrCreateCreds(forceRefresh);
 
-      // Return cached if same
       if (
         !forceRefresh &&
         clientRef.current &&
@@ -40,30 +53,28 @@ export const useClobClient = () => {
         };
       }
 
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-      const builderConfig = new BuilderConfig({
-        remoteBuilderConfig: { url: `${baseUrl}/api/polymarket/sign` },
-      });
+      const builderConfig: BuilderConfig | undefined = BUILDER_ID
+        ? { builderCode: BUILDER_ID }
+        : undefined;
 
-      // Exactly matches official privy-safe-builder-example
-      const client = new ClobClient(
-        "https://clob.polymarket.com",
-        137,
-        ethersSigner as any,
+      const client = new ClobClient({
+        host: CLOB_HOST,
+        chain: Chain.POLYGON,
+        signer: ethersSigner as any,
         creds,
-        2,              // signatureType = POLY_GNOSIS_SAFE
-        safeAddress,    // funder
-        undefined,
-        false,
-        builderConfig
-      );
+        signatureType: SignatureTypeV2.POLY_GNOSIS_SAFE,
+        funderAddress: safeAddress,
+        builderConfig,
+      });
 
       clientRef.current = { client, eoa: eoaAddress, credsKey: creds.key, creds };
 
       console.log("[ClobClient] Init:", {
+        host: CLOB_HOST,
         eoa: eoaAddress.slice(0, 10) + "...",
         safe: safeAddress.slice(0, 10) + "...",
         key: creds.key.slice(0, 8) + "...",
+        builderAttribution: BUILDER_ID ? "on" : "off",
       });
 
       return { clobClient: client, userCreds: creds, eoaAddress, safeAddress };

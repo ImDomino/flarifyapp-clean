@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useRef } from "react";
-import { Side, OrderType } from "@polymarket/clob-client";
+import { useCallback } from "react";
+import { Side, OrderType } from "@polymarket/clob-client-v2";
 import { useClobClient } from "./useClobClient";
 import { useUserApiCredentials } from "./useUserApiCredentials";
 
@@ -13,20 +13,14 @@ export interface PlaceOrderParams {
   negRisk?: boolean;
 }
 
-// Cache negRisk lookups so we don't hit the API every time
 const negRiskCache = new Map<string, boolean>();
 
-/**
- * Determine negRisk for a token by querying CLOB API.
- * This is the authoritative source — never trust caller's negRisk blindly.
- */
 async function resolveNegRisk(tokenId: string): Promise<boolean> {
   if (negRiskCache.has(tokenId)) {
     return negRiskCache.get(tokenId)!;
   }
 
   try {
-    // CLOB has a dedicated neg-risk endpoint
     const res = await fetch(
       `https://clob.polymarket.com/neg-risk?token_id=${tokenId}`,
       { signal: AbortSignal.timeout(5000) }
@@ -35,11 +29,10 @@ async function resolveNegRisk(tokenId: string): Promise<boolean> {
       const data = await res.json();
       const isNegRisk = data.neg_risk === true || data.negRisk === true;
       negRiskCache.set(tokenId, isNegRisk);
-      console.log(`[negRisk] ${tokenId.slice(0, 16)}... = ${isNegRisk}`);
       return isNegRisk;
     }
   } catch {
-    // Fallback: try Gamma API
+    // fall through
   }
 
   try {
@@ -53,9 +46,6 @@ async function resolveNegRisk(tokenId: string): Promise<boolean> {
         const isNegRisk =
           markets[0].negRisk === true || markets[0].negRisk === "true";
         negRiskCache.set(tokenId, isNegRisk);
-        console.log(
-          `[negRisk] ${tokenId.slice(0, 16)}... = ${isNegRisk} (from Gamma)`
-        );
         return isNegRisk;
       }
     }
@@ -63,7 +53,6 @@ async function resolveNegRisk(tokenId: string): Promise<boolean> {
     // silent
   }
 
-  // Default false if we can't determine
   console.warn(`[negRisk] Could not determine for ${tokenId.slice(0, 16)}..., defaulting to false`);
   negRiskCache.set(tokenId, false);
   return false;
@@ -77,7 +66,6 @@ export const usePlaceOrder = () => {
     async (params: PlaceOrderParams): Promise<string> => {
       const { tokenId, side, price, size } = params;
 
-      // ALWAYS resolve negRisk from API — don't trust caller
       const negRisk = await resolveNegRisk(tokenId);
 
       if (params.negRisk !== undefined && params.negRisk !== negRisk) {
@@ -88,17 +76,16 @@ export const usePlaceOrder = () => {
 
       const { clobClient, userCreds, eoaAddress } = await initClobClient();
 
+      // V2 order payload. The SDK populates timestamp/metadata/builder on
+      // our behalf. V1-only fields (nonce, feeRateBps, taker, expiration)
+      // are no longer part of the signed struct.
       const orderPayload = {
         tokenID: tokenId,
         price,
         size,
         side,
-        feeRateBps: 1000,
-        expiration: 0,
-        taker: "0x0000000000000000000000000000000000000000",
       };
 
-      // ── Strategy 1: Direct SDK call ──
       try {
         console.log("[PlaceOrder] createAndPostOrder...", {
           tokenId: tokenId.slice(0, 20) + "...",
@@ -108,19 +95,17 @@ export const usePlaceOrder = () => {
           negRisk,
         });
 
-        const response = await clobClient.createAndPostOrder(
+        const response = await (clobClient as any).createAndPostOrder(
           orderPayload,
           { negRisk },
           OrderType.GTC
         );
 
-        // Log full response
         console.log(
           "[PlaceOrder] SDK response:",
           JSON.stringify(response, null, 2)
         );
 
-        // Check for errors in response
         if (response?.error === "Network Error" || response?.status === 0) {
           throw new Error("CORS_BLOCKED");
         }
@@ -169,7 +154,6 @@ export const usePlaceOrder = () => {
         console.log("[PlaceOrder] ✅ Success:", response?.orderID);
         return response?.orderID || "success";
       } catch (directError: any) {
-        // Re-throw clean errors
         if (
           directError.message?.includes("Order signature rejected") ||
           directError.message?.includes("Trading credentials expired")
@@ -221,8 +205,8 @@ export const usePlaceOrder = () => {
         console.log("[PlaceOrder] CORS blocked, falling back to proxy...");
       }
 
-      // ── Strategy 2: Sign locally, post via proxy ──
-      const signedOrder = await clobClient.createOrder(orderPayload, {
+      // Fallback path: sign locally, POST via our proxy (bypasses CORS / geo blocks).
+      const signedOrder = await (clobClient as any).createOrder(orderPayload, {
         negRisk,
       });
 

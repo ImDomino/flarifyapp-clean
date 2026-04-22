@@ -38,9 +38,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <TopNavBar />
 
-      <div className="max-w-[1440px] mx-auto pt-16 sm:pt-20 px-3 sm:px-6 lg:px-8 grid grid-cols-12 gap-4 sm:gap-6 lg:gap-8 relative z-10 min-h-screen">
+      <div className="max-w-[1280px] mx-auto pt-14 sm:pt-20 px-3 sm:px-6 lg:px-6 grid grid-cols-12 gap-4 sm:gap-5 lg:gap-6 relative z-10 min-h-screen">
         <NavigationSidebar />
-        <main className={`col-span-12 md:col-span-9 ${isMessagesPage ? "lg:col-span-10" : "lg:col-span-7"} pt-4 sm:pt-6 lg:pt-8 pb-28 sm:pb-24 lg:pb-20 min-w-0`}>
+        <main className={`col-span-12 md:col-span-9 ${isMessagesPage ? "lg:col-span-10" : "lg:col-span-7"} pt-4 sm:pt-5 lg:pt-5 pb-28 sm:pb-20 lg:pb-12 min-w-0`}>
           {children}
         </main>
         {!isMessagesPage && <RightSidebar />}

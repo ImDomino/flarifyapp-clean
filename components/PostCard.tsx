@@ -364,11 +364,11 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
         </div>
       )}
 
-      <div className="p-4 sm:p-6">
-        <div className="flex gap-3 sm:gap-4">
+      <div className="p-4 sm:p-5">
+        <div className="flex gap-3 sm:gap-3">
           {/* Avatar */}
           <div
-            className="w-9 sm:w-11 h-9 sm:h-11 flex-shrink-0 border border-zinc-700 group-hover:border-zinc-500 transition-all duration-300 overflow-hidden cursor-pointer relative"
+            className="w-9 sm:w-10 h-9 sm:h-10 flex-shrink-0 border border-zinc-700 group-hover:border-zinc-500 transition-all duration-300 overflow-hidden cursor-pointer relative"
             onClick={navigateToProfile}
           >
             {avatarUrl ? (

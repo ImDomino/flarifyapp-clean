@@ -379,7 +379,10 @@ function PositionCard({ position: pos, onSell, onRedeem, isRedeeming, isResolved
 function OrderCard({ order, onCancel, isCancelling }: { order: OpenOrder; onCancel: (id: string) => void; isCancelling: boolean }) {
   const isBuy = order.side === "BUY";
   const priceCents = (parseFloat(order.price) * 100).toFixed(1);
-  const sizeNum = parseFloat((order as any).size);
+  const sizeNum =
+    parseFloat(order.size_remaining) ||
+    parseFloat(order.original_size) ||
+    0;
   const total = parseFloat(order.price) * sizeNum;
   const createdDate = order.created_at ? new Date(order.created_at * 1000).toLocaleString() : "—";
 

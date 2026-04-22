@@ -2,9 +2,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPublicClient, http, formatUnits } from "viem";
 import { polygon } from "viem/chains";
-
-const USDC_E_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
-const USDC_E_DECIMALS = 6;
+import {
+  CONTRACTS,
+  USDC_E_DECIMALS,
+  PUSD_DECIMALS,
+  RPC_URLS,
+} from "@/lib/polymarket/contracts";
 
 const ERC20_ABI = [
   {
@@ -16,17 +19,10 @@ const ERC20_ABI = [
   },
 ] as const;
 
-// Multiple RPC endpoints for fallback — publicnode first (fastest/most reliable)
-const RPC_URLS = [
-  "https://polygon-bor-rpc.publicnode.com",
-  "https://rpc.ankr.com/polygon",
-  process.env.NEXT_PUBLIC_POLYGON_RPC_URL, // Alchemy (often times out)
-].filter(Boolean) as string[];
-
 function createClient(rpcUrl: string) {
   return createPublicClient({
     chain: polygon,
-    transport: http(rpcUrl, { timeout: 8_000 }), // 8s timeout
+    transport: http(rpcUrl, { timeout: 8_000 }),
   });
 }
 
@@ -34,8 +30,8 @@ export const useBalances = (
   eoaAddress: string | null,
   safeAddress: string | null
 ) => {
-  // Show loading while address hasn't resolved yet
-  const [safeBalance, setSafeBalance] = useState<string>("0");
+  const [pusdBalance, setPusdBalance] = useState<string>("0");
+  const [usdceBalance, setUsdceBalance] = useState<string>("0");
   const [isLoading, setIsLoading] = useState(true);
   const [hasFetched, setHasFetched] = useState(false);
   const fetchingRef = useRef(false);
@@ -48,20 +44,34 @@ export const useBalances = (
     for (let i = 0; i < RPC_URLS.length; i++) {
       try {
         const client = createClient(RPC_URLS[i]);
-        const safeBalanceRaw = await client.readContract({
-          address: USDC_E_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [safeAddress as `0x${string}`],
-        });
-        const formatted = formatUnits(safeBalanceRaw, USDC_E_DECIMALS);
-        setSafeBalance(formatted);
+        const [pusdRaw, usdceRaw] = await Promise.all([
+          client.readContract({
+            address: CONTRACTS.PUSD,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [safeAddress as `0x${string}`],
+          }),
+          client.readContract({
+            address: CONTRACTS.USDC_E,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [safeAddress as `0x${string}`],
+          }),
+        ]);
+
+        const pusdFmt = formatUnits(pusdRaw as bigint, PUSD_DECIMALS);
+        const usdceFmt = formatUnits(usdceRaw as bigint, USDC_E_DECIMALS);
+
+        setPusdBalance(pusdFmt);
+        setUsdceBalance(usdceFmt);
         setHasFetched(true);
-        console.log("💰 Safe balance fetched:", {
-          safe: formatted,
-          rpc: RPC_URLS[i].includes("alchemy") ? "alchemy" : RPC_URLS[i].split("/")[2],
+
+        console.log("💰 Safe balances:", {
+          pusd: pusdFmt,
+          usdce: usdceFmt,
+          rpc: RPC_URLS[i].split("/")[2],
         });
-        break; // success, stop trying
+        break;
       } catch (error) {
         console.warn(
           `Balance fetch failed with RPC ${i + 1}/${RPC_URLS.length}:`,
@@ -71,7 +81,6 @@ export const useBalances = (
         if (i === RPC_URLS.length - 1) {
           console.warn("All RPCs failed for balance fetch — will retry");
         }
-        // continue to next RPC
       }
     }
 
@@ -79,7 +88,6 @@ export const useBalances = (
     fetchingRef.current = false;
   }, [safeAddress, hasFetched]);
 
-  // Fetch on mount and auto-refresh every 30s
   useEffect(() => {
     if (!safeAddress) return;
 
@@ -88,8 +96,15 @@ export const useBalances = (
     return () => clearInterval(interval);
   }, [safeAddress, fetchBalances]);
 
+  // Combined display balance: pUSD is tradable, USDC.e is wrappable-and-then-tradable.
+  // Users think of this as a single "on Polymarket" balance.
+  const totalNum = parseFloat(pusdBalance || "0") + parseFloat(usdceBalance || "0");
+  const safeBalance = totalNum.toString();
+
   return {
     safeBalance,
+    pusdBalance,
+    usdceBalance,
     isLoading,
     refresh: fetchBalances,
   };

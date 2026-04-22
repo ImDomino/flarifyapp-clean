@@ -1,5 +1,5 @@
 // Polymarket API Types
-import type { Side } from '@polymarket/clob-client';
+import type { Side } from '@polymarket/clob-client-v2';
 
 export interface PolymarketMarket {
   id: string;

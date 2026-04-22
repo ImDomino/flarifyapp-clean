@@ -4,27 +4,22 @@ import { useState, useCallback } from "react";
 import { useRelayClient } from "./useRelayClient";
 import { useWallet } from "@/providers/WalletProvider";
 import { useSafeDeployment } from "./useSafeDeployment";
-// USDC.e on Polygon
-const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+import { CONTRACTS } from "@/lib/polymarket/contracts";
+import { buildUnwrapTx, readPusdBalance, readUsdceBalance } from "@/lib/polymarket/pusd";
 
 // ERC-20 transfer(address,uint256) selector: 0xa9059cbb
 const TRANSFER_SELECTOR = "0xa9059cbb";
 
-/** Validate an Ethereum address */
 function validateAddress(addr: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(addr);
 }
 
-/** Encode ERC-20 transfer(address, uint256) calldata without ethers */
 function encodeTransfer(to: string, amountRaw: bigint): string {
-  // Pad address to 32 bytes (remove 0x, left-pad to 64 hex chars)
   const paddedTo = to.slice(2).toLowerCase().padStart(64, "0");
-  // Pad uint256 amount to 32 bytes
   const paddedAmount = amountRaw.toString(16).padStart(64, "0");
   return TRANSFER_SELECTOR + paddedTo + paddedAmount;
 }
 
-/** Parse human-readable amount to USDC raw (6 decimals) */
 function parseUSDC(amount: string): bigint {
   const parts = amount.split(".");
   const whole = parts[0] || "0";
@@ -52,12 +47,16 @@ export const useWithdraw = () => {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Withdraw USDC from Safe to any external address on Polygon.
+   * Withdraw USDC.e from Safe to any external address on Polygon.
+   *
+   * The Safe's balance is split between pUSD (tradable) and USDC.e (ramp input).
+   * We always deliver USDC.e to the user, unwrapping pUSD on the fly if needed.
    *
    * Flow:
-   * 1. Ensure Safe is deployed
-   * 2. Encode ERC-20 transfer(to, amount)
-   * 3. Execute via relayClient.execute() — gasless, Privy signs
+   *   1. Read Safe balances
+   *   2. If USDC.e >= amount: single transfer tx
+   *   3. Otherwise: [unwrap (amount - usdce)] + [transfer amount]
+   *   4. Execute via RelayClient (gasless, Privy signs)
    */
   const withdrawUSDC = useCallback(
     async (params: WithdrawParams): Promise<WithdrawResult> => {
@@ -67,7 +66,6 @@ export const useWithdraw = () => {
       setError(null);
 
       try {
-        // Validate inputs
         if (!validateAddress(toAddress)) {
           throw new Error("Invalid destination address");
         }
@@ -85,32 +83,50 @@ export const useWithdraw = () => {
           throw new Error("No wallet connected");
         }
 
-        // Step 1: Ensure Safe is deployed
         const safeAddress = await ensureSafe();
         console.log("📤 Withdrawing from Safe:", safeAddress);
 
-        // Step 2: Encode transfer calldata (USDC = 6 decimals)
         const amountRaw = parseUSDC(amount);
-        const calldata = encodeTransfer(toAddress, amountRaw);
 
-        // Step 3: Execute via relay (gasless Safe transaction)
-        const tx = {
-          to: USDC_ADDRESS,
+        // Determine whether we need to unwrap pUSD to cover the withdrawal.
+        const [pusdRaw, usdceRaw] = await Promise.all([
+          readPusdBalance(safeAddress as `0x${string}`),
+          readUsdceBalance(safeAddress as `0x${string}`),
+        ]);
+
+        if (usdceRaw + pusdRaw < amountRaw) {
+          throw new Error(
+            `Insufficient balance. Available: ${Number(usdceRaw + pusdRaw) / 1e6} USDC`
+          );
+        }
+
+        const txs: Array<{ to: string; value: string; data: string }> = [];
+
+        if (usdceRaw < amountRaw) {
+          const shortfall = amountRaw - usdceRaw;
+          console.log(
+            `📡 Unwrapping ${Number(shortfall) / 1e6} pUSD to cover withdrawal...`
+          );
+          const unwrap = buildUnwrapTx(safeAddress as `0x${string}`, shortfall);
+          txs.push({ to: unwrap.to, value: unwrap.value, data: unwrap.data });
+        }
+
+        txs.push({
+          to: CONTRACTS.USDC_E,
           value: "0",
-          data: calldata,
-        };
-
-        console.log("📡 Sending withdrawal tx via relay...", {
-          to: toAddress,
-          amount: amount,
-          usdc: USDC_ADDRESS,
+          data: encodeTransfer(toAddress, amountRaw),
         });
 
-        const response = await relayClient.execute([tx] as any);
+        console.log("📡 Sending withdrawal via relay...", {
+          to: toAddress,
+          amount,
+          txCount: txs.length,
+        });
+
+        const response = await relayClient.execute(txs as any);
         const result = await response.wait();
 
         if (!result) {
-          // Check transaction status
           const statusArray = await relayClient.getTransaction(
             response.transactionID
           );
@@ -146,10 +162,25 @@ export const useWithdraw = () => {
         }
 
         console.log("✅ Withdrawal successful:", result);
+
+        // Relayer's POST /submit no longer returns transactionHash directly
+        // (changelog 2026-04-21). Poll GET /transaction for the onchain hash.
+        let txHash: string | undefined = result.transactionHash;
+        if (!txHash) {
+          try {
+            const statusArray = await relayClient.getTransaction(
+              response.transactionID
+            );
+            txHash = statusArray[0]?.transactionHash;
+          } catch {
+            // non-fatal — the tx succeeded, we just couldn't fetch the hash
+          }
+        }
+
         return {
           success: true,
           transactionId: response.transactionID,
-          txHash: result.transactionHash,
+          txHash,
         };
       } catch (err: any) {
         console.error("❌ Withdrawal error:", err);

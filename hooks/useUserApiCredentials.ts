@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { ClobClient } from "@polymarket/clob-client";
+import { ClobClient, Chain } from "@polymarket/clob-client-v2";
 import { useWallet } from "@/providers/WalletProvider";
+import { CLOB_HOST } from "./useClobClient";
 
 export type UserApiCreds = {
   key: string;
@@ -25,12 +26,10 @@ export const useUserApiCredentials = () => {
         throw new Error("Wallet not ready");
       }
 
-      // 1. Memory cache
       if (!forceNew && memCache && memCache.eoa === eoaAddress) {
         return memCache.creds;
       }
 
-      // 2. localStorage
       if (!forceNew && typeof window !== "undefined") {
         const savedEoa = localStorage.getItem(LS_EOA_KEY);
         const savedCreds = localStorage.getItem(LS_KEY);
@@ -46,22 +45,21 @@ export const useUserApiCredentials = () => {
         }
       }
 
-      // Dedup
       if (pendingRef.current) return pendingRef.current;
 
       const doDerive = async (): Promise<UserApiCreds> => {
         console.log("[Creds] Deriving via bare ClobClient...");
 
-        // Bare client — exactly like official privy-safe-builder-example
-        const tempClient = new ClobClient(
-          "https://clob.polymarket.com",
-          137,
-          ethersSigner as any
-        );
+        // V2 SDK uses an options-object constructor. L1/L2 auth is unchanged
+        // from V1, so existing API keys continue to work after the cutover.
+        const tempClient = new ClobClient({
+          host: CLOB_HOST,
+          chain: Chain.POLYGON,
+          signer: ethersSigner as any,
+        });
 
         let creds: UserApiCreds | null = null;
 
-        // Try derive first (returning users)
         try {
           const derived = await tempClient.deriveApiKey();
           if (derived?.key && derived?.secret && derived?.passphrase) {
@@ -72,7 +70,6 @@ export const useUserApiCredentials = () => {
           console.log("[Creds] Derive failed, trying create...");
         }
 
-        // Create new if derive didn't work
         if (!creds) {
           try {
             creds = (await tempClient.createApiKey()) as UserApiCreds;
@@ -87,7 +84,6 @@ export const useUserApiCredentials = () => {
           throw new Error("Failed to obtain trading credentials");
         }
 
-        // Save
         memCache = { eoa: eoaAddress, creds };
         if (typeof window !== "undefined") {
           localStorage.setItem(LS_KEY, JSON.stringify(creds));

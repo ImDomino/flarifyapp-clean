@@ -4,11 +4,12 @@ import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { X, TrendingUp, TrendingDown, Info, AlertCircle, Loader2, CheckCircle } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { Side } from "@polymarket/clob-client";
+import { Side } from "@polymarket/clob-client-v2";
 import { usePlaceOrder } from "@/hooks/usePlaceOrder";
 import { useTokenApprovals } from "@/hooks/useTokenApprovals";
 import { useWallet } from "@/providers/WalletProvider";
 import { useRelayClient } from "@/hooks/useRelayClient";
+import { CLOB_HOST } from "@/hooks/useClobClient";
 
 interface TradingModalProps {
   isOpen: boolean;
@@ -27,6 +28,32 @@ type TradeType = "buy" | "sell";
 
 const MIN_SHARES = 5;
 const MIN_BUY_AMOUNT_USD = 1.01;
+
+/**
+ * Fetch the best executable price for `side` from the CLOB orderbook.
+ *   BUY  → best ask (the price we'd pay to match the cheapest seller)
+ *   SELL → best bid (the price we'd receive matching the highest buyer)
+ * Returns null if the book is empty / unreachable.
+ */
+async function fetchExecutablePrice(
+  tokenId: string,
+  side: "buy" | "sell"
+): Promise<number | null> {
+  try {
+    const res = await fetch(`${CLOB_HOST}/book?token_id=${tokenId}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const levels: Array<{ price: string; size: string }> =
+      side === "buy" ? data.asks || [] : data.bids || [];
+    if (!levels.length) return null;
+    const prices = levels.map((l) => parseFloat(l.price));
+    return side === "buy" ? Math.min(...prices) : Math.max(...prices);
+  } catch {
+    return null;
+  }
+}
 
 export function TradingModal({
   isOpen, onClose, marketId, question, initialSide,
@@ -112,18 +139,32 @@ export function TradingModal({
         }
       }
 
-      let orderSize = tradeType === "buy" ? shares : amountNum;
+      // Snapshot the executable price from the orderbook right before submit.
+      // Using best ask (BUY) / best bid (SELL) makes the order take liquidity
+      // immediately instead of sitting as a limit that never fills.
+      const executablePrice = await fetchExecutablePrice(tokenId, tradeType);
+      const orderPrice = executablePrice ?? price;
+      if (executablePrice != null && executablePrice !== price) {
+        console.log(
+          `[Trade] Using orderbook ${tradeType === "buy" ? "ask" : "bid"} ${executablePrice} instead of displayed ${price}`
+        );
+      }
+
+      let orderSize =
+        tradeType === "buy"
+          ? (orderPrice > 0 ? amountNum / orderPrice : 0)
+          : amountNum;
       if (tradeType === "buy") {
-        const dollarAmount = orderSize * price;
+        const dollarAmount = orderSize * orderPrice;
         if (dollarAmount < 1.0 && dollarAmount > 0.95) {
-          orderSize = Math.ceil((1.0 / price) * 100) / 100;
+          orderSize = Math.ceil((1.0 / orderPrice) * 100) / 100;
         }
       }
 
       await placeOrder({
         tokenId,
         side: tradeType === "buy" ? Side.BUY : Side.SELL,
-        price,
+        price: orderPrice,
         size: orderSize,
         negRisk: negRisk ?? false,
       });

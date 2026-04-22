@@ -12,6 +12,7 @@ import { useWallet } from "@/providers/WalletProvider";
 import { useBalances } from "@/hooks/useBalances";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useAlerts } from "@/hooks/useAlerts";
+import { useWrapCollateral } from "@/hooks/useWrapCollateral";
 import { CreateAlertModal } from "./CreateAlertModal";
 
 export function RightSidebar() {
@@ -29,10 +30,17 @@ export function RightSidebar() {
   } | null>(null);
 
   const { eoaAddress, safeAddress } = useWallet();
-  const { safeBalance, isLoading, refresh } = useBalances(eoaAddress, safeAddress);
+  const { safeBalance, usdceBalance, isLoading, refresh } = useBalances(eoaAddress, safeAddress);
   const { watchlist, prices, toggleWatch, isWatching, isLoading: watchlistLoading } = useWatchlist();
   const { createAlert, hasActiveAlert } = useAlerts();
+  const { wrap, isWrapping } = useWrapCollateral();
   const safeNum = parseFloat(safeBalance || "0");
+  const usdceNum = parseFloat(usdceBalance || "0");
+
+  const handleWrap = async () => {
+    const ok = await wrap();
+    if (ok) refresh();
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -63,7 +71,7 @@ export function RightSidebar() {
       <aside className="col-span-3 hidden lg:block pt-6 lg:pt-8 space-y-6">
         <div className="sticky top-28 space-y-4">
           {/* ═══ Balance Card ═══ */}
-          <div className="bg-[#0a0a0a] border-2 border-white/90 p-6 relative overflow-hidden animate-fade-up group">
+          <div className="bg-[#0a0a0a] border-2 border-white/90 p-4 relative overflow-hidden animate-fade-up group">
             {/* Corner accents */}
             <div className="absolute -top-px -left-px w-3 h-3 bg-white transition-all duration-300 group-hover:w-4 group-hover:h-4" />
             <div className="absolute -bottom-px -right-px w-3 h-3 bg-white transition-all duration-300 group-hover:w-4 group-hover:h-4" />
@@ -71,7 +79,7 @@ export function RightSidebar() {
             <div className="absolute inset-0 grid-bg-animated opacity-5" />
 
             <div className="relative z-10">
-              <div className="flex justify-between items-start mb-5">
+              <div className="flex justify-between items-start mb-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
                   Trading Balance
                 </span>
@@ -84,26 +92,44 @@ export function RightSidebar() {
                 </button>
               </div>
 
-              <div className="mb-6">
+              <div className="mb-4">
                 {isLoading ? (
-                  <div className="h-10 w-32 shimmer-bg" />
+                  <div className="h-8 w-28 shimmer-bg" />
                 ) : (
-                  <span className="text-4xl font-black text-white tracking-tight transition-all">
+                  <span className="text-3xl font-black text-white tracking-tight transition-all">
                     ${safeNum.toFixed(2)}
                   </span>
                 )}
               </div>
 
+              {!isLoading && usdceNum > 0.01 && (
+                <button
+                  onClick={handleWrap}
+                  disabled={isWrapping}
+                  className="w-full mb-3 py-2.5 text-[10px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-300 border border-amber-500/40 hover:bg-amber-500/20 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                  title="USDC.e не торгуется на V2. Сверните его в pUSD, чтобы разблокировать торговлю."
+                >
+                  {isWrapping ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Wrapping…
+                    </>
+                  ) : (
+                    <>Wrap ${usdceNum.toFixed(2)} USDC.e → pUSD</>
+                  )}
+                </button>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setIsDepositOpen(true)}
-                  className="py-3 text-[10px] font-black uppercase tracking-widest bg-white text-black border-2 border-white hover:bg-emerald-50 transition-all duration-200 active:scale-[0.98]"
+                  className="py-2.5 text-[10px] font-black uppercase tracking-widest bg-white text-black border-2 border-white hover:bg-emerald-50 transition-all duration-200 active:scale-[0.98]"
                 >
                   Deposit
                 </button>
                 <button
                   onClick={() => setIsWithdrawOpen(true)}
-                  className="py-3 text-[10px] font-black uppercase tracking-widest bg-black text-white border-2 border-white hover:bg-zinc-900 transition-all duration-200 active:scale-[0.98]"
+                  className="py-2.5 text-[10px] font-black uppercase tracking-widest bg-black text-white border-2 border-white hover:bg-zinc-900 transition-all duration-200 active:scale-[0.98]"
                 >
                   Withdraw
                 </button>

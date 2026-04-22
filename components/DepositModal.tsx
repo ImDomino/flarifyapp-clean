@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { X, Copy, Check, Loader2, Wallet } from "lucide-react";
 import { useBridgeDeposit } from "@/hooks/useBridgeDeposit";
+import { useBalances } from "@/hooks/useBalances";
+import { useWallet } from "@/providers/WalletProvider";
+import { useWrapCollateral } from "@/hooks/useWrapCollateral";
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -21,6 +24,19 @@ export function DepositModal({ isOpen, eoaAddress, onClose, onRefreshBalance }: 
   const [depositStatus, setDepositStatus] = useState<any>(null);
 
   const { createDeposit, getStatus } = useBridgeDeposit(eoaAddress);
+  const { eoaAddress: eoa, safeAddress } = useWallet();
+  const { usdceBalance, refresh: refreshBalances } = useBalances(eoa, safeAddress);
+  const { wrap, isWrapping } = useWrapCollateral();
+
+  const usdceNum = parseFloat(usdceBalance || "0");
+
+  const handleWrap = async () => {
+    const ok = await wrap();
+    if (ok) {
+      refreshBalances();
+      onRefreshBalance?.();
+    }
+  };
 
   useEffect(() => {
     if (!isOpen || initialized) return;
@@ -144,6 +160,27 @@ export function DepositModal({ isOpen, eoaAddress, onClose, onRefreshBalance }: 
             <div className="border border-emerald-500 bg-[#111] p-3 text-xs uppercase tracking-wider text-emerald-300 flex items-center gap-2">
               <Check className="w-4 h-4" />
               <span>Deposit completed</span>
+            </div>
+          )}
+
+          {/* If the bridge delivered USDC.e, prompt to wrap into pUSD.
+              V2 exchange only accepts pUSD as collateral. */}
+          {usdceNum > 0.01 && (
+            <div>
+              <button
+                onClick={handleWrap}
+                disabled={isWrapping}
+                className="w-full py-2.5 text-[10px] font-black uppercase tracking-widest bg-amber-500 text-black border-2 border-amber-500 hover:bg-amber-400 transition-all duration-200 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {isWrapping ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Wrapping…
+                  </>
+                ) : (
+                  <>Wrap ${usdceNum.toFixed(2)} USDC.e → pUSD</>
+                )}
+              </button>
             </div>
           )}
 

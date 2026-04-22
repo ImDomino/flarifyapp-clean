@@ -1,18 +1,26 @@
 /**
- * Token Approvals для Polymarket Trading
+ * Token approvals for Polymarket V2 trading on Polygon.
  *
- * Согласно документации, Safe должен одобрить следующие контракты:
+ * V2 collateral is pUSD (not USDC.e). USDC.e is only needed as input to the
+ * CollateralOnramp (which wraps into pUSD).
  *
- * USDC.e (ERC-20) Approvals:
- * - CTF Contract: 0x4d97dcd97ec945f40cf65f87097ace5ea0476045
- * - CTF Exchange: 0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E
- * - Neg Risk CTF Exchange: 0xC5d563A36AE78145C45a50134d48A1215220f80a
- * - Neg Risk Adapter: 0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296
+ * Required approvals:
  *
- * Outcome Token (ERC-1155) Approvals:
- * - CTF Exchange: 0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E
- * - Neg Risk CTF Exchange: 0xC5d563A36AE78145C45a50134d48A1215220f80a
- * - Neg Risk Adapter: 0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296
+ *   USDC.e (ERC-20) →
+ *     - CollateralOnramp           (so Safe can wrap USDC.e into pUSD)
+ *
+ *   pUSD (ERC-20) →
+ *     - CTF Exchange V2            (spends collateral on buys)
+ *     - Neg Risk CTF Exchange V2   (spends collateral on neg-risk buys)
+ *     - Neg Risk Adapter           (splits collateral for neg-risk markets)
+ *     - CollateralOfframp          (so Safe can unwrap pUSD back to USDC.e)
+ *
+ *   Outcome tokens (ERC-1155 CTF) →
+ *     - CTF Exchange V2            (transfers outcome tokens on sells/matches)
+ *     - Neg Risk CTF Exchange V2
+ *     - Neg Risk Adapter
+ *     - CtfCollateralAdapter       (redeems positions to pUSD)
+ *     - NegRiskCtfCollateralAdapter
  */
 
 import {
@@ -22,22 +30,11 @@ import {
   maxUint256,
 } from "viem";
 import { polygon } from "viem/chains";
+import { CONTRACTS } from "@/lib/polymarket/contracts";
 
-// Contract Addresses (Polygon Mainnet)
-export const CONTRACTS = {
-  // Token contracts
-  USDC_E: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174" as `0x${string}`,
-  CTF_CONTRACT: "0x4d97dcd97ec945f40cf65f87097ace5ea0476045" as `0x${string}`,
+// Re-export for callers that used to import CONTRACTS from this file.
+export { CONTRACTS };
 
-  // Exchange contracts (need approval)
-  CTF_EXCHANGE: "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E" as `0x${string}`,
-  NEG_RISK_CTF_EXCHANGE:
-    "0xC5d563A36AE78145C45a50134d48A1215220f80a" as `0x${string}`,
-  NEG_RISK_ADAPTER:
-    "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296" as `0x${string}`,
-};
-
-// ABIs
 const ERC20_ABI = [
   {
     name: "approve",
@@ -82,8 +79,7 @@ const ERC1155_ABI = [
   },
 ] as const;
 
-// Minimum allowance threshold (1M USDC.e = 1000000 * 10^6)
-const MIN_ALLOWANCE = BigInt("1000000000000");
+const MIN_ALLOWANCE = BigInt("1000000000000"); // 1M at 6 decimals
 
 export interface SafeTransaction {
   to: string;
@@ -92,283 +88,169 @@ export interface SafeTransaction {
   operation: number; // 0 = Call
 }
 
+// Spenders that need to pull pUSD from the Safe.
+const PUSD_SPENDERS: readonly `0x${string}`[] = [
+  CONTRACTS.CTF_EXCHANGE,
+  CONTRACTS.NEG_RISK_CTF_EXCHANGE,
+  CONTRACTS.NEG_RISK_ADAPTER,
+  CONTRACTS.COLLATERAL_OFFRAMP,
+];
+
+// Operators that need to move the Safe's CTF ERC-1155 outcome tokens.
+const ERC1155_OPERATORS: readonly `0x${string}`[] = [
+  CONTRACTS.CTF_EXCHANGE,
+  CONTRACTS.NEG_RISK_CTF_EXCHANGE,
+  CONTRACTS.NEG_RISK_ADAPTER,
+  CONTRACTS.CTF_COLLATERAL_ADAPTER,
+  CONTRACTS.NEG_RISK_CTF_COLLATERAL_ADAPTER,
+];
+
 export interface ApprovalStatus {
   allApproved: boolean;
-  usdc: {
-    ctfContract: boolean;
-    ctfExchange: boolean;
-    negRiskExchange: boolean;
-    negRiskAdapter: boolean;
-  };
-  erc1155: {
-    ctfExchange: boolean;
-    negRiskExchange: boolean;
-    negRiskAdapter: boolean;
-  };
+  /** USDC.e → CollateralOnramp */
+  usdceOnramp: boolean;
+  /** pUSD → exchange/adapter/offramp, keyed by spender address */
+  pusd: Record<string, boolean>;
+  /** ERC-1155 CTF → operator, keyed by operator address */
+  erc1155: Record<string, boolean>;
 }
 
-/**
- * Создаёт PublicClient для чтения данных из блокчейна
- */
 function getPublicClient() {
   return createPublicClient({
     chain: polygon,
     transport: http(
-      process.env.NEXT_PUBLIC_POLYGON_RPC_URL || "https://polygon-bor-rpc.publicnode.com"
+      process.env.NEXT_PUBLIC_POLYGON_RPC_URL ||
+        "https://polygon-bor-rpc.publicnode.com"
     ),
   });
 }
 
-/**
- * Проверяет все необходимые approvals для Safe
- */
 export async function checkAllApprovals(
   safeAddress: string
 ): Promise<ApprovalStatus> {
   const publicClient = getPublicClient();
   const safe = safeAddress as `0x${string}`;
 
-  // USDC.e allowances (явно типизируем как bigint)
-  const [
-    ctfContractAllowance,
-    ctfExchangeAllowance,
-    negRiskExchangeAllowance,
-    negRiskAdapterAllowance,
-  ] = await Promise.all([
-    publicClient.readContract({
-      address: CONTRACTS.USDC_E,
-      abi: ERC20_ABI,
-      functionName: "allowance",
-      args: [safe, CONTRACTS.CTF_CONTRACT],
-    }) as Promise<bigint>,
-    publicClient.readContract({
-      address: CONTRACTS.USDC_E,
-      abi: ERC20_ABI,
-      functionName: "allowance",
-      args: [safe, CONTRACTS.CTF_EXCHANGE],
-    }) as Promise<bigint>,
-    publicClient.readContract({
-      address: CONTRACTS.USDC_E,
-      abi: ERC20_ABI,
-      functionName: "allowance",
-      args: [safe, CONTRACTS.NEG_RISK_CTF_EXCHANGE],
-    }) as Promise<bigint>,
-    publicClient.readContract({
-      address: CONTRACTS.USDC_E,
-      abi: ERC20_ABI,
-      functionName: "allowance",
-      args: [safe, CONTRACTS.NEG_RISK_ADAPTER],
-    }) as Promise<bigint>,
-  ]);
+  const usdceOnrampAllowancePromise = publicClient.readContract({
+    address: CONTRACTS.USDC_E,
+    abi: ERC20_ABI,
+    functionName: "allowance",
+    args: [safe, CONTRACTS.COLLATERAL_ONRAMP],
+  }) as Promise<bigint>;
 
-  // ERC-1155 approvals (bool)
-  const [
-    ctfExchange1155,
-    negRiskExchange1155,
-    negRiskAdapter1155,
-  ] = await Promise.all([
-    publicClient.readContract({
-      address: CONTRACTS.CTF_CONTRACT,
-      abi: ERC1155_ABI,
-      functionName: "isApprovedForAll",
-      args: [safe, CONTRACTS.CTF_EXCHANGE],
-    }) as Promise<boolean>,
-    publicClient.readContract({
-      address: CONTRACTS.CTF_CONTRACT,
-      abi: ERC1155_ABI,
-      functionName: "isApprovedForAll",
-      args: [safe, CONTRACTS.NEG_RISK_CTF_EXCHANGE],
-    }) as Promise<boolean>,
-    publicClient.readContract({
-      address: CONTRACTS.CTF_CONTRACT,
-      abi: ERC1155_ABI,
-      functionName: "isApprovedForAll",
-      args: [safe, CONTRACTS.NEG_RISK_ADAPTER],
-    }) as Promise<boolean>,
-  ]);
+  const pusdAllowancePromises = PUSD_SPENDERS.map(
+    (spender) =>
+      publicClient.readContract({
+        address: CONTRACTS.PUSD,
+        abi: ERC20_ABI,
+        functionName: "allowance",
+        args: [safe, spender],
+      }) as Promise<bigint>
+  );
 
-  const status: ApprovalStatus = {
-    allApproved: false,
-    usdc: {
-      ctfContract: ctfContractAllowance >= MIN_ALLOWANCE,
-      ctfExchange: ctfExchangeAllowance >= MIN_ALLOWANCE,
-      negRiskExchange: negRiskExchangeAllowance >= MIN_ALLOWANCE,
-      negRiskAdapter: negRiskAdapterAllowance >= MIN_ALLOWANCE,
-    },
-    erc1155: {
-      ctfExchange: ctfExchange1155,
-      negRiskExchange: negRiskExchange1155,
-      negRiskAdapter: negRiskAdapter1155,
-    },
-  };
+  const erc1155ApprovalPromises = ERC1155_OPERATORS.map(
+    (operator) =>
+      publicClient.readContract({
+        address: CONTRACTS.CTF,
+        abi: ERC1155_ABI,
+        functionName: "isApprovedForAll",
+        args: [safe, operator],
+      }) as Promise<boolean>
+  );
 
-  status.allApproved =
-    status.usdc.ctfContract &&
-    status.usdc.ctfExchange &&
-    status.usdc.negRiskExchange &&
-    status.usdc.negRiskAdapter &&
-    status.erc1155.ctfExchange &&
-    status.erc1155.negRiskExchange &&
-    status.erc1155.negRiskAdapter;
+  const [usdceOnrampAllowance, pusdAllowances, erc1155Approvals] =
+    await Promise.all([
+      usdceOnrampAllowancePromise,
+      Promise.all(pusdAllowancePromises),
+      Promise.all(erc1155ApprovalPromises),
+    ]);
 
-  return status;
+  const pusd: Record<string, boolean> = {};
+  PUSD_SPENDERS.forEach((spender, i) => {
+    pusd[spender] = pusdAllowances[i] >= MIN_ALLOWANCE;
+  });
+
+  const erc1155: Record<string, boolean> = {};
+  ERC1155_OPERATORS.forEach((operator, i) => {
+    erc1155[operator] = erc1155Approvals[i];
+  });
+
+  const usdceOnramp = usdceOnrampAllowance >= MIN_ALLOWANCE;
+  const allApproved =
+    usdceOnramp &&
+    Object.values(pusd).every(Boolean) &&
+    Object.values(erc1155).every(Boolean);
+
+  return { allApproved, usdceOnramp, pusd, erc1155 };
 }
 
-/**
- * Создаёт транзакции для всех необходимых approvals
- */
+function approveErc20Tx(
+  token: `0x${string}`,
+  spender: `0x${string}`
+): SafeTransaction {
+  return {
+    to: token,
+    data: encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: "approve",
+      args: [spender, maxUint256],
+    }),
+    value: "0",
+    operation: 0,
+  };
+}
+
+function setApprovalForAllTx(operator: `0x${string}`): SafeTransaction {
+  return {
+    to: CONTRACTS.CTF,
+    data: encodeFunctionData({
+      abi: ERC1155_ABI,
+      functionName: "setApprovalForAll",
+      args: [operator, true],
+    }),
+    value: "0",
+    operation: 0,
+  };
+}
+
 export function createAllApprovalTxs(): SafeTransaction[] {
   const txs: SafeTransaction[] = [];
 
-  // USDC.e approvals (ERC-20)
-  const usdcSpenders = [
-    CONTRACTS.CTF_CONTRACT,
-    CONTRACTS.CTF_EXCHANGE,
-    CONTRACTS.NEG_RISK_CTF_EXCHANGE,
-    CONTRACTS.NEG_RISK_ADAPTER,
-  ];
+  txs.push(approveErc20Tx(CONTRACTS.USDC_E, CONTRACTS.COLLATERAL_ONRAMP));
 
-  for (const spender of usdcSpenders) {
-    txs.push({
-      to: CONTRACTS.USDC_E,
-      data: encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [spender, maxUint256],
-      }),
-      value: "0",
-      operation: 0, // Call
-    });
+  for (const spender of PUSD_SPENDERS) {
+    txs.push(approveErc20Tx(CONTRACTS.PUSD, spender));
   }
 
-  // Outcome token approvals (ERC-1155)
-  const erc1155Operators = [
-    CONTRACTS.CTF_EXCHANGE,
-    CONTRACTS.NEG_RISK_CTF_EXCHANGE,
-    CONTRACTS.NEG_RISK_ADAPTER,
-  ];
-
-  for (const operator of erc1155Operators) {
-    txs.push({
-      to: CONTRACTS.CTF_CONTRACT,
-      data: encodeFunctionData({
-        abi: ERC1155_ABI,
-        functionName: "setApprovalForAll",
-        args: [operator, true],
-      }),
-      value: "0",
-      operation: 0, // Call
-    });
+  for (const operator of ERC1155_OPERATORS) {
+    txs.push(setApprovalForAllTx(operator));
   }
 
   return txs;
 }
 
-/**
- * Создаёт только недостающие approval транзакции
- */
 export async function createMissingApprovalTxs(
   safeAddress: string
 ): Promise<SafeTransaction[]> {
   const status = await checkAllApprovals(safeAddress);
-
-  if (status.allApproved) {
-    return [];
-  }
+  if (status.allApproved) return [];
 
   const txs: SafeTransaction[] = [];
 
-  // USDC.e approvals
-  if (!status.usdc.ctfContract) {
-    txs.push({
-      to: CONTRACTS.USDC_E,
-      data: encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [CONTRACTS.CTF_CONTRACT, maxUint256],
-      }),
-      value: "0",
-      operation: 0,
-    });
+  if (!status.usdceOnramp) {
+    txs.push(approveErc20Tx(CONTRACTS.USDC_E, CONTRACTS.COLLATERAL_ONRAMP));
   }
 
-  if (!status.usdc.ctfExchange) {
-    txs.push({
-      to: CONTRACTS.USDC_E,
-      data: encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [CONTRACTS.CTF_EXCHANGE, maxUint256],
-      }),
-      value: "0",
-      operation: 0,
-    });
+  for (const spender of PUSD_SPENDERS) {
+    if (!status.pusd[spender]) {
+      txs.push(approveErc20Tx(CONTRACTS.PUSD, spender));
+    }
   }
 
-  if (!status.usdc.negRiskExchange) {
-    txs.push({
-      to: CONTRACTS.USDC_E,
-      data: encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [CONTRACTS.NEG_RISK_CTF_EXCHANGE, maxUint256],
-      }),
-      value: "0",
-      operation: 0,
-    });
-  }
-
-  if (!status.usdc.negRiskAdapter) {
-    txs.push({
-      to: CONTRACTS.USDC_E,
-      data: encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [CONTRACTS.NEG_RISK_ADAPTER, maxUint256],
-      }),
-      value: "0",
-      operation: 0,
-    });
-  }
-
-  // ERC-1155 approvals
-  if (!status.erc1155.ctfExchange) {
-    txs.push({
-      to: CONTRACTS.CTF_CONTRACT,
-      data: encodeFunctionData({
-        abi: ERC1155_ABI,
-        functionName: "setApprovalForAll",
-        args: [CONTRACTS.CTF_EXCHANGE, true],
-      }),
-      value: "0",
-      operation: 0,
-    });
-  }
-
-  if (!status.erc1155.negRiskExchange) {
-    txs.push({
-      to: CONTRACTS.CTF_CONTRACT,
-      data: encodeFunctionData({
-        abi: ERC1155_ABI,
-        functionName: "setApprovalForAll",
-        args: [CONTRACTS.NEG_RISK_CTF_EXCHANGE, true],
-      }),
-      value: "0",
-      operation: 0,
-    });
-  }
-
-  if (!status.erc1155.negRiskAdapter) {
-    txs.push({
-      to: CONTRACTS.CTF_CONTRACT,
-      data: encodeFunctionData({
-        abi: ERC1155_ABI,
-        functionName: "setApprovalForAll",
-        args: [CONTRACTS.NEG_RISK_ADAPTER, true],
-      }),
-      value: "0",
-      operation: 0,
-    });
+  for (const operator of ERC1155_OPERATORS) {
+    if (!status.erc1155[operator]) {
+      txs.push(setApprovalForAllTx(operator));
+    }
   }
 
   return txs;

@@ -12,25 +12,23 @@ const BUILDER_CREDENTIALS: BuilderApiKeyCreds = {
 /**
  * POST /api/polymarket/sign
  *
- * Called by BuilderConfig remote signing (inside @polymarket/clob-client
- * and @polymarket/builder-relayer-client SDKs).
+ * HMAC signing endpoint for the Polymarket Relayer (relayer-v2.polymarket.com).
  *
- * The SDK's internal fetch may or may not include Origin headers depending
- * on the browser and request context. We use a layered auth approach:
+ * The Relayer authenticates every /submit and /transaction request with a
+ * builder-scoped HMAC signature. The @polymarket/builder-relayer-client SDK
+ * calls this endpoint (via BuilderConfig's remoteBuilderConfig.url) whenever
+ * it needs a fresh signature, so the builder secret stays on the server and
+ * never touches the browser.
  *
- * 1. Privy JWT (if present) — strongest auth
- * 2. Origin/Referer validation — same-origin browser requests
- * 3. IP rate limiting — catch-all for SDK calls without headers
- *
- * This endpoint only returns HMAC signatures — no credentials are leaked.
+ * This is NOT related to the CLOB Exchange V2 order-signing migration — the
+ * V2 Exchange moved builder attribution into the signed order struct (bytes32),
+ * but the Relayer service is orthogonal and still uses HMAC auth.
  */
 export async function POST(request: NextRequest) {
   try {
-    // Try Privy auth first
     let userId = await getAuthenticatedUser(request);
 
     if (!userId) {
-      // SDK calls may not include Origin/Referer in all browsers
       const origin = request.headers.get("origin");
       const referer = request.headers.get("referer");
       const host = request.headers.get("host");
@@ -39,16 +37,12 @@ export async function POST(request: NextRequest) {
         (origin && host && origin.includes(host)) ||
         (referer && host && referer.includes(host));
 
-      // Rate limit all unauthenticated requests by IP
       const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
       if (!isValidOrigin) {
-        // Log for debugging — SDK internal calls may lack Origin
         console.warn(
           `[sign] No Privy auth and no valid Origin. origin=${origin}, referer=${referer}, host=${host}, ip=${ip}`
         );
-        // Still allow but with strict rate limiting — this endpoint
-        // only returns signatures, not credentials
         if (!RL.placeOrder(`ip-strict:${ip}`)) return rateLimitResponse();
       } else {
         if (!RL.placeOrder(`ip:${ip}`)) return rateLimitResponse();
@@ -66,13 +60,12 @@ export async function POST(request: NextRequest) {
       BUILDER_CREDENTIALS.secret,
       parseInt(sigTimestamp),
       method || "POST",
-      path || "/order",
+      path || "/submit",
       reqBody || ""
     );
 
-    // Log what we're signing (no secrets)
     console.log(
-      `[sign] method=${method || "POST"}, path=${path || "/order"}, bodyLen=${
+      `[sign] method=${method || "POST"}, path=${path || "/submit"}, bodyLen=${
         typeof reqBody === "string" ? reqBody.length : JSON.stringify(reqBody || "").length
       }, ts=${sigTimestamp}`
     );
